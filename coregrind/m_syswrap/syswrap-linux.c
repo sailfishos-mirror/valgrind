@@ -4482,6 +4482,76 @@ POST(sys_listmount)
    }
 }
 
+PRE(sys_file_getattr)
+{
+   // SYSCALL_DEFINE5(file_getattr, int, dfd, const char __user *, filename,
+   //                 struct file_attr __user *, ufattr, size_t, usize,
+   //                 unsigned int, at_flags)
+   // in: dfd, filename, at_flags
+   // out: ufattr, usize
+   *flags |= SfMayBlock;
+   Int arg_1 = (Int) ARG1;
+   PRINT("sys_file_getattr ( %ld, %#" FMT_REGWORD "x(%s), %#" FMT_REGWORD "x, %" FMT_REGWORD "u, %#" FMT_REGWORD "x )" ,
+         SARG1, ARG2, (HChar*)(Addr)ARG2, ARG3, ARG4, ARG5);
+   PRE_REG_READ5(int, "file_getattr", int, dfd, const char*, filename,
+                 struct vki_file_attr *, ufattr, vki_size_t, usize, int, at_flags);
+   // Per https://lwn.net/Articles/1020992/ :
+   // >> The syscalls take fd and path. If path is absolute, fd is not used. If path
+   // is empty, fd can be AT_FDCWD or any valid fd which will be used to get/set
+   // attributes on. <<  That said, we can't use ML_(fd_at_check_allowed)() here,
+   // because there is nothing special about relative path.
+   if (ARG1 == 0)
+   {
+      if (arg_1 != VKI_AT_FDCWD && !ML_(fd_allowed)(arg_1, "file_getattr", tid, False))
+      {
+         SET_STATUS_Failure( VKI_EBADF );
+      }
+   }
+   else
+   {
+      PRE_MEM_RASCIIZ("file_getattr(filename)", ARG2);
+   }
+   PRE_MEM_WRITE("file_getattr(ufattr)", ARG3, sizeof(struct vki_file_attr));
+   PRE_MEM_WRITE("file_getattr(usize)", ARG4, sizeof(vki_size_t));
+}
+
+POST(sys_file_getattr)
+{
+   // POST_MEM_WRITE(ARG3, sizeof(struct vki_file_attr));
+   // POST_MEM_WRITE(ARG4, sizeof(vki_size_t));
+}
+
+PRE(sys_file_setattr)
+{
+   // SYSCALL_DEFINE5(file_setattr, int, dfd, const char __user *, filename,
+   //                 struct file_attr __user *, ufattr, size_t, usize,
+   //                 unsigned int, at_flags)
+   // in: dfd, filename, ufattr, usize, at_flags
+   *flags |= SfMayBlock;
+   Int arg_1 = (Int) ARG1;
+   PRINT("sys_file_getattr ( %ld, %#" FMT_REGWORD "x(%s), %#" FMT_REGWORD "x, %" FMT_REGWORD "u, %#" FMT_REGWORD "x )" ,
+         SARG1, ARG2, (HChar*)(Addr)ARG2, ARG3, ARG4, ARG5);
+   PRE_REG_READ5(int, "file_setattr", int, dfd, const char*, filename,
+                 struct vki_file_attr *, ufattr, vki_size_t, usize, int, at_flags);
+   // Per https://lwn.net/Articles/1020992/ :
+   // >> The syscalls take fd and path. If path is absolute, fd is not used. If path
+   // is empty, fd can be AT_FDCWD or any valid fd which will be used to get/set
+   // attributes on. <<  That said, we can't use ML_(fd_at_check_allowed)() here,
+   // because there is nothing special about relative path.
+   if (ARG1 == 0)
+   {
+      if (arg_1 != VKI_AT_FDCWD && !ML_(fd_allowed)(arg_1, "file_setattr", tid, False))
+      {
+         SET_STATUS_Failure( VKI_EBADF );
+      }
+   }
+   else
+   {
+      PRE_MEM_RASCIIZ("file_setattr(filename)", ARG2);
+   }
+   PRE_MEM_READ("file_setattr(ufattr)", ARG3, sizeof(struct vki_file_attr));
+}
+
 PRE(sys_syncfs)
 {
    *flags |= SfMayBlock;
