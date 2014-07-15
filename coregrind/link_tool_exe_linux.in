@@ -99,9 +99,12 @@ foreach my $n (2 .. $#ARGV) {
 }
 
 # If we're linking for BGQ, add "-r" at the end so that we produce 
-# an ELF relocatable rather than an ELF executable.
+# an ELF relocatable rather than an ELF executable.  And "-d" so as
+# to assign space to "common" symbols so that localise_names can 
+# then localise them -- apparently objcopy can't localise "C" (common)
+# symbols.
 if ($triple eq 'powerpc64-bgq-linux') {
-   $cmd = "$cmd -r";
+   $cmd = "$cmd -r -Wl,-d";
 }
 
 #print "link_tool_exe_linux: $cmd\n";

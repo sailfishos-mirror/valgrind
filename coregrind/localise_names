@@ -8,10 +8,12 @@ fi
 
 rm -f tmpnames1 tmpnames2
 
-# get global text/data names into tmpnames1
+# get global text/data/rodata/bss names into tmpnames1
 
 nm $1 | grep " T " > tmpnames1
 nm $1 | grep " D " >> tmpnames1
+nm $1 | grep " R " >> tmpnames1
+nm $1 | grep " B " >> tmpnames1
 
 # expecting tmpnames1 to look like this
 # 00016904 T AMD64AMode_IR
