@@ -1528,6 +1528,17 @@ PRE(sys_1076)
    PRINT("sys_1075_GETRANK()");
 }
 
+// GETMEMORYSIZE(S,Pout)
+PRE(sys_1083)
+{
+   PRINT("sys_1083_GETMEMORYSIZE(%lu,%#lx)", ARG1, ARG2);
+   PRE_MEM_WRITE("getmemorysize(size)", ARG2, sizeof(ULong));
+}
+POST(sys_1083)
+{
+   POST_MEM_WRITE(ARG2, sizeof(ULong));
+}
+
 // GETPVR: (P?,S,S,S,S,S)
 PRE(sys_1089)
 {
@@ -1976,6 +1987,7 @@ static SyscallTableEntry syscall_table[] = {
    PLAX_(1071, sys_1071),    // SETGINTCLASSROUTE
    PLAX_(1075, sys_1075),    // SETNUMSPECDOMAINS
    PLAX_(1076, sys_1076),    // GETRANK
+   PLAXY(1083, sys_1083),    // GETMEMORYSIZE
    PLAXY(1089, sys_1089),    // GETPVR
    PLAX_(1090, sys_1090),    // ENABLEFASTSPECULATIONPATHS
 };
