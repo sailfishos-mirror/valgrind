@@ -1702,7 +1702,7 @@ static SyscallTableEntry syscall_table[] = {
 //QQ   GENXY(__NR_setitimer,         sys_setitimer),          // 104
 //QQ
 //QQ   GENXY(__NR_getitimer,         sys_getitimer),          // 105
-//QQ   GENXY(__NR_stat,              sys_newstat),            // 106
+   GENXY(__NR_stat,              sys_newstat),            // 106
 //QQ   GENXY(__NR_lstat,             sys_newlstat),           // 107
    GENXY(__NR_fstat,             sys_newfstat),           // 108
 //QQ// _____(__NR_olduname,          sys_olduname),           // 109
