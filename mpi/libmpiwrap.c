@@ -2367,6 +2367,16 @@ int WRAPPER_FOR(PMPI_Finalize)(void)
       return res;                                                 \
    }
 
+#define DEFAULT_WRAPPER_W_2W_NO_DER(basename)                     \
+   /* Special variant of _W_2W that doesn't disable error */      \
+   /* reporting.  For use by MPI_Abort only. */                   \
+   UWord WRAPPER_FOR(PMPI_##basename)( UWord a1, UWord a2 )       \
+   {                                                              \
+      DEFAULT_WRAPPER_PREAMBLE(basename)                          \
+      CALL_FN_W_WW(res, fn, a1,a2);                               \
+      return res;                                                 \
+   }
+
 #define DEFAULT_WRAPPER_W_3W(basename)                            \
    UWord WRAPPER_FOR(PMPI_##basename)                             \
       ( UWord a1, UWord a2, UWord a3 )                            \
@@ -2482,7 +2492,13 @@ int WRAPPER_FOR(PMPI_Finalize)(void)
 /* If a function is commented out in this list, it's because it has a
    proper wrapper written elsewhere (above here). */
 
-DEFAULT_WRAPPER_W_2W(Abort)
+/* MPI_Abort is a bit special.  It (may?) cause the calling thread to
+   exit, so disabling error reporting over the wrapped call causes
+   Valgrind to complain that the exiting thread has error reporting
+   disabled.  Hence user a special _NO_DER variant that doesn't
+   disable error reporting. */
+DEFAULT_WRAPPER_W_2W_NO_DER(Abort)
+
 DEFAULT_WRAPPER_W_9W(Accumulate)
 DEFAULT_WRAPPER_W_1W(Add_error_class)
 DEFAULT_WRAPPER_W_2W(Add_error_code)
