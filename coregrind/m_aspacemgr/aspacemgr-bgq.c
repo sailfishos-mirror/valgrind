@@ -122,7 +122,7 @@ typedef
 
 /* ------ start of STATE for the address-space manager ------ */
 
-#define VG_N_BSEGMENTS 1000
+#define VG_N_BSEGMENTS 2000
 
 static BSegment bsegs[VG_N_BSEGMENTS];
 static Int      bsegs_used = 0;
