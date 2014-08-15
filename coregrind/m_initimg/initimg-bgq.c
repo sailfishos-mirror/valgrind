@@ -51,6 +51,10 @@
 #include "pub_core_threadstate.h"     /* ThreadArchState */
 #include "pub_core_initimg.h"         /* self */
 
+/* A 64-bit AUXV entry. */
+typedef  struct { ULong a_type; ULong a_val; }  Auxv64T;
+
+
 /* Create the client's initial memory image. */
 
 IIFinaliseImageInfo VG_(ii_create_image)( IICreateImageInfo iicii )
@@ -128,10 +132,11 @@ void VG_(ii_finalise_image)( IIFinaliseImageInfo iifii )
 
    // for argc/argv debugging
    if (0) {
-      ULong*  p    = (ULong*)arch->vex.guest_GPR1;
-      Long    argc = p[0];
-      UChar** argv = (UChar**)&p[1];
-      UChar** envp = (UChar**)&p[1+argc+1];
+      ULong*   p    = (ULong*)arch->vex.guest_GPR3;
+      Long     argc = p[0];
+      UChar**  argv = (UChar**)&p[1];
+      UChar**  envp = (UChar**)&p[1+argc+1];
+      Auxv64T* auxv;
       Long i;
       VG_(printf)("<<<< BEFORE\n");
       VG_(printf)("ARGC %lld\n", argc);
@@ -140,7 +145,13 @@ void VG_(ii_finalise_image)( IIFinaliseImageInfo iifii )
       vg_assert(envp[-1] == 0);
       for (; *envp; envp++)
          VG_(printf)("ENVP %s\n", *envp);
-      VG_(printf)(">>>> BEFORE\n");
+      vg_assert(*envp == NULL);
+      envp++;
+      for (auxv = (Auxv64T*)envp; auxv->a_type != 0/*AT_NULL*/; auxv++) {
+         VG_(printf)("AUXV %2llu %016llx\n", auxv->a_type, auxv->a_val);
+      }
+      VG_(printf)("AUXV %2llu %016llx\n", auxv->a_type, auxv->a_val);
+      VG_(printf)(">>>> BEFORE\n\n");
    }
 
    { /* Monkey around with argc/argv so the client doesn't see the
@@ -190,10 +201,9 @@ void VG_(ii_finalise_image)( IIFinaliseImageInfo iifii )
         accordingly, as per comments above. */
      t_argv[-1] = (HChar*)t_argc;
      arch->vex.guest_GPR1 = (ULong)&t_argv[-1];
-     arch->vex.guest_GPR3 = arch->vex.guest_GPR1;
 
      // R3 = argc
-     arch->vex.guest_GPR3 = t_argc;
+     arch->vex.guest_GPR3 = (ULong)&t_argv[-1];
      // R4 = argv
      arch->vex.guest_GPR4 = (ULong)&t_argv[0];
      // R5 = envp
@@ -206,18 +216,82 @@ void VG_(ii_finalise_image)( IIFinaliseImageInfo iifii )
      }
      // R7 (term fn ptr) = 0
      arch->vex.guest_GPR7 = 0;
-     // R1 is 16-aligned and points to a zero
-     arch->vex.guest_GPR1 -= 32;
-     arch->vex.guest_GPR1 &= ~31ULL;
-     *(ULong*)arch->vex.guest_GPR1 = 0;
+
+     /* The stack image, and R1/3/4/5/6/7 now correctly reflect the
+        removed command line args.  However, doing so is likely to
+        have misaligned R1 (the stack pointer), which appears to
+        require to be 64-aligned.  So we will have to slide the entire
+        argc/argv/envp/auxv section down between 0 and 7 words (0 to
+        56 bytes) in order to reestablish R1 alignment.  This is a
+        little tricky in that we will have to scan through auxv to
+        find out how large it is. */
+
+     /* Address of the first word after the end of auxv.  This
+        is the first word that we don't have to copy. */
+     ULong* auxv_end1 = NULL;
+     { 
+       Auxv64T* auxv = (Auxv64T*)(arch->vex.guest_GPR6);
+       for ( ; auxv->a_type != 0/*AT_NULL*/; auxv++)
+         ;
+       /* Now auxv is pointing at the last entry.  We have to copy
+          that too.  Hence: */
+       auxv_end1 = (ULong*)(&auxv[1]);
+     }
+
+     /* Now figure out how far we have to slide everything in order
+        to regain 64-alignment for R1(SP). */
+     ULong delta = 64; /*INVALID*/
+     {
+       ULong t1 = arch->vex.guest_GPR1;
+       ULong t2 = t1 & ~63ULL;
+       delta = t1 - t2;
+     }
+     vg_assert(delta == 0 || delta == 8 || delta == 16 || delta == 24
+               || delta == 32 || delta == 40 || delta == 48 || delta == 56);
+     vg_assert(sizeof(UWord) == 8);
+     ULong deltaW = delta / sizeof(UWord);
+     vg_assert(deltaW >= 0 && deltaW <= 7);
+     vg_assert(VG_IS_64_ALIGNED(arch->vex.guest_GPR1 - delta));
+
+     /* If there are hardwired args, then we do not expect to be
+        making any changes to the image or registers.  So assert for
+        that. */
+     if (iifii.have_hardwired_args) {
+       vg_assert(delta == 0);
+     }
+
+     if (0) {
+        VG_(printf)("VG_(ii_finalise_image): "
+                    "need to slide stack down by %llu words\n", deltaW);
+        VG_(printf)("VG_(ii_finalise_image): "
+                    "first  word to move is at %p\n",
+                    (void*)arch->vex.guest_GPR1);
+        VG_(printf)("VG_(ii_finalise_image): "
+                    "last+1 word to move is at %p\n",
+                    (void*)auxv_end1);
+     }
+
+     { 
+       ULong* q;
+       for (q = (ULong*)arch->vex.guest_GPR1; q < auxv_end1; q++) {
+          q[-deltaW] = q[0];
+       }
+     }
+
+     /* Now, finally, adjust pointers into the array: R1, R3, R4, R5, R5. */
+     arch->vex.guest_GPR1 -= delta;
+     arch->vex.guest_GPR3 -= delta;
+     arch->vex.guest_GPR4 -= delta;
+     arch->vex.guest_GPR5 -= delta;
+     arch->vex.guest_GPR6 -= delta;
    }
 
-   // for argc/argv debugging
    if (0) {
-      ULong*  p    = (ULong*)arch->vex.guest_GPR1;
-      Long    argc = p[0];
-      UChar** argv = (UChar**)&p[1];
-      UChar** envp = (UChar**)&p[1+argc+1];
+      ULong*   p    = (ULong*)arch->vex.guest_GPR3;
+      Long     argc = p[0];
+      UChar**  argv = (UChar**)&p[1];
+      UChar**  envp = (UChar**)&p[1+argc+1];
+      Auxv64T* auxv;
       Long i;
       VG_(printf)("<<<< AFTER\n");
       VG_(printf)("ARGC %lld\n", argc);
@@ -225,8 +299,14 @@ void VG_(ii_finalise_image)( IIFinaliseImageInfo iifii )
          VG_(printf)("ARGV %lld %s\n", i, argv[i]);
       vg_assert(envp[-1] == 0);
       for (; *envp; envp++)
-         VG_(printf)("iimg ENVP %s\n", *envp);
-      VG_(printf)(">>>> AFTER\n");
+         VG_(printf)("ENVP %s\n", *envp);
+      vg_assert(*envp == NULL);
+      envp++;
+      for (auxv = (Auxv64T*)envp; auxv->a_type != 0/*AT_NULL*/; auxv++) {
+         VG_(printf)("AUXV %2llu %016llx\n", auxv->a_type, auxv->a_val);
+      }
+      VG_(printf)("AUXV %2llu %016llx\n", auxv->a_type, auxv->a_val);
+      VG_(printf)(">>>> AFTER\n\n");
    }
 
    /* Tell the tool that we just wrote to the registers. */
