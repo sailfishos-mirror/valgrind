@@ -1625,7 +1625,7 @@ static SyscallTableEntry syscall_table[] = {
 //QQ   LINX_(__NR_utime,             sys_utime),              //  30
 //QQ// _____(__NR_stty,              sys_stty),               //  31
 //QQ// _____(__NR_gtty,              sys_gtty),               //  32
-//QQ   GENX_(__NR_access,            sys_access),             //  33
+   GENX_(__NR_access,            sys_access),             //  33
 //QQ// _____(__NR_nice,              sys_nice),               //  34
 //QQ
 //QQ// _____(__NR_ftime,             sys_ftime),              //  35
@@ -1687,8 +1687,8 @@ static SyscallTableEntry syscall_table[] = {
 //QQ// _____(__NR_select,            sys_select),             //  82
 //QQ   GENX_(__NR_symlink,           sys_symlink),            //  83
 //QQ// _____(__NR_oldlstat,          sys_oldlstat),           //  84
-//QQ
-//QQ   GENX_(__NR_readlink,          sys_readlink),           //  85
+
+   GENX_(__NR_readlink,          sys_readlink),           //  85
 //QQ// _____(__NR_uselib,            sys_uselib),             //  86
 //QQ// _____(__NR_swapon,            sys_swapon),             //  87
 //QQ// _____(__NR_reboot,            sys_reboot),             //  88
