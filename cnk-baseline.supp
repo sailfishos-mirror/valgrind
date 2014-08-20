@@ -109,7 +109,7 @@
    fun:malloc
    fun:MPIDI_Coll_comm_destroy
    fun:MPIDI_Comm_destroy
-   fun:MPIR_Comm_delete_internal
+   fun:*MPIR_Comm_delete_internal
    fun:MPIR_Comm_release_always
    fun:MPID_Finalize
 }
@@ -143,4 +143,22 @@
    fun:_ZN4PAMI6Memory17HeapMemoryManager8*
    fun:PAMI_Geometry_destroy
    fun:geom_destroy_wrapper
+}
+
+{
+   CNK-BASELINE-15
+   Memcheck:Cond
+   fun:pthread_setcancelstate
+   fun:RTECleanup
+   fun:_xlfExit
+}
+
+{
+   CNK-BASELINE-16
+   Memcheck:Leak
+   fun:_Znwm
+   fun:_Z*Rb_tree*
+   fun:_Z*Rb_tree*
+   ...
+   fun:PAMI_Context_createv
 }
