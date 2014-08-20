@@ -50,7 +50,7 @@
     "--xml-user-comment=<rank>%r</rank> " \
     "--error-limit=no " \
     "--num-callers=20 " \
-    "--ignore-ranges=0x4000000000000-0x4063000000000" \
+    "--ignore-ranges=0x4000000000000-0x4064000000000" \
                    ",0x003fdc0000000-0x003fe00000000" \
                    " " \
     "--suppressions=/g/g92/seward3/BGQ2014/branch38bgq-2014May21/cnk-baseline.supp " \
