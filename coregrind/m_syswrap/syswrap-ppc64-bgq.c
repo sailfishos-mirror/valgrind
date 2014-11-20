@@ -1609,12 +1609,12 @@ static SyscallTableEntry syscall_table[] = {
 //QQ// _____(__NR_break,             sys_break),              //  17
 //QQ// _____(__NR_oldstat,           sys_oldstat),            //  18
    LINX_(__NR_lseek,             sys_lseek),              //  19
-//QQ
-//QQ   GENX_(__NR_getpid,            sys_getpid),             //  20
+
+   GENX_(__NR_getpid,            sys_getpid),             //  20
 //QQ   LINX_(__NR_mount,             sys_mount),              //  21
 //QQ// _____(__NR_umount,            sys_umount),             //  22
 //QQ   GENX_(__NR_setuid,            sys_setuid),             //  23
-//QQ   GENX_(__NR_getuid,            sys_getuid),             //  24
+   GENX_(__NR_getuid,            sys_getuid),             //  24
 //QQ
 //QQ// _____(__NR_stime,             sys_stime),              //  25
 //QQ// _____(__NR_ptrace,            sys_ptrace),             //  26
@@ -1642,7 +1642,7 @@ static SyscallTableEntry syscall_table[] = {
 //QQ
    PLAX_(__NR_brk,               sys_brk),                //  45  // AM-Obs different
 //QQ   GENX_(__NR_setgid,            sys_setgid),             //  46
-//QQ   GENX_(__NR_getgid,            sys_getgid),             //  47
+   GENX_(__NR_getgid,            sys_getgid),             //  47
 //QQ// _____(__NR_signal,            sys_signal),             //  48
 //QQ   GENX_(__NR_geteuid,           sys_geteuid),            //  49
 //QQ
@@ -1662,7 +1662,7 @@ static SyscallTableEntry syscall_table[] = {
 //QQ   GENX_(__NR_chroot,            sys_chroot),             //  61
 //QQ// _____(__NR_ustat,             sys_ustat),              //  62
 //QQ   GENXY(__NR_dup2,              sys_dup2),               //  63
-//QQ   GENX_(__NR_getppid,           sys_getppid),            //  64
+   GENX_(__NR_getppid,           sys_getppid),            //  64
 //QQ
 //QQ   GENX_(__NR_getpgrp,           sys_getpgrp),            //  65
 //QQ   GENX_(__NR_setsid,            sys_setsid),             //  66
