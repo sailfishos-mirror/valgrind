@@ -959,17 +959,39 @@ static void handle_SCSS_change ( Bool force_update )
       if (!force_update) {
          vg_assert(ksa_old.ksa_handler 
                    == skss_old.skss_per_sig[sig].skss_handler);
+
+#        if defined(VGPV_ppc64_linux_bgq)
+         /* BGQ/CNK ignores all requests for SA_RESTART, SA_RESTORER
+            and SA_SIGINFO, so we don't expect to see them in the old
+            signal state. */
+         vg_assert(ksa_old.sa_flags
+                   == (skss_old.skss_per_sig[sig].skss_flags
+                       & ~(VKI_SA_RESTART | VKI_SA_RESTORER | VKI_SA_SIGINFO)));
+#        else
          vg_assert(ksa_old.sa_flags 
                    == skss_old.skss_per_sig[sig].skss_flags);
-#        if !defined(VGP_ppc32_linux) && \
-            !defined(VGP_x86_darwin) && !defined(VGP_amd64_darwin) && \
-            !defined(VGP_mips32_linux)
+#        endif
+
+#        if defined(VGPV_ppc64_linux_bgq)
+         /* Similarly, BGQ/CNK ignores restorers. */
+         vg_assert(ksa_old.sa_restorer == NULL);
+#        elif !defined(VGP_ppc32_linux) && \
+              !defined(VGP_x86_darwin) && !defined(VGP_amd64_darwin) && \
+              !defined(VGP_mips32_linux)
          vg_assert(ksa_old.sa_restorer 
                    == my_sigreturn);
 #        endif
+
+#        if defined(VGPV_ppc64_linux_bgq)
+         /* And .. it appears .. BGQ/CNK ignores requests to block
+            signals in handlers.  Hence this. */
+         vg_assert(VG_(isemptysigset)( &ksa_old.sa_mask ));
+#        else
+         VG_(printf)("set 0x%llx\n", (ULong)ksa_old.sa_mask.sig[0]);
          VG_(sigaddset)( &ksa_old.sa_mask, VKI_SIGKILL );
          VG_(sigaddset)( &ksa_old.sa_mask, VKI_SIGSTOP );
          vg_assert(VG_(isfullsigset)( &ksa_old.sa_mask ));
+#        endif
       }
    }
 }
