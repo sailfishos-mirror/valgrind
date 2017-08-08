@@ -1074,7 +1074,7 @@ extern ARMInstr* genMove_ARM(HReg from, HReg to, Bool);
 
 extern const RRegUniverse* getRRegUniverse_ARM ( void );
 
-extern HInstrArray* iselSB_ARM   ( const IRSB*, 
+extern HInstrSB* iselSB_ARM      ( const IRSB*,
                                    VexArch,
                                    const VexArchInfo*,
                                    const VexAbiInfo*,

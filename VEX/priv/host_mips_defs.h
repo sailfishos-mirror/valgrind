@@ -704,7 +704,7 @@ extern MIPSInstr* genMove_MIPS(HReg from, HReg to, Bool mode64);
 
 extern const RRegUniverse* getRRegUniverse_MIPS ( Bool mode64 );
 
-extern HInstrArray *iselSB_MIPS          ( const IRSB*,
+extern HInstrSB *iselSB_MIPS             ( const IRSB*,
                                            VexArch,
                                            const VexArchInfo*,
                                            const VexAbiInfo*,

@@ -1011,7 +1011,7 @@ extern ARM64Instr* genMove_ARM64(HReg from, HReg to, Bool);
 
 extern const RRegUniverse* getRRegUniverse_ARM64 ( void );
 
-extern HInstrArray* iselSB_ARM64 ( const IRSB*, 
+extern HInstrSB* iselSB_ARM64    ( const IRSB*,
                                    VexArch,
                                    const VexArchInfo*,
                                    const VexAbiInfo*,
