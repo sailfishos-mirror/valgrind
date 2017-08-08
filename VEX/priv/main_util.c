@@ -123,6 +123,8 @@ void vexAllocSanityCheck ( void )
    vassert(IS_WORD_ALIGNED(private_LibVEX_alloc_curr));
    vassert(IS_WORD_ALIGNED(private_LibVEX_alloc_last+1));
 #  undef IS_WORD_ALIGNED
+
+   STATIC_ASSERT(sizeof(IRTemp) == 4);
 }
 
 /* The current allocation mode. */
