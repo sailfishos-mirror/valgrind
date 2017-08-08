@@ -72,6 +72,9 @@ Addr ado_treebuild_BB (
         VexRegisterUpdates pxControl
      );
 
+/* Deconstructs phi nodes. IRSB is modified and no longer holds SSA propery. */
+extern void deconstruct_phi_nodes(IRSB* bb);
+
 #endif /* ndef __VEX_IR_OPT_H */
 
 /*---------------------------------------------------------------*/

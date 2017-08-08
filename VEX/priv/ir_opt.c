@@ -266,7 +266,7 @@ static void addToHHW ( HashHW* h, HWord key, HWord val )
 /* Non-critical helper, heuristic for reducing the number of tmp-tmp
    copies made by flattening.  If in doubt return False. */
 
-static Bool isFlat ( IRExpr* e )
+static Bool isFlat(const IRExpr* e)
 {
    if (e->tag == Iex_Get) 
       return True;
@@ -280,102 +280,101 @@ static Bool isFlat ( IRExpr* e )
 
 /* Flatten out 'ex' so it is atomic, returning a new expression with
    the same value, after having appended extra IRTemp assignments to
-   the end of 'bb'. */
+   the end of 'stmts'. */
 
-static IRExpr* flatten_Expr ( IRSB* bb, IRExpr* ex )
+static IRExpr* flatten_Expr(IRTypeEnv* tyenv, IRStmtVec* stmts, IRExpr* ex)
 {
    Int i;
    IRExpr** newargs;
-   IRType ty = typeOfIRExpr(bb->tyenv, ex);
+   IRType ty = typeOfIRExpr(tyenv, ex);
    IRTemp t1;
 
    switch (ex->tag) {
 
       case Iex_GetI:
-         t1 = newIRTemp(bb->tyenv, ty);
-         addStmtToIRSB(bb, IRStmt_WrTmp(t1,
+         t1 = newIRTemp(tyenv, stmts, ty);
+         addStmtToIRStmtVec(stmts, IRStmt_WrTmp(t1,
             IRExpr_GetI(ex->Iex.GetI.descr,
-                        flatten_Expr(bb, ex->Iex.GetI.ix),
+                        flatten_Expr(tyenv, stmts, ex->Iex.GetI.ix),
                         ex->Iex.GetI.bias)));
          return IRExpr_RdTmp(t1);
 
       case Iex_Get:
-         t1 = newIRTemp(bb->tyenv, ty);
-         addStmtToIRSB(bb, 
-            IRStmt_WrTmp(t1, ex));
+         t1 = newIRTemp(tyenv, stmts, ty);
+         addStmtToIRStmtVec(stmts, IRStmt_WrTmp(t1, ex));
          return IRExpr_RdTmp(t1);
 
       case Iex_Qop: {
          IRQop* qop = ex->Iex.Qop.details;
-         t1 = newIRTemp(bb->tyenv, ty);
-         addStmtToIRSB(bb, IRStmt_WrTmp(t1, 
+         t1 = newIRTemp(tyenv, stmts, ty);
+         addStmtToIRStmtVec(stmts, IRStmt_WrTmp(t1,
             IRExpr_Qop(qop->op,
-                         flatten_Expr(bb, qop->arg1),
-                         flatten_Expr(bb, qop->arg2),
-                         flatten_Expr(bb, qop->arg3),
-                         flatten_Expr(bb, qop->arg4))));
+                         flatten_Expr(tyenv, stmts, qop->arg1),
+                         flatten_Expr(tyenv, stmts, qop->arg2),
+                         flatten_Expr(tyenv, stmts, qop->arg3),
+                         flatten_Expr(tyenv, stmts, qop->arg4))));
          return IRExpr_RdTmp(t1);
       }
 
       case Iex_Triop: {
          IRTriop* triop = ex->Iex.Triop.details;
-         t1 = newIRTemp(bb->tyenv, ty);
-         addStmtToIRSB(bb, IRStmt_WrTmp(t1, 
+         t1 = newIRTemp(tyenv, stmts, ty);
+         addStmtToIRStmtVec(stmts, IRStmt_WrTmp(t1,
             IRExpr_Triop(triop->op,
-                         flatten_Expr(bb, triop->arg1),
-                         flatten_Expr(bb, triop->arg2),
-                         flatten_Expr(bb, triop->arg3))));
+                         flatten_Expr(tyenv, stmts, triop->arg1),
+                         flatten_Expr(tyenv, stmts, triop->arg2),
+                         flatten_Expr(tyenv, stmts, triop->arg3))));
          return IRExpr_RdTmp(t1);
       }
 
       case Iex_Binop:
-         t1 = newIRTemp(bb->tyenv, ty);
-         addStmtToIRSB(bb, IRStmt_WrTmp(t1, 
+         t1 = newIRTemp(tyenv, stmts, ty);
+         addStmtToIRStmtVec(stmts, IRStmt_WrTmp(t1,
             IRExpr_Binop(ex->Iex.Binop.op,
-                         flatten_Expr(bb, ex->Iex.Binop.arg1),
-                         flatten_Expr(bb, ex->Iex.Binop.arg2))));
+                         flatten_Expr(tyenv, stmts, ex->Iex.Binop.arg1),
+                         flatten_Expr(tyenv, stmts, ex->Iex.Binop.arg2))));
          return IRExpr_RdTmp(t1);
 
       case Iex_Unop:
-         t1 = newIRTemp(bb->tyenv, ty);
-         addStmtToIRSB(bb, IRStmt_WrTmp(t1, 
+         t1 = newIRTemp(tyenv, stmts, ty);
+         addStmtToIRStmtVec(stmts, IRStmt_WrTmp(t1,
             IRExpr_Unop(ex->Iex.Unop.op,
-                        flatten_Expr(bb, ex->Iex.Unop.arg))));
+                        flatten_Expr(tyenv, stmts, ex->Iex.Unop.arg))));
          return IRExpr_RdTmp(t1);
 
       case Iex_Load:
-         t1 = newIRTemp(bb->tyenv, ty);
-         addStmtToIRSB(bb, IRStmt_WrTmp(t1,
+         t1 = newIRTemp(tyenv, stmts, ty);
+         addStmtToIRStmtVec(stmts, IRStmt_WrTmp(t1,
             IRExpr_Load(ex->Iex.Load.end,
                         ex->Iex.Load.ty, 
-                        flatten_Expr(bb, ex->Iex.Load.addr))));
+                        flatten_Expr(tyenv, stmts, ex->Iex.Load.addr))));
          return IRExpr_RdTmp(t1);
 
       case Iex_CCall:
          newargs = shallowCopyIRExprVec(ex->Iex.CCall.args);
          for (i = 0; newargs[i]; i++)
-            newargs[i] = flatten_Expr(bb, newargs[i]);
-         t1 = newIRTemp(bb->tyenv, ty);
-         addStmtToIRSB(bb, IRStmt_WrTmp(t1,
+            newargs[i] = flatten_Expr(tyenv, stmts, newargs[i]);
+         t1 = newIRTemp(tyenv, stmts, ty);
+         addStmtToIRStmtVec(stmts, IRStmt_WrTmp(t1,
             IRExpr_CCall(ex->Iex.CCall.cee,
                          ex->Iex.CCall.retty,
                          newargs)));
          return IRExpr_RdTmp(t1);
 
       case Iex_ITE:
-         t1 = newIRTemp(bb->tyenv, ty);
-         addStmtToIRSB(bb, IRStmt_WrTmp(t1,
-            IRExpr_ITE(flatten_Expr(bb, ex->Iex.ITE.cond),
-                       flatten_Expr(bb, ex->Iex.ITE.iftrue),
-                       flatten_Expr(bb, ex->Iex.ITE.iffalse))));
+         t1 = newIRTemp(tyenv, stmts, ty);
+         addStmtToIRStmtVec(stmts, IRStmt_WrTmp(t1,
+            IRExpr_ITE(flatten_Expr(tyenv, stmts, ex->Iex.ITE.cond),
+                       flatten_Expr(tyenv, stmts, ex->Iex.ITE.iftrue),
+                       flatten_Expr(tyenv, stmts, ex->Iex.ITE.iffalse))));
          return IRExpr_RdTmp(t1);
 
       case Iex_Const:
          /* Lift F64i constants out onto temps so they can be CSEd
             later. */
          if (ex->Iex.Const.con->tag == Ico_F64i) {
-            t1 = newIRTemp(bb->tyenv, ty);
-            addStmtToIRSB(bb, IRStmt_WrTmp(t1,
+            t1 = newIRTemp(tyenv, stmts, ty);
+            addStmtToIRStmtVec(stmts, IRStmt_WrTmp(t1,
                IRExpr_Const(ex->Iex.Const.con)));
             return IRExpr_RdTmp(t1);
          } else {
@@ -394,10 +393,12 @@ static IRExpr* flatten_Expr ( IRSB* bb, IRExpr* ex )
    }
 }
 
+static IRStmtVec* flatten_IRStmtVec(IRTypeEnv* tyenv, IRStmtVec* in,
+                                    IRStmtVec* parent);
 
-/* Append a completely flattened form of 'st' to the end of 'bb'. */
-
-static void flatten_Stmt ( IRSB* bb, IRStmt* st )
+/* Append a completely flattened form of 'st' to the end of 'stmts'. */
+static void flatten_Stmt(IRTypeEnv* tyenv, IRStmtVec* stmts, IRStmt* st,
+                         IRStmtVec* parent)
 {
    Int i;
    IRExpr   *e1, *e2, *e3, *e4, *e5;
@@ -411,69 +412,69 @@ static void flatten_Stmt ( IRSB* bb, IRStmt* st )
          if (isIRAtom(st->Ist.Put.data)) {
             /* optimisation to reduce the amount of heap wasted
                by the flattener */
-            addStmtToIRSB(bb, st);
+            addStmtToIRStmtVec(stmts, st);
          } else {
             /* general case, always correct */
-            e1 = flatten_Expr(bb, st->Ist.Put.data);
-            addStmtToIRSB(bb, IRStmt_Put(st->Ist.Put.offset, e1));
+            e1 = flatten_Expr(tyenv, stmts, st->Ist.Put.data);
+            addStmtToIRStmtVec(stmts, IRStmt_Put(st->Ist.Put.offset, e1));
          }
          break;
       case Ist_PutI:
          puti = st->Ist.PutI.details;
-         e1 = flatten_Expr(bb, puti->ix);
-         e2 = flatten_Expr(bb, puti->data);
+         e1 = flatten_Expr(tyenv, stmts, puti->ix);
+         e2 = flatten_Expr(tyenv, stmts, puti->data);
          puti2 = mkIRPutI(puti->descr, e1, puti->bias, e2);
-         addStmtToIRSB(bb, IRStmt_PutI(puti2));
+         addStmtToIRStmtVec(stmts, IRStmt_PutI(puti2));
          break;
       case Ist_WrTmp:
          if (isFlat(st->Ist.WrTmp.data)) {
             /* optimisation, to reduce the number of tmp-tmp
                copies generated */
-            addStmtToIRSB(bb, st);
+            addStmtToIRStmtVec(stmts, st);
          } else {
             /* general case, always correct */
-            e1 = flatten_Expr(bb, st->Ist.WrTmp.data);
-            addStmtToIRSB(bb, IRStmt_WrTmp(st->Ist.WrTmp.tmp, e1));
+            e1 = flatten_Expr(tyenv, stmts, st->Ist.WrTmp.data);
+            addStmtToIRStmtVec(stmts, IRStmt_WrTmp(st->Ist.WrTmp.tmp, e1));
          }
          break;
       case Ist_Store:
-         e1 = flatten_Expr(bb, st->Ist.Store.addr);
-         e2 = flatten_Expr(bb, st->Ist.Store.data);
-         addStmtToIRSB(bb, IRStmt_Store(st->Ist.Store.end, e1,e2));
+         e1 = flatten_Expr(tyenv, stmts, st->Ist.Store.addr);
+         e2 = flatten_Expr(tyenv, stmts, st->Ist.Store.data);
+         addStmtToIRStmtVec(stmts, IRStmt_Store(st->Ist.Store.end, e1,e2));
          break;
       case Ist_StoreG:
          sg = st->Ist.StoreG.details;
-         e1 = flatten_Expr(bb, sg->addr);
-         e2 = flatten_Expr(bb, sg->data);
-         e3 = flatten_Expr(bb, sg->guard);
-         addStmtToIRSB(bb, IRStmt_StoreG(sg->end, e1, e2, e3));
+         e1 = flatten_Expr(tyenv, stmts, sg->addr);
+         e2 = flatten_Expr(tyenv, stmts, sg->data);
+         e3 = flatten_Expr(tyenv, stmts, sg->guard);
+         addStmtToIRStmtVec(stmts, IRStmt_StoreG(sg->end, e1, e2, e3));
          break;
       case Ist_LoadG:
          lg = st->Ist.LoadG.details;
-         e1 = flatten_Expr(bb, lg->addr);
-         e2 = flatten_Expr(bb, lg->alt);
-         e3 = flatten_Expr(bb, lg->guard);
-         addStmtToIRSB(bb, IRStmt_LoadG(lg->end, lg->cvt, lg->dst,
-                                        e1, e2, e3));
+         e1 = flatten_Expr(tyenv, stmts, lg->addr);
+         e2 = flatten_Expr(tyenv, stmts, lg->alt);
+         e3 = flatten_Expr(tyenv, stmts, lg->guard);
+         addStmtToIRStmtVec(stmts, IRStmt_LoadG(lg->end, lg->cvt, lg->dst,
+                                                e1, e2, e3));
          break;
       case Ist_CAS:
          cas  = st->Ist.CAS.details;
-         e1   = flatten_Expr(bb, cas->addr);
-         e2   = cas->expdHi ? flatten_Expr(bb, cas->expdHi) : NULL;
-         e3   = flatten_Expr(bb, cas->expdLo);
-         e4   = cas->dataHi ? flatten_Expr(bb, cas->dataHi) : NULL;
-         e5   = flatten_Expr(bb, cas->dataLo);
+         e1   = flatten_Expr(tyenv, stmts, cas->addr);
+         e2   = cas->expdHi ? flatten_Expr(tyenv, stmts, cas->expdHi) : NULL;
+         e3   = flatten_Expr(tyenv, stmts, cas->expdLo);
+         e4   = cas->dataHi ? flatten_Expr(tyenv, stmts, cas->dataHi) : NULL;
+         e5   = flatten_Expr(tyenv, stmts, cas->dataLo);
          cas2 = mkIRCAS( cas->oldHi, cas->oldLo, cas->end,
                          e1, e2, e3, e4, e5 );
-         addStmtToIRSB(bb, IRStmt_CAS(cas2));
+         addStmtToIRStmtVec(stmts, IRStmt_CAS(cas2));
          break;
       case Ist_LLSC:
-         e1 = flatten_Expr(bb, st->Ist.LLSC.addr);
+         e1 = flatten_Expr(tyenv, stmts, st->Ist.LLSC.addr);
          e2 = st->Ist.LLSC.storedata
-                 ? flatten_Expr(bb, st->Ist.LLSC.storedata)
+                 ? flatten_Expr(tyenv, stmts, st->Ist.LLSC.storedata)
                  : NULL;
-         addStmtToIRSB(bb, IRStmt_LLSC(st->Ist.LLSC.end,
-                                       st->Ist.LLSC.result, e1, e2));
+         addStmtToIRStmtVec(stmts, IRStmt_LLSC(st->Ist.LLSC.end,
+                                               st->Ist.LLSC.result, e1, e2));
          break;
       case Ist_Dirty:
          d = st->Ist.Dirty.details;
@@ -481,53 +482,72 @@ static void flatten_Stmt ( IRSB* bb, IRStmt* st )
          *d2 = *d;
          d2->args = shallowCopyIRExprVec(d2->args);
          if (d2->mFx != Ifx_None) {
-            d2->mAddr = flatten_Expr(bb, d2->mAddr);
+            d2->mAddr = flatten_Expr(tyenv, stmts, d2->mAddr);
          } else {
             vassert(d2->mAddr == NULL);
          }
-         d2->guard = flatten_Expr(bb, d2->guard);
+         d2->guard = flatten_Expr(tyenv, stmts, d2->guard);
          for (i = 0; d2->args[i]; i++) {
             IRExpr* arg = d2->args[i];
             if (LIKELY(!is_IRExpr_VECRET_or_GSPTR(arg)))
-               d2->args[i] = flatten_Expr(bb, arg);
+               d2->args[i] = flatten_Expr(tyenv, stmts, arg);
          }
-         addStmtToIRSB(bb, IRStmt_Dirty(d2));
+         addStmtToIRStmtVec(stmts, IRStmt_Dirty(d2));
          break;
       case Ist_NoOp:
       case Ist_MBE:
       case Ist_IMark:
-         addStmtToIRSB(bb, st);
+         addStmtToIRStmtVec(stmts, st);
          break;
       case Ist_AbiHint:
-         e1 = flatten_Expr(bb, st->Ist.AbiHint.base);
-         e2 = flatten_Expr(bb, st->Ist.AbiHint.nia);
-         addStmtToIRSB(bb, IRStmt_AbiHint(e1, st->Ist.AbiHint.len, e2));
+         e1 = flatten_Expr(tyenv, stmts, st->Ist.AbiHint.base);
+         e2 = flatten_Expr(tyenv, stmts, st->Ist.AbiHint.nia);
+         addStmtToIRStmtVec(stmts, IRStmt_AbiHint(e1, st->Ist.AbiHint.len, e2));
          break;
       case Ist_Exit:
-         e1 = flatten_Expr(bb, st->Ist.Exit.guard);
-         addStmtToIRSB(bb, IRStmt_Exit(e1, st->Ist.Exit.jk,
-                                       st->Ist.Exit.dst,
-                                       st->Ist.Exit.offsIP));
+         e1 = flatten_Expr(tyenv, stmts, st->Ist.Exit.guard);
+         addStmtToIRStmtVec(stmts, IRStmt_Exit(e1, st->Ist.Exit.jk,
+                                               st->Ist.Exit.dst,
+                                               st->Ist.Exit.offsIP));
          break;
+      case Ist_IfThenElse: {
+         IRIfThenElse* ite = st->Ist.IfThenElse.details;
+         e1 = flatten_Expr(tyenv, stmts, ite->cond);
+         addStmtToIRStmtVec(stmts,
+                            IRStmt_IfThenElse(e1, ite->hint,
+                               flatten_IRStmtVec(tyenv, ite->then_leg, parent),
+                               flatten_IRStmtVec(tyenv, ite->else_leg, parent),
+                               ite->phi_nodes));
+         break;
+      }
       default:
          vex_printf("\n");
-         ppIRStmt(st); 
+         ppIRStmt(st, tyenv, 0);
          vex_printf("\n");
          vpanic("flatten_Stmt");
    }
 }
 
+static IRStmtVec* flatten_IRStmtVec(IRTypeEnv* tyenv, IRStmtVec* in,
+                                    IRStmtVec* parent)
+{
+   IRStmtVec* out = emptyIRStmtVec();
+   out->parent    = parent;
+   out->id        = in->id;
+   out->defset    = deepCopyIRTempDefSet(in->defset);
+   for (UInt i = 0; i < in->stmts_used; i++) {
+      flatten_Stmt(tyenv, out, in->stmts[i], out);
+   }
+   return out;
+}
 
 static IRSB* flatten_BB ( IRSB* in )
 {
-   Int   i;
-   IRSB* out;
-   out = emptyIRSB();
-   out->tyenv = deepCopyIRTypeEnv( in->tyenv );
-   for (i = 0; i < in->stmts_used; i++)
-      if (in->stmts[i])
-         flatten_Stmt( out, in->stmts[i] );
-   out->next     = flatten_Expr( out, in->next );
+   IRSB* out     = emptyIRSB();
+   out->tyenv    = deepCopyIRTypeEnv(in->tyenv);
+   out->id_seq   = in->id_seq;
+   out->stmts    = flatten_IRStmtVec(out->tyenv, in->stmts, NULL);
+   out->next     = flatten_Expr(out->tyenv, out->stmts, in->next);
    out->jumpkind = in->jumpkind;
    out->offsIP   = in->offsIP;
    return out;
@@ -610,16 +630,16 @@ static void invalidateOverlaps ( HashHW* h, UInt k_lo, UInt k_hi )
    }
 }
 
-
-static void redundant_get_removal_BB ( IRSB* bb )
+static
+void redundant_get_removal_IRStmtVec(const IRTypeEnv* tyenv, IRStmtVec* stmts)
 {
    HashHW* env = newHHW();
    UInt    key = 0; /* keep gcc -O happy */
-   Int     i, j;
+   Int     j;
    HWord   val;
 
-   for (i = 0; i < bb->stmts_used; i++) {
-      IRStmt* st = bb->stmts[i];
+   for (UInt i = 0; i < stmts->stmts_used; i++) {
+      IRStmt* st = stmts->stmts[i];
 
       if (st->tag == Ist_NoOp)
          continue;
@@ -640,7 +660,7 @@ static void redundant_get_removal_BB ( IRSB* bb )
                be to stick in a reinterpret-style cast, although that
                would make maintaining flatness more difficult. */
             IRExpr* valE    = (IRExpr*)val;
-            Bool    typesOK = toBool( typeOfIRExpr(bb->tyenv,valE) 
+            Bool    typesOK = toBool( typeOfIRExpr(tyenv, valE)
                                       == st->Ist.WrTmp.data->Iex.Get.ty );
             if (typesOK && DEBUG_IROPT) {
                vex_printf("rGET: "); ppIRExpr(get);
@@ -648,7 +668,7 @@ static void redundant_get_removal_BB ( IRSB* bb )
                vex_printf("\n");
             }
             if (typesOK)
-               bb->stmts[i] = IRStmt_WrTmp(st->Ist.WrTmp.tmp, valE);
+               stmts->stmts[i] = IRStmt_WrTmp(st->Ist.WrTmp.tmp, valE);
          } else {
             /* Not found, but at least we know that t and the Get(...)
                are now associated.  So add a binding to reflect that
@@ -664,7 +684,7 @@ static void redundant_get_removal_BB ( IRSB* bb )
          UInt k_lo, k_hi;
          if (st->tag == Ist_Put) {
             key = mk_key_GetPut( st->Ist.Put.offset, 
-                                 typeOfIRExpr(bb->tyenv,st->Ist.Put.data) );
+                                 typeOfIRExpr(tyenv, st->Ist.Put.data) );
          } else {
             vassert(st->tag == Ist_PutI);
             key = mk_key_GetIPutI( st->Ist.PutI.details->descr );
@@ -700,8 +720,19 @@ static void redundant_get_removal_BB ( IRSB* bb )
          addToHHW( env, (HWord)key, (HWord)(st->Ist.Put.data));
       }
 
-   } /* for (i = 0; i < bb->stmts_used; i++) */
+      if (st->tag == Ist_IfThenElse) {
+         /* Consider "then" and "else" legs in isolation. */
+         IRIfThenElse* ite = st->Ist.IfThenElse.details;
+         redundant_get_removal_IRStmtVec(tyenv, ite->then_leg);
+         redundant_get_removal_IRStmtVec(tyenv, ite->else_leg);
+      }
 
+   } /* for (UInt i = 0; i < stmts->stmts_used; i++) */
+}
+
+static void redundant_get_removal_BB(IRSB* bb)
+{
+   redundant_get_removal_IRStmtVec(bb->tyenv, bb->stmts);
 }
 
 
@@ -713,8 +744,8 @@ static void redundant_get_removal_BB ( IRSB* bb )
    overlapping ranges listed in env.  Due to the flattening phase, the
    only stmt kind we expect to find a Get on is IRStmt_WrTmp. */
 
-static void handle_gets_Stmt ( 
-               HashHW* env, 
+static void handle_gets_Stmt (
+               HashHW* env,
                IRStmt* st,
                Bool (*preciseMemExnsFn)(Int,Int,VexRegisterUpdates),
                VexRegisterUpdates pxControl
@@ -817,9 +848,14 @@ static void handle_gets_Stmt (
       case Ist_IMark:
          break;
 
+      case Ist_IfThenElse:
+         /* Recursing into "then" and "else" branches is done in
+            redundant_put_removal_IRStmtVec() */
+         break;
+
       default:
          vex_printf("\n");
-         ppIRStmt(st);
+         ppIRStmt(st, NULL, 0);
          vex_printf("\n");
          vpanic("handle_gets_Stmt");
    }
@@ -882,30 +918,17 @@ static void handle_gets_Stmt (
    and loads/stores.
 */
 
-static void redundant_put_removal_BB ( 
-               IRSB* bb,
+static void redundant_put_removal_IRStmtVec(
+               IRTypeEnv* tyenv, IRStmtVec* stmts,
                Bool (*preciseMemExnsFn)(Int,Int,VexRegisterUpdates),
-               VexRegisterUpdates pxControl
-            )
+               VexRegisterUpdates pxControl,
+               HashHW* env)
 {
-   Int     i, j;
-   Bool    isPut;
-   IRStmt* st;
-   UInt    key = 0; /* keep gcc -O happy */
-
-   vassert(pxControl < VexRegUpdAllregsAtEachInsn);
-
-   HashHW* env = newHHW();
-
-   /* Initialise the running env with the fact that the final exit
-      writes the IP (or, whatever it claims to write.  We don't
-      care.) */
-   key = mk_key_GetPut(bb->offsIP, typeOfIRExpr(bb->tyenv, bb->next));
-   addToHHW(env, (HWord)key, 0);
-
    /* And now scan backwards through the statements. */
-   for (i = bb->stmts_used-1; i >= 0; i--) {
-      st = bb->stmts[i];
+   for (Int i = stmts->stmts_used - 1; i >= 0; i--) {
+      IRStmt* st = stmts->stmts[i];
+      Bool    isPut;
+      UInt    key;
 
       if (st->tag == Ist_NoOp)
          continue;
@@ -933,7 +956,7 @@ static void redundant_put_removal_BB (
          //                    typeOfIRConst(st->Ist.Exit.dst));
          //re_add = lookupHHW(env, NULL, key);
          /* (2) */
-         for (j = 0; j < env->used; j++)
+         for (UInt j = 0; j < env->used; j++)
             env->inuse[j] = False;
          /* (3) */
          //if (0 && re_add) 
@@ -946,7 +969,7 @@ static void redundant_put_removal_BB (
          case Ist_Put: 
             isPut = True;
             key = mk_key_GetPut( st->Ist.Put.offset, 
-                                 typeOfIRExpr(bb->tyenv,st->Ist.Put.data) );
+                                 typeOfIRExpr(tyenv, st->Ist.Put.data) );
             vassert(isIRAtom(st->Ist.Put.data));
             break;
          case Ist_PutI:
@@ -968,10 +991,10 @@ static void redundant_put_removal_BB (
             /* This Put is redundant because a later one will overwrite
                it.  So NULL (nop) it out. */
             if (DEBUG_IROPT) {
-               vex_printf("rPUT: "); ppIRStmt(st);
+               vex_printf("rPUT: "); ppIRStmt(st, tyenv, 0);
                vex_printf("\n");
             }
-            bb->stmts[i] = IRStmt_NoOp();
+            stmts->stmts[i] = IRStmt_NoOp();
          } else {
             /* We can't demonstrate that this Put is redundant, so add it
                to the running collection. */
@@ -986,7 +1009,36 @@ static void redundant_put_removal_BB (
          deals with implicit reads of guest state needed to maintain
          precise exceptions. */
       handle_gets_Stmt( env, st, preciseMemExnsFn, pxControl );
+
+      /* Consider "then" and "else" legs in isolation. They get a new env. */
+      if (st->tag == Ist_IfThenElse) {
+         IRIfThenElse* ite = st->Ist.IfThenElse.details;
+         redundant_put_removal_IRStmtVec(tyenv, ite->then_leg, preciseMemExnsFn,
+                                         pxControl, newHHW());
+         redundant_put_removal_IRStmtVec(tyenv, ite->else_leg, preciseMemExnsFn,
+                                         pxControl, newHHW());
+      }
    }
+}
+
+static void redundant_put_removal_BB(
+               IRSB* bb,
+               Bool (*preciseMemExnsFn)(Int,Int,VexRegisterUpdates),
+               VexRegisterUpdates pxControl)
+{
+   vassert(pxControl < VexRegUpdAllregsAtEachInsn);
+
+   HashHW* env = newHHW();
+
+   /* Initialise the running env with the fact that the final exit
+      writes the IP (or, whatever it claims to write.  We don't
+      care.) */
+   UInt key = mk_key_GetPut(bb->offsIP,
+                            typeOfIRExpr(bb->tyenv, bb->next));
+   addToHHW(env, (HWord)key, 0);
+
+   redundant_put_removal_IRStmtVec(bb->tyenv, bb->stmts, preciseMemExnsFn,
+                                   pxControl, env);
 }
 
 
@@ -1023,8 +1075,43 @@ static UInt num_nodes_visited;
 #define NODE_LIMIT 30
 
 
-/* The env in this section is a map from IRTemp to IRExpr*,
-   that is, an array indexed by IRTemp. */
+/* The env in this section is a structure which holds:
+   - A map from IRTemp to IRExpr*, that is, an array indexed by IRTemp.
+     Keys are IRTemp.indices. Values are IRExpr*s.
+   - IR Type Environment
+   - Current IRStmtVec* which is being constructed.
+   - A pointer to the parent env (or NULL). */
+typedef
+   struct _SubstEnv {
+      IRExpr**          map;
+      IRTypeEnv*        tyenv;
+      IRStmtVec*        stmts;
+      struct _SubstEnv* parent;
+   }
+   SubstEnv;
+
+/* Sets up the substitution environment.
+   Note that the map is established fresh new for every IRStmtVec (which are
+   thus considered in isolation). */
+static SubstEnv* newSubstEnv(IRTypeEnv* tyenv, IRStmtVec* stmts_in,
+                             SubstEnv* parent_env)
+{
+   IRStmtVec* stmts_out = emptyIRStmtVec();
+   stmts_out->id        = stmts_in->id;
+   stmts_out->parent    = (parent_env != NULL) ? parent_env->stmts : NULL;
+   stmts_out->defset    = deepCopyIRTempDefSet(stmts_in->defset);
+
+   SubstEnv* env = LibVEX_Alloc_inline(sizeof(SubstEnv));
+   env->tyenv    = tyenv;
+   env->stmts    = stmts_out;
+   env->parent   = parent_env;
+
+   UInt  n_tmps = tyenv->used;
+   env->map     = LibVEX_Alloc_inline(n_tmps * sizeof(IRExpr*));
+   for (UInt i = 0; i < n_tmps; i++)
+      env->map[i] = (parent_env == NULL) ? NULL : parent_env->map[i];
+   return env;
+}
 
 /* Do both expressions compute the same value? The answer is generally
    conservative, i.e. it will report that the expressions do not compute
@@ -1043,27 +1130,33 @@ static UInt num_nodes_visited;
    slower out of line general case.  Saves a few insns. */
 
 __attribute__((noinline))
-static Bool sameIRExprs_aux2 ( IRExpr** env, IRExpr* e1, IRExpr* e2 );
+static Bool sameIRExprs_aux2(const SubstEnv* env, const IRExpr* e1,
+                             const IRExpr* e2);
 
 inline
-static Bool sameIRExprs_aux ( IRExpr** env, IRExpr* e1, IRExpr* e2 )
+static Bool sameIRExprs_aux(const SubstEnv* env, const IRExpr* e1,
+                            const IRExpr* e2)
 {
    if (e1->tag != e2->tag) return False;
    return sameIRExprs_aux2(env, e1, e2);
 }
 
 __attribute__((noinline))
-static Bool sameIRExprs_aux2 ( IRExpr** env, IRExpr* e1, IRExpr* e2 )
+static Bool sameIRExprs_aux2(const SubstEnv* env, const IRExpr* e1,
+                             const IRExpr* e2)
 {
    if (num_nodes_visited++ > NODE_LIMIT) return False;
 
    switch (e1->tag) {
-      case Iex_RdTmp:
-         if (e1->Iex.RdTmp.tmp == e2->Iex.RdTmp.tmp) return True;
+      case Iex_RdTmp: {
+         IRTemp tmp1 = e1->Iex.RdTmp.tmp;
+         IRTemp tmp2 = e2->Iex.RdTmp.tmp;
 
-         if (env[e1->Iex.RdTmp.tmp] && env[e2->Iex.RdTmp.tmp]) {
-            Bool same = sameIRExprs_aux(env, env[e1->Iex.RdTmp.tmp],
-                                        env[e2->Iex.RdTmp.tmp]);
+         if (tmp1 == tmp2) return True;
+         const IRExpr* subst1 = env->map[tmp1];
+         const IRExpr* subst2 = env->map[tmp2];
+         if (subst1 != NULL && subst2 != NULL) {
+            Bool same = sameIRExprs_aux(env, subst1, subst2);
 #if STATS_IROPT
             recursed = True;
             if (same) recursion_helped = True;
@@ -1071,6 +1164,7 @@ static Bool sameIRExprs_aux2 ( IRExpr** env, IRExpr* e1, IRExpr* e2 )
             return same;
          }
          return False;
+      }
 
       case Iex_Get:
       case Iex_GetI:
@@ -1131,7 +1225,7 @@ static Bool sameIRExprs_aux2 ( IRExpr** env, IRExpr* e1, IRExpr* e2 )
 }
 
 inline
-static Bool sameIRExprs ( IRExpr** env, IRExpr* e1, IRExpr* e2 )
+static Bool sameIRExprs(const SubstEnv* env, const IRExpr* e1, const IRExpr* e2)
 {
    Bool same;
 
@@ -1160,8 +1254,8 @@ static Bool sameIRExprs ( IRExpr** env, IRExpr* e1, IRExpr* e2 )
    --vex-iropt-level > 0, that is, vex_control.iropt_verbosity > 0.
    Bad because it duplicates functionality from typeOfIRExpr.  See
    comment on the single use point below for rationale. */
-static
-Bool debug_only_hack_sameIRExprs_might_assert ( IRExpr* e1, IRExpr* e2 )
+static Bool
+debug_only_hack_sameIRExprs_might_assert(const IRExpr* e1, const IRExpr* e2)
 {
    if (e1->tag != e2->tag) return False;
    switch (e1->tag) {
@@ -1179,7 +1273,7 @@ Bool debug_only_hack_sameIRExprs_might_assert ( IRExpr* e1, IRExpr* e2 )
 
 
 /* Is this literally IRExpr_Const(IRConst_U32(0)) ? */
-static Bool isZeroU32 ( IRExpr* e )
+static Bool isZeroU32(const IRExpr* e)
 {
    return toBool( e->tag == Iex_Const 
                   && e->Iex.Const.con->tag == Ico_U32
@@ -1189,7 +1283,7 @@ static Bool isZeroU32 ( IRExpr* e )
 /* Is this literally IRExpr_Const(IRConst_U64(0)) ?
    Currently unused; commented out to avoid compiler warning */
 #if 0
-static Bool isZeroU64 ( IRExpr* e )
+static Bool isZeroU64(const IRExpr* e)
 {
    return toBool( e->tag == Iex_Const 
                   && e->Iex.Const.con->tag == Ico_U64
@@ -1198,7 +1292,7 @@ static Bool isZeroU64 ( IRExpr* e )
 #endif
 
 /* Is this literally IRExpr_Const(IRConst_V128(0)) ? */
-static Bool isZeroV128 ( IRExpr* e )
+static Bool isZeroV128(const IRExpr* e)
 {
    return toBool( e->tag == Iex_Const 
                   && e->Iex.Const.con->tag == Ico_V128
@@ -1206,7 +1300,7 @@ static Bool isZeroV128 ( IRExpr* e )
 }
 
 /* Is this literally IRExpr_Const(IRConst_V256(0)) ? */
-static Bool isZeroV256 ( IRExpr* e )
+static Bool isZeroV256(const IRExpr* e)
 {
    return toBool( e->tag == Iex_Const 
                   && e->Iex.Const.con->tag == Ico_V256
@@ -1214,7 +1308,7 @@ static Bool isZeroV256 ( IRExpr* e )
 }
 
 /* Is this an integer constant with value 0 ? */
-static Bool isZeroU ( IRExpr* e )
+static Bool isZeroU(const IRExpr* e)
 {
    if (e->tag != Iex_Const) return False;
    switch (e->Iex.Const.con->tag) {
@@ -1229,7 +1323,7 @@ static Bool isZeroU ( IRExpr* e )
 }
 
 /* Is this an integer constant with value 1---1b ? */
-static Bool isOnesU ( IRExpr* e )
+static Bool isOnesU(const IRExpr* e)
 {
    if (e->tag != Iex_Const) return False;
    switch (e->Iex.Const.con->tag) {
@@ -1346,29 +1440,29 @@ static UInt fold_Clz32 ( UInt value )
    return NULL if it can't resolve 'e' to a new expression, which will
    be the case if 'e' is instead defined by an IRStmt (IRDirty or
    LLSC). */
-static IRExpr* chase ( IRExpr** env, IRExpr* e )
+static IRExpr* chase(SubstEnv* env, IRExpr* e)
 {
    /* Why is this loop guaranteed to terminate?  Because all tmps must
       have definitions before use, hence a tmp cannot be bound
       (directly or indirectly) to itself. */
    while (e->tag == Iex_RdTmp) {
       if (0) { vex_printf("chase "); ppIRExpr(e); vex_printf("\n"); }
-      e = env[(Int)e->Iex.RdTmp.tmp];
+      e = env->map[e->Iex.RdTmp.tmp];
       if (e == NULL) break;
    }
    return e;
 }
 
 /* Similar to |chase|, but follows at most one level of tmp reference. */
-static IRExpr* chase1 ( IRExpr** env, IRExpr* e )
+static IRExpr* chase1(IRExpr* env[], IRExpr* e)
 {
    if (e == NULL || e->tag != Iex_RdTmp)
       return e;
    else
-      return env[(Int)e->Iex.RdTmp.tmp];
+      return env[e->Iex.RdTmp.tmp];
 }
 
-static IRExpr* fold_Expr ( IRExpr** env, IRExpr* e )
+static IRExpr* fold_Expr(SubstEnv* env, IRExpr* e)
 {
    Int     shift;
    IRExpr* e2 = e; /* e2 is the result of folding e, if possible */
@@ -2428,13 +2522,12 @@ static IRExpr* fold_Expr ( IRExpr** env, IRExpr* e )
 
 /* Apply the subst to a simple 1-level expression -- guaranteed to be
    1-level due to previous flattening pass. */
-
-static IRExpr* subst_Expr ( IRExpr** env, IRExpr* ex )
+static IRExpr* subst_Expr(SubstEnv* env, IRExpr* ex)
 {
    switch (ex->tag) {
-      case Iex_RdTmp:
-         if (env[(Int)ex->Iex.RdTmp.tmp] != NULL) {
-            IRExpr *rhs = env[(Int)ex->Iex.RdTmp.tmp];
+      case Iex_RdTmp: {
+         IRExpr* rhs = env->map[ex->Iex.RdTmp.tmp];
+         if (rhs != NULL) {
             if (rhs->tag == Iex_RdTmp)
                return rhs;
             if (rhs->tag == Iex_Const
@@ -2443,6 +2536,7 @@ static IRExpr* subst_Expr ( IRExpr** env, IRExpr* ex )
          }
          /* not bound in env */
          return ex;
+      }
 
       case Iex_Const:
       case Iex_Get:
@@ -2539,16 +2633,39 @@ static IRExpr* subst_Expr ( IRExpr** env, IRExpr* ex )
    }
 }
 
+/* A phi node of the form dst = phi(srcThen, srcElse) behaves much like
+   a WrTmp. Ensure that the connection between src{Then,Else} and assignments
+   in the corresponding leg is not broken:
+   - either add WrTemp assignment for src{Then,Else} in the leg, or
+   - adjust src{Then,Else} for the phi node. */
+static void subst_and_fold_PhiNodes(SubstEnv* env, IRStmtVec* stmts,
+                                    Bool srcThen, IRPhiVec* phi_nodes)
+{
+   for (UInt i = 0; i < phi_nodes->phis_used; i++) {
+      IRPhi* phi = phi_nodes->phis[i];
+      IRTemp* tmp = (srcThen) ? &phi->srcThen : &phi->srcElse;
+      IRExpr* expr = env->map[*tmp];
+      vassert(expr != NULL);
+
+      if (expr->tag == Iex_RdTmp) {
+         *tmp = expr->Iex.RdTmp.tmp;
+      } else {
+         addStmtToIRStmtVec(stmts, IRStmt_WrTmp(*tmp, expr));
+      }
+   }
+}
+
+static IRStmtVec* subst_and_fold_Stmts(SubstEnv* env, IRStmtVec* in);
 
 /* Apply the subst to stmt, then fold the result as much as possible.
    Much simplified due to stmt being previously flattened.  As a
    result of this, the stmt may wind up being turned into a no-op.  
 */
-static IRStmt* subst_and_fold_Stmt ( IRExpr** env, IRStmt* st )
+static IRStmt* subst_and_fold_Stmt(SubstEnv* env, IRStmt* st)
 {
 #  if 0
    vex_printf("\nsubst and fold stmt\n");
-   ppIRStmt(st);
+   ppIRStmt(st, env->tyenv, 0);
    vex_printf("\n");
 #  endif
 
@@ -2739,7 +2856,7 @@ static IRStmt* subst_and_fold_Stmt ( IRExpr** env, IRStmt* st )
                   at this point, which is tricky.  Such truncation is
                   done later by the dead-code elimination pass. */
                /* fall out into the reconstruct-the-exit code. */
-               if (vex_control.iropt_verbosity > 0) 
+               if (vex_control.iropt_verbosity > 0)
                   /* really a misuse of vex_control.iropt_verbosity */
                   vex_printf("vex iropt: IRStmt_Exit became unconditional\n");
             }
@@ -2748,51 +2865,80 @@ static IRStmt* subst_and_fold_Stmt ( IRExpr** env, IRStmt* st )
                                    st->Ist.Exit.dst, st->Ist.Exit.offsIP);
       }
 
+      case Ist_IfThenElse: {
+         IRIfThenElse* ite = st->Ist.IfThenElse.details;
+         vassert(isIRAtom(ite->cond));
+         IRExpr *fcond = fold_Expr(env, subst_Expr(env, ite->cond));
+         if (fcond->tag == Iex_Const) {
+            /* Interesting. The condition on this "if-then-else" has folded down
+               to a constant. */
+            vassert(fcond->Iex.Const.con->tag == Ico_U1);
+            if (fcond->Iex.Const.con->Ico.U1 == True) {
+               /* TODO-JIT: "else" leg is never going to happen, so dump it. */
+               if (vex_control.iropt_verbosity > 0)
+                  vex_printf("vex iropt: IRStmt_IfThenElse became "
+                             "unconditional\n");
+            } else {
+               vassert(fcond->Iex.Const.con->Ico.U1 == False);
+               /* TODO-JIT: "then" leg is never going to happen, so dump it. */
+               if (vex_control.iropt_verbosity > 0)
+                  vex_printf("vex iropt: IRStmt_IfThenElse became "
+                             "unconditional\n");
+            }
+            /* TODO-JIT: Pull the only remaining leg into the current IRStmtVec.
+               Here is what needs to be done:
+               1. Rewrite ID of all IRTemp's (in tyenv->ids) defined in the
+                  pulled leg. These are tracked in leg's defset.
+               2. Insert all statements from the leg in the env->stmts_out
+                  at the current position. */
+            vpanic("IfThenElse leg lifting unimplemented");
+         }
+
+         SubstEnv* then_env = newSubstEnv(env->tyenv, ite->then_leg, env);
+         IRStmtVec* then_stmts = subst_and_fold_Stmts(then_env, ite->then_leg);
+         subst_and_fold_PhiNodes(then_env, then_stmts, True /* srcThen */,
+                                 ite->phi_nodes);
+
+         SubstEnv* else_env = newSubstEnv(env->tyenv, ite->else_leg, env);
+         IRStmtVec* else_stmts = subst_and_fold_Stmts(else_env, ite->else_leg);
+         subst_and_fold_PhiNodes(else_env, else_stmts, False /* srcThen */,
+                                 ite->phi_nodes);
+
+         return IRStmt_IfThenElse(fcond, ite->hint, then_stmts, else_stmts,
+                                  ite->phi_nodes);
+      }
+
    default:
-      vex_printf("\n"); ppIRStmt(st);
+      vex_printf("\n"); ppIRStmt(st, env->tyenv, 0);
       vpanic("subst_and_fold_Stmt");
    }
 }
 
-
-IRSB* cprop_BB ( IRSB* in )
+/* Is to be called with already created SubstEnv as per newSubstEnv(). */
+static IRStmtVec* subst_and_fold_Stmts(SubstEnv* env, IRStmtVec* in)
 {
-   Int      i;
-   IRSB*    out;
-   IRStmt*  st2;
-   Int      n_tmps = in->tyenv->types_used;
-   IRExpr** env = LibVEX_Alloc_inline(n_tmps * sizeof(IRExpr*));
    /* Keep track of IRStmt_LoadGs that we need to revisit after
       processing all the other statements. */
    const Int N_FIXUPS = 16;
    Int fixups[N_FIXUPS]; /* indices in the stmt array of 'out' */
    Int n_fixups = 0;
 
-   out = emptyIRSB();
-   out->tyenv = deepCopyIRTypeEnv( in->tyenv );
-
-   /* Set up the env with which travels forward.  This holds a
-      substitution, mapping IRTemps to IRExprs. The environment 
-      is to be applied as we move along.  Keys are IRTemps.
-      Values are IRExpr*s.
-   */
-   for (i = 0; i < n_tmps; i++)
-      env[i] = NULL;
+   IRStmtVec* out = env->stmts;
 
    /* For each original SSA-form stmt ... */
-   for (i = 0; i < in->stmts_used; i++) {
+   for (UInt i = 0; i < in->stmts_used; i++) {
 
       /* First apply the substitution to the current stmt.  This
          propagates in any constants and tmp-tmp assignments
          accumulated prior to this point.  As part of the subst_Stmt
          call, also then fold any constant expressions resulting. */
 
-      st2 = in->stmts[i];
+      IRStmt* st2 = in->stmts[i];
 
       /* perhaps st2 is already a no-op? */
       if (st2->tag == Ist_NoOp) continue;
 
-      st2 = subst_and_fold_Stmt( env, st2 );
+      st2 = subst_and_fold_Stmt(env, st2);
 
       /* Deal with some post-folding special cases. */
       switch (st2->tag) {
@@ -2806,9 +2952,9 @@ IRSB* cprop_BB ( IRSB* in )
             running environment. This is for the benefit of copy
             propagation and to allow sameIRExpr look through
             IRTemps. */
-         case Ist_WrTmp: {
-            vassert(env[(Int)(st2->Ist.WrTmp.tmp)] == NULL);
-            env[(Int)(st2->Ist.WrTmp.tmp)] = st2->Ist.WrTmp.data;
+         case Ist_WrTmp:
+            vassert(env->map[st2->Ist.WrTmp.tmp] == NULL);
+            env->map[st2->Ist.WrTmp.tmp] = st2->Ist.WrTmp.data;
 
             /* 't1 = t2' -- don't add to BB; will be optimized out */
             if (st2->Ist.WrTmp.data->tag == Iex_RdTmp)
@@ -2824,7 +2970,6 @@ IRSB* cprop_BB ( IRSB* in )
             }
             /* else add it to the output, as normal */
             break;
-         }
 
          case Ist_LoadG: {
             IRLoadG* lg    = st2->Ist.LoadG.details;
@@ -2844,7 +2989,7 @@ IRSB* cprop_BB ( IRSB* in )
                vassert(n_fixups >= 0 && n_fixups <= N_FIXUPS);
                if (n_fixups < N_FIXUPS) {
                   fixups[n_fixups++] = out->stmts_used;
-                  addStmtToIRSB( out, IRStmt_NoOp() );
+                  addStmtToIRStmtVec(out, IRStmt_NoOp());
                }
             }
             /* And always add the LoadG to the output, regardless. */
@@ -2855,24 +3000,14 @@ IRSB* cprop_BB ( IRSB* in )
          break;
       }
 
-      /* Not interesting, copy st2 into the output block. */
-      addStmtToIRSB( out, st2 );
+      /* Not interesting, copy st2 into the output vector. */
+      addStmtToIRStmtVec(out, st2);
    }
-
-#  if STATS_IROPT
-   vex_printf("sameIRExpr: invoked = %u/%u  equal = %u/%u max_nodes = %u\n",
-              invocation_count, recursion_count, success_count,
-              recursion_success_count, max_nodes_visited);
-#  endif
-
-   out->next     = subst_Expr( env, in->next );
-   out->jumpkind = in->jumpkind;
-   out->offsIP   = in->offsIP;
 
    /* Process any leftover unconditional LoadGs that we noticed
       in the main pass. */
    vassert(n_fixups >= 0 && n_fixups <= N_FIXUPS);
-   for (i = 0; i < n_fixups; i++) {
+   for (UInt i = 0; i < n_fixups; i++) {
       Int ix = fixups[i];
       /* Carefully verify that the LoadG has the expected form. */
       vassert(ix >= 0 && ix+1 < out->stmts_used);
@@ -2901,7 +3036,7 @@ IRSB* cprop_BB ( IRSB* in )
       }
       /* Replace the placeholder NoOp by the required unconditional
          load. */
-      IRTemp tLoaded = newIRTemp(out->tyenv, cvtArg);
+      IRTemp tLoaded = newIRTemp(env->tyenv, out, cvtArg);
       out->stmts[ix] 
          = IRStmt_WrTmp(tLoaded,
                         IRExpr_Load(lg->end, cvtArg, lg->addr));
@@ -2913,6 +3048,26 @@ IRSB* cprop_BB ( IRSB* in )
                           ? IRExpr_RdTmp(tLoaded)
                           : IRExpr_Unop(cvtOp, IRExpr_RdTmp(tLoaded)));
    }
+
+   return out;
+}
+
+IRSB* cprop_BB ( IRSB* in )
+{
+   SubstEnv* env = newSubstEnv(in->tyenv, in->stmts, NULL);
+   IRSB* out     = emptyIRSB();
+   out->tyenv    = deepCopyIRTypeEnv(in->tyenv);
+   out->stmts    = subst_and_fold_Stmts(env, in->stmts);
+   out->id_seq   = in->id_seq;
+   out->next     = subst_Expr( env, in->next );
+   out->jumpkind = in->jumpkind;
+   out->offsIP   = in->offsIP;
+
+#  if STATS_IROPT
+   vex_printf("sameIRExpr: invoked = %u/%u  equal = %u/%u max_nodes = %u\n",
+              invocation_count, recursion_count, success_count,
+              recursion_success_count, max_nodes_visited);
+#  endif
 
    return out;
 }
@@ -2932,7 +3087,7 @@ IRSB* cprop_BB ( IRSB* in )
 inline
 static void addUses_Temp ( Bool* set, IRTemp tmp )
 {
-   set[(Int)tmp] = True;
+   set[tmp] = True;
 }
 
 static void addUses_Expr ( Bool* set, IRExpr* e )
@@ -2985,9 +3140,11 @@ static void addUses_Expr ( Bool* set, IRExpr* e )
    }
 }
 
+static void do_deadcode_IRStmtVec(Bool* set, IRStmtVec* stmts,
+                                  Int* i_unconditional_exit);
+
 static void addUses_Stmt ( Bool* set, IRStmt* st )
 {
-   Int      i;
    IRDirty* d;
    IRCAS*   cas;
    switch (st->tag) {
@@ -3043,7 +3200,7 @@ static void addUses_Stmt ( Bool* set, IRStmt* st )
          if (d->mFx != Ifx_None)
             addUses_Expr(set, d->mAddr);
          addUses_Expr(set, d->guard);
-         for (i = 0; d->args[i] != NULL; i++) {
+         for (UInt i = 0; d->args[i] != NULL; i++) {
             IRExpr* arg = d->args[i];
             if (LIKELY(!is_IRExpr_VECRET_or_GSPTR(arg)))
                addUses_Expr(set, arg);
@@ -3056,9 +3213,26 @@ static void addUses_Stmt ( Bool* set, IRStmt* st )
       case Ist_Exit:
          addUses_Expr(set, st->Ist.Exit.guard);
          return;
+      case Ist_IfThenElse: {
+         IRIfThenElse* ite = st->Ist.IfThenElse.details;
+         addUses_Expr(set, ite->cond);
+
+         for (UInt i = 0; i < ite->phi_nodes->phis_used; i++) {
+            const IRPhi* phi = ite->phi_nodes->phis[i];
+            addUses_Temp(set, phi->srcThen);
+            addUses_Temp(set, phi->srcElse);
+         }
+
+         Int i_unconditional_exit; // TODO-JIT: unused at the moment
+         /* Consider both legs simultaneously. If either of them reports an
+            IRTemp in use, then it won't be eliminated. */
+         do_deadcode_IRStmtVec(set, ite->then_leg, &i_unconditional_exit);
+         do_deadcode_IRStmtVec(set, ite->else_leg, &i_unconditional_exit);
+         return;
+      }
       default:
          vex_printf("\n");
-         ppIRStmt(st);
+         ppIRStmt(st, NULL, 0);
          vpanic("addUses_Stmt");
    }
 }
@@ -3095,40 +3269,27 @@ static Bool isOneU1 ( IRExpr* e )
    all statements following it are turned into no-ops.
 */
 
-/* notstatic */ void do_deadcode_BB ( IRSB* bb )
+static void do_deadcode_IRStmtVec(Bool* set, IRStmtVec* stmts,
+                                  Int* i_unconditional_exit)
 {
-   Int     i, i_unconditional_exit;
-   Int     n_tmps = bb->tyenv->types_used;
-   Bool*   set = LibVEX_Alloc_inline(n_tmps * sizeof(Bool));
-   IRStmt* st;
-
-   for (i = 0; i < n_tmps; i++)
-      set[i] = False;
-
-   /* start off by recording IRTemp uses in the next field. */
-   addUses_Expr(set, bb->next);
-
-   /* First pass */
+   *i_unconditional_exit = -1;
 
    /* Work backwards through the stmts */
-   i_unconditional_exit = -1;
-   for (i = bb->stmts_used-1; i >= 0; i--) {
-      st = bb->stmts[i];
+   for (Int i = stmts->stmts_used - 1; i >= 0; i--) {
+      IRStmt* st = stmts->stmts[i];
       if (st->tag == Ist_NoOp)
          continue;
       /* take note of any unconditional exits */
-      if (st->tag == Ist_Exit
-          && isOneU1(st->Ist.Exit.guard))
-         i_unconditional_exit = i;
-      if (st->tag == Ist_WrTmp
-          && set[(Int)(st->Ist.WrTmp.tmp)] == False) {
+      if (st->tag == Ist_Exit && isOneU1(st->Ist.Exit.guard))
+         *i_unconditional_exit = i;
+      if (st->tag == Ist_WrTmp && set[st->Ist.WrTmp.tmp] == False) {
           /* it's an IRTemp which never got used.  Delete it. */
          if (DEBUG_IROPT) {
             vex_printf("DEAD: ");
-            ppIRStmt(st);
+            ppIRStmt(st, NULL, 0);
             vex_printf("\n");
          }
-         bb->stmts[i] = IRStmt_NoOp();
+         stmts->stmts[i] = IRStmt_NoOp();
       }
       else
       if (st->tag == Ist_Dirty
@@ -3136,30 +3297,44 @@ static Bool isOneU1 ( IRExpr* e )
           && isZeroU1(st->Ist.Dirty.details->guard)) {
          /* This is a dirty helper which will never get called.
             Delete it. */
-         bb->stmts[i] = IRStmt_NoOp();
+         stmts->stmts[i] = IRStmt_NoOp();
        }
        else {
          /* Note any IRTemp uses made by the current statement. */
          addUses_Stmt(set, st);
       }
    }
+}
+
+void do_deadcode_BB(IRSB* bb)
+{
+   Int   i_unconditional_exit;
+   UInt  n_tmps = bb->tyenv->used;
+   Bool* set = LibVEX_Alloc_inline(n_tmps * sizeof(Bool));
+   for (UInt i = 0; i < n_tmps; i++)
+      set[i] = False;
+
+   /* start off by recording IRTemp uses in the next field. */
+   addUses_Expr(set, bb->next);
+
+   /* First pass */
+   do_deadcode_IRStmtVec(set, bb->stmts, &i_unconditional_exit);
 
    /* Optional second pass: if any unconditional exits were found, 
       delete them and all following statements. */
-
    if (i_unconditional_exit != -1) {
       if (0) vex_printf("ZAPPING ALL FORWARDS from %d\n", 
                         i_unconditional_exit);
       vassert(i_unconditional_exit >= 0 
-              && i_unconditional_exit < bb->stmts_used);
+              && i_unconditional_exit < bb->stmts->stmts_used);
       bb->next 
-         = IRExpr_Const( bb->stmts[i_unconditional_exit]->Ist.Exit.dst );
+         = IRExpr_Const(bb->stmts->stmts[i_unconditional_exit]->Ist.Exit.dst);
       bb->jumpkind
-         = bb->stmts[i_unconditional_exit]->Ist.Exit.jk;
+         = bb->stmts->stmts[i_unconditional_exit]->Ist.Exit.jk;
       bb->offsIP
-         = bb->stmts[i_unconditional_exit]->Ist.Exit.offsIP;
-      for (i = i_unconditional_exit; i < bb->stmts_used; i++)
-         bb->stmts[i] = IRStmt_NoOp();
+         = bb->stmts->stmts[i_unconditional_exit]->Ist.Exit.offsIP;
+      for (UInt i = i_unconditional_exit; i < bb->stmts->stmts_used; i++)
+         bb->stmts->stmts[i] = IRStmt_NoOp();
    }
 }
 
@@ -3169,19 +3344,22 @@ static Bool isOneU1 ( IRExpr* e )
 /*--- collaboration with the front end                        ---*/
 /*---------------------------------------------------------------*/
 
-static 
-IRSB* spec_helpers_BB(
-         IRSB* bb,
-         IRExpr* (*specHelper) (const HChar*, IRExpr**, IRStmt**, Int)
-      )
+static void spec_helpers_IRStmtVec(
+         IRStmtVec* stmts,
+         IRExpr* (*specHelper) (const HChar*, IRExpr**, IRStmt**, Int),
+         Bool* any)
 {
-   Int     i;
-   IRStmt* st;
    IRExpr* ex;
-   Bool    any = False;
 
-   for (i = bb->stmts_used-1; i >= 0; i--) {
-      st = bb->stmts[i];
+   for (Int i = stmts->stmts_used - 1; i >= 0; i--) {
+      IRStmt* st = stmts->stmts[i];
+
+      if (st->tag == Ist_IfThenElse) {
+         IRIfThenElse* ite = st->Ist.IfThenElse.details;
+         spec_helpers_IRStmtVec(ite->then_leg, specHelper, any);
+         spec_helpers_IRStmtVec(ite->else_leg, specHelper, any);
+         continue;
+      }
 
       if (st->tag != Ist_WrTmp
           || st->Ist.WrTmp.data->tag != Iex_CCall)
@@ -3189,15 +3367,14 @@ IRSB* spec_helpers_BB(
 
       ex = (*specHelper)( st->Ist.WrTmp.data->Iex.CCall.cee->name,
                           st->Ist.WrTmp.data->Iex.CCall.args,
-                          &bb->stmts[0], i );
+                          &stmts->stmts[0], i );
       if (!ex)
         /* the front end can't think of a suitable replacement */
         continue;
 
-      /* We got something better.  Install it in the bb. */
-      any = True;
-      bb->stmts[i]
-         = IRStmt_WrTmp(st->Ist.WrTmp.tmp, ex);
+      /* We got something better. Install it in stmts. */
+      *any = True;
+      stmts->stmts[i] = IRStmt_WrTmp(st->Ist.WrTmp.tmp, ex);
 
       if (0) {
          vex_printf("SPEC: ");
@@ -3207,10 +3384,22 @@ IRSB* spec_helpers_BB(
          vex_printf("\n");
       }
    }
+}
 
-   if (any)
-      bb = flatten_BB(bb);
-   return bb;
+static
+IRSB* spec_helpers_BB(
+         IRSB* bb,
+         IRExpr* (*specHelper) (const HChar*, IRExpr**, IRStmt**, Int)
+      )
+{
+   Bool any = False;
+   spec_helpers_IRStmtVec(bb->stmts, specHelper, &any);
+
+   if (any) {
+      return flatten_BB(bb);
+   } else {
+      return bb;
+   }
 }
 
 
@@ -3863,18 +4052,10 @@ static AvailExpr* irExpr_to_AvailExpr ( IRExpr* e, Bool allowLoadsToBeCSEd )
    return NULL;
 }
 
-
-/* The BB is modified in-place.  Returns True if any changes were
-   made.  The caller can choose whether or not loads should be CSEd.
-   In the normal course of things we don't do that, since CSEing loads
-   is something of a dodgy proposition if the guest program is doing
-   some screwy stuff to do with races and spinloops. */
-
-static Bool do_cse_BB ( IRSB* bb, Bool allowLoadsToBeCSEd )
+static Bool do_cse_IRStmtVec(const IRTypeEnv* tyenv, IRStmtVec* stmts,
+                             Bool allowLoadsToBeCSEd)
 {
-   Int        i, j, paranoia;
-   IRTemp     t, q;
-   IRStmt*    st;
+   Int        j, paranoia;
    AvailExpr* eprime;
    AvailExpr* ae;
    Bool       invalidate;
@@ -3882,10 +4063,6 @@ static Bool do_cse_BB ( IRSB* bb, Bool allowLoadsToBeCSEd )
 
    HashHW* tenv = newHHW(); /* :: IRTemp -> IRTemp */
    HashHW* aenv = newHHW(); /* :: AvailExpr* -> IRTemp */
-
-   vassert(sizeof(IRTemp) <= sizeof(HWord));
-
-   if (0) { ppIRSB(bb); vex_printf("\n\n"); }
 
    /* Iterate forwards over the stmts.  
       On seeing "t = E", where E is one of the AvailExpr forms:
@@ -3902,8 +4079,8 @@ static Bool do_cse_BB ( IRSB* bb, Bool allowLoadsToBeCSEd )
       might invalidate some of the expressions in aenv.  So there is
       an invalidate-bindings check for each statement seen.
    */
-   for (i = 0; i < bb->stmts_used; i++) {
-      st = bb->stmts[i];
+   for (UInt i = 0; i < stmts->stmts_used; i++) {
+      IRStmt* st = stmts->stmts[i];
 
       /* ------ BEGIN invalidate aenv bindings ------ */
       /* This is critical: remove from aenv any E' -> .. bindings
@@ -3925,8 +4102,17 @@ static Bool do_cse_BB ( IRSB* bb, Bool allowLoadsToBeCSEd )
          case Ist_NoOp: case Ist_IMark: case Ist_AbiHint: 
          case Ist_WrTmp: case Ist_Exit: case Ist_LoadG:
             paranoia = 0; break;
+         case Ist_IfThenElse: {
+            IRIfThenElse* ite = st->Ist.IfThenElse.details;
+            anyDone |= do_cse_IRStmtVec(tyenv, ite->then_leg,
+                                        allowLoadsToBeCSEd);
+            anyDone |= do_cse_IRStmtVec(tyenv, ite->else_leg,
+                                        allowLoadsToBeCSEd);
+            paranoia = 0;
+            break;
+         }
          default: 
-            vpanic("do_cse_BB(1)");
+            vpanic("do_cse_IRStmtVec(1)");
       }
 
       if (paranoia > 0) {
@@ -3954,7 +4140,7 @@ static Bool do_cse_BB ( IRSB* bb, Bool allowLoadsToBeCSEd )
                          ae->u.GetIt.descr, 
                          IRExpr_RdTmp(ae->u.GetIt.ix), 
                          st->Ist.Put.offset, 
-                         typeOfIRExpr(bb->tyenv,st->Ist.Put.data) 
+                         typeOfIRExpr(tyenv, st->Ist.Put.data)
                       ) != NoAlias) 
                      invalidate = True;
                }
@@ -3972,7 +4158,7 @@ static Bool do_cse_BB ( IRSB* bb, Bool allowLoadsToBeCSEd )
                      invalidate = True;
                }
                else 
-                  vpanic("do_cse_BB(2)");
+                  vpanic("do_cse_IRStmtVec(2)");
             }
 
             if (invalidate) {
@@ -3988,7 +4174,7 @@ static Bool do_cse_BB ( IRSB* bb, Bool allowLoadsToBeCSEd )
       if (st->tag != Ist_WrTmp)
          continue;
 
-      t = st->Ist.WrTmp.tmp;
+      IRTemp t = st->Ist.WrTmp.tmp;
       eprime = irExpr_to_AvailExpr(st->Ist.WrTmp.data, allowLoadsToBeCSEd);
       /* ignore if not of AvailExpr form */
       if (!eprime)
@@ -4008,18 +4194,34 @@ static Bool do_cse_BB ( IRSB* bb, Bool allowLoadsToBeCSEd )
          /* A binding E' -> q was found.  Replace stmt by "t = q" and
             note the t->q binding in tenv. */
          /* (this is the core of the CSE action) */
-         q = (IRTemp)aenv->val[j];
-         bb->stmts[i] = IRStmt_WrTmp( t, IRExpr_RdTmp(q) );
-         addToHHW( tenv, (HWord)t, (HWord)q );
+         IRTemp q = (IRTemp) aenv->val[j];
+         stmts->stmts[i] = IRStmt_WrTmp(t, IRExpr_RdTmp(q));
+         addToHHW(tenv, (HWord) t, (HWord) q);
          anyDone = True;
       } else {
          /* No binding was found, so instead we add E' -> t to our
             collection of available expressions, replace this stmt
             with "t = E'", and move on. */
-         bb->stmts[i] = IRStmt_WrTmp( t, availExpr_to_IRExpr(eprime) );
-         addToHHW( aenv, (HWord)eprime, (HWord)t );
+         stmts->stmts[i] = IRStmt_WrTmp(t, availExpr_to_IRExpr(eprime));
+         addToHHW(aenv, (HWord) eprime, (HWord) t);
       }
    }
+   return anyDone;
+}
+
+/* The BB is modified in-place.  Returns True if any changes were
+   made.  The caller can choose whether or not loads should be CSEd.
+   In the normal course of things we don't do that, since CSEing loads
+   is something of a dodgy proposition if the guest program is doing
+   some screwy stuff to do with races and spinloops. */
+
+static Bool do_cse_BB ( IRSB* bb, Bool allowLoadsToBeCSEd )
+{
+   vassert(sizeof(IRTemp) <= sizeof(HWord));
+
+   if (0) { ppIRSB(bb); vex_printf("\n\n"); }
+
+   Bool anyDone = do_cse_IRStmtVec(bb->tyenv, bb->stmts, allowLoadsToBeCSEd);
 
    /*
    ppIRSB(bb);
@@ -4062,13 +4264,11 @@ static Bool isAdd32OrSub32 ( IRExpr* e, IRTemp* tmp, Int* i32 )
    other tmp2.  Scan backwards from the specified start point -- an
    optimisation. */
 
-static Bool collapseChain ( IRSB* bb, Int startHere,
-                            IRTemp tmp,
-                            IRTemp* tmp2, Int* i32 )
+static Bool collapseChain(IRStmtVec* stmts, Int startHere,
+                          IRTemp tmp, IRTemp* tmp2, Int* i32)
 {
    Int     j, ii;
    IRTemp  vv;
-   IRStmt* st;
    IRExpr* e;
 
    /* the (var, con) pair contain the current 'representation' for
@@ -4079,7 +4279,7 @@ static Bool collapseChain ( IRSB* bb, Int startHere,
    /* Scan backwards to see if tmp can be replaced by some other tmp
      +/- a constant. */
    for (j = startHere; j >= 0; j--) {
-      st = bb->stmts[j];
+      IRStmt* st = stmts->stmts[j];
       if (st->tag != Ist_WrTmp) 
          continue;
       if (st->Ist.WrTmp.tmp != var)
@@ -4106,14 +4306,13 @@ static Bool collapseChain ( IRSB* bb, Int startHere,
 
 /* ------- Main function for Add32/Sub32 chain collapsing ------ */
 
-static void collapse_AddSub_chains_BB ( IRSB* bb )
+static void collapse_AddSub_chains_IRStmtVec(IRStmtVec* stmts)
 {
-   IRStmt *st;
    IRTemp var, var2;
-   Int    i, con, con2;
+   Int    con, con2;
 
-   for (i = bb->stmts_used-1; i >= 0; i--) {
-      st = bb->stmts[i];
+   for (Int i = stmts->stmts_used - 1; i >= 0; i--) {
+      IRStmt* st = stmts->stmts[i];
       if (st->tag == Ist_NoOp)
          continue;
 
@@ -4124,14 +4323,14 @@ static void collapse_AddSub_chains_BB ( IRSB* bb )
 
          /* So e1 is of the form Add32(var,con) or Sub32(var,-con).
             Find out if var can be expressed as var2 + con2. */
-         if (collapseChain(bb, i-1, var, &var2, &con2)) {
+         if (collapseChain(stmts, i - 1, var, &var2, &con2)) {
             if (DEBUG_IROPT) {
                vex_printf("replacing1 ");
-               ppIRStmt(st);
+               ppIRStmt(st, NULL, 0);
                vex_printf(" with ");
             }
             con2 += con;
-            bb->stmts[i] 
+            stmts->stmts[i]
                = IRStmt_WrTmp(
                     st->Ist.WrTmp.tmp,
                     (con2 >= 0) 
@@ -4143,7 +4342,7 @@ static void collapse_AddSub_chains_BB ( IRSB* bb )
                                      IRExpr_Const(IRConst_U32(-con2)))
                  );
             if (DEBUG_IROPT) {
-               ppIRStmt(bb->stmts[i]);
+               ppIRStmt(stmts->stmts[i], NULL, 0);
                vex_printf("\n");
             }
          }
@@ -4156,22 +4355,22 @@ static void collapse_AddSub_chains_BB ( IRSB* bb )
       if (st->tag == Ist_WrTmp
           && st->Ist.WrTmp.data->tag == Iex_GetI
           && st->Ist.WrTmp.data->Iex.GetI.ix->tag == Iex_RdTmp
-          && collapseChain(bb, i-1, st->Ist.WrTmp.data->Iex.GetI.ix
-                                      ->Iex.RdTmp.tmp, &var2, &con2)) {
+          && collapseChain(stmts, i - 1, st->Ist.WrTmp.data->Iex.GetI.ix
+                                         ->Iex.RdTmp.tmp, &var2, &con2)) {
          if (DEBUG_IROPT) {
             vex_printf("replacing3 ");
-            ppIRStmt(st);
+            ppIRStmt(st, NULL, 0);
             vex_printf(" with ");
          }
          con2 += st->Ist.WrTmp.data->Iex.GetI.bias;
-         bb->stmts[i]
+         stmts->stmts[i]
             = IRStmt_WrTmp(
                  st->Ist.WrTmp.tmp,
                  IRExpr_GetI(st->Ist.WrTmp.data->Iex.GetI.descr,
                              IRExpr_RdTmp(var2),
                              con2));
          if (DEBUG_IROPT) {
-            ppIRStmt(bb->stmts[i]);
+            ppIRStmt(stmts->stmts[i], NULL, 0);
             vex_printf("\n");
          }
          continue;
@@ -4181,27 +4380,37 @@ static void collapse_AddSub_chains_BB ( IRSB* bb )
       IRPutI *puti = st->Ist.PutI.details;
       if (st->tag == Ist_PutI
           && puti->ix->tag == Iex_RdTmp
-          && collapseChain(bb, i-1, puti->ix->Iex.RdTmp.tmp, 
-                               &var2, &con2)) {
+          && collapseChain(stmts, i-1, puti->ix->Iex.RdTmp.tmp,
+                           &var2, &con2)) {
          if (DEBUG_IROPT) {
             vex_printf("replacing2 ");
-            ppIRStmt(st);
+            ppIRStmt(st, NULL, 0);
             vex_printf(" with ");
          }
          con2 += puti->bias;
-         bb->stmts[i]
+         stmts->stmts[i]
             = IRStmt_PutI(mkIRPutI(puti->descr,
                                    IRExpr_RdTmp(var2),
                                    con2,
                                    puti->data));
          if (DEBUG_IROPT) {
-            ppIRStmt(bb->stmts[i]);
+            ppIRStmt(stmts->stmts[i], NULL, 0);
             vex_printf("\n");
          }
          continue;
       }
 
+      if (st->tag == Ist_IfThenElse) {
+         IRIfThenElse* ite = st->Ist.IfThenElse.details;
+         collapse_AddSub_chains_IRStmtVec(ite->then_leg);
+         collapse_AddSub_chains_IRStmtVec(ite->else_leg);
+      }
    } /* for */
+}
+
+static void collapse_AddSub_chains_BB ( IRSB* bb )
+{
+   collapse_AddSub_chains_IRStmtVec(bb->stmts);
 }
 
 
@@ -4215,11 +4424,9 @@ static void collapse_AddSub_chains_BB ( IRSB* bb )
    that the PutI writes.  This is the core of PutI-GetI forwarding. */
 
 static 
-IRExpr* findPutI ( IRSB* bb, Int startHere,
-                   IRRegArray* descrG, IRExpr* ixG, Int biasG )
+IRExpr* findPutI(const IRTypeEnv* tyenv, IRStmtVec* stmts, Int startHere,
+                 IRRegArray* descrG, IRExpr* ixG, Int biasG)
 {
-   Int        j;
-   IRStmt*    st;
    GSAliasing relation;
 
    if (0) {
@@ -4233,8 +4440,8 @@ IRExpr* findPutI ( IRSB* bb, Int startHere,
    /* Scan backwards in bb from startHere to find a suitable PutI
       binding for (descrG, ixG, biasG), if any. */
 
-   for (j = startHere; j >= 0; j--) {
-      st = bb->stmts[j];
+   for (Int j = startHere; j >= 0; j--) {
+      IRStmt* st = stmts->stmts[j];
       if (st->tag == Ist_NoOp) 
          continue;
 
@@ -4247,7 +4454,7 @@ IRExpr* findPutI ( IRSB* bb, Int startHere,
             = getAliasingRelation_IC(
                  descrG, ixG,
                  st->Ist.Put.offset,
-                 typeOfIRExpr(bb->tyenv,st->Ist.Put.data) );
+                 typeOfIRExpr(tyenv, st->Ist.Put.data) );
 
          if (relation == NoAlias) {
             /* we're OK; keep going */
@@ -4334,11 +4541,9 @@ static Bool identicalPutIs ( IRStmt* pi, IRStmt* s2 )
 /* Assuming pi is a PutI stmt, is s2 a Get/GetI/Put/PutI which might
    overlap it?  Safe answer: True.  Note, we could do a lot better
    than this if needed. */
-
 static 
-Bool guestAccessWhichMightOverlapPutI ( 
-        IRTypeEnv* tyenv, IRStmt* pi, IRStmt* s2 
-     )
+Bool guestAccessWhichMightOverlapPutI(const IRTypeEnv* tyenv, IRStmtVec* stmts,
+                                      IRStmt* pi, IRStmt* s2)
 {
    GSAliasing relation;
    UInt       minoffP, maxoffP;
@@ -4379,7 +4584,7 @@ Bool guestAccessWhichMightOverlapPutI (
             = getAliasingRelation_IC(
                  p1->descr, p1->ix,
                  s2->Ist.Put.offset, 
-                 typeOfIRExpr(tyenv,s2->Ist.Put.data)
+                 typeOfIRExpr(tyenv, s2->Ist.Put.data)
               );
          goto have_relation;
 
@@ -4424,7 +4629,7 @@ Bool guestAccessWhichMightOverlapPutI (
          return False;
 
       default:
-         vex_printf("\n"); ppIRStmt(s2); vex_printf("\n");
+         vex_printf("\n"); ppIRStmt(s2, tyenv, 0); vex_printf("\n");
          vpanic("guestAccessWhichMightOverlapPutI");
    }
 
@@ -4443,27 +4648,24 @@ Bool guestAccessWhichMightOverlapPutI (
    bb is modified in-place. */
 
 static
-void do_redundant_GetI_elimination ( IRSB* bb )
+void do_redundant_GetI_elimination(const IRTypeEnv* tyenv, IRStmtVec* stmts)
 {
-   Int     i;
-   IRStmt* st;
-
-   for (i = bb->stmts_used-1; i >= 0; i--) {
-      st = bb->stmts[i];
+   for (Int i = stmts->stmts_used - 1; i >= 0; i--) {
+      IRStmt* st = stmts->stmts[i];
       if (st->tag == Ist_NoOp)
          continue;
 
       if (st->tag == Ist_WrTmp
           && st->Ist.WrTmp.data->tag == Iex_GetI
           && st->Ist.WrTmp.data->Iex.GetI.ix->tag == Iex_RdTmp) {
-         IRRegArray* descr = st->Ist.WrTmp.data->Iex.GetI.descr;
-         IRExpr*     ix    = st->Ist.WrTmp.data->Iex.GetI.ix;
-         Int         bias  = st->Ist.WrTmp.data->Iex.GetI.bias;
-         IRExpr*     replacement = findPutI(bb, i-1, descr, ix, bias);
+         IRRegArray*   descr = st->Ist.WrTmp.data->Iex.GetI.descr;
+         IRExpr*          ix = st->Ist.WrTmp.data->Iex.GetI.ix;
+         Int            bias = st->Ist.WrTmp.data->Iex.GetI.bias;
+         IRExpr* replacement = findPutI(tyenv, stmts, i - 1, descr, ix, bias);
          if (replacement 
              && isIRAtom(replacement)
              /* Make sure we're doing a type-safe transformation! */
-             && typeOfIRExpr(bb->tyenv, replacement) == descr->elemTy) {
+             && typeOfIRExpr(tyenv, replacement) == descr->elemTy) {
             if (DEBUG_IROPT) {
                vex_printf("rGI:  "); 
                ppIRExpr(st->Ist.WrTmp.data);
@@ -4471,11 +4673,16 @@ void do_redundant_GetI_elimination ( IRSB* bb )
                ppIRExpr(replacement);
                vex_printf("\n");
             }
-            bb->stmts[i] = IRStmt_WrTmp(st->Ist.WrTmp.tmp, replacement);
+            stmts->stmts[i] = IRStmt_WrTmp(st->Ist.WrTmp.tmp, replacement);
          }
       }
-   }
 
+      if (st->tag == Ist_IfThenElse) {
+         IRIfThenElse* ite = st->Ist.IfThenElse.details;
+         do_redundant_GetI_elimination(tyenv, ite->then_leg);
+         do_redundant_GetI_elimination(tyenv, ite->else_leg);
+      }
+   }
 }
 
 
@@ -4483,16 +4690,20 @@ void do_redundant_GetI_elimination ( IRSB* bb )
    bb is modified in-place. */
 
 static
-void do_redundant_PutI_elimination ( IRSB* bb, VexRegisterUpdates pxControl )
+void do_redundant_PutI_elimination(const IRTypeEnv* tyenv, IRStmtVec* stmts,
+                                   VexRegisterUpdates pxControl)
 {
-   Int    i, j;
-   Bool   delete;
-   IRStmt *st, *stj;
-
    vassert(pxControl < VexRegUpdAllregsAtEachInsn);
 
-   for (i = 0; i < bb->stmts_used; i++) {
-      st = bb->stmts[i];
+   for (UInt i = 0; i < stmts->stmts_used; i++) {
+      IRStmt* st = stmts->stmts[i];
+
+      if (st->tag == Ist_IfThenElse) {
+         IRIfThenElse* ite = st->Ist.IfThenElse.details;
+         do_redundant_PutI_elimination(tyenv, ite->then_leg, pxControl);
+         do_redundant_PutI_elimination(tyenv, ite->else_leg, pxControl);
+      }
+
       if (st->tag != Ist_PutI)
          continue;
       /* Ok, search forwards from here to see if we can find another
@@ -4508,9 +4719,9 @@ void do_redundant_PutI_elimination ( IRSB* bb, VexRegisterUpdates pxControl )
          * If a Put which definitely doesn't overlap, or any other 
            kind of stmt, continue.
       */
-      delete = False;
-      for (j = i+1; j < bb->stmts_used; j++) {
-         stj = bb->stmts[j];
+      Bool delete = False;
+      for (UInt j = i + 1; j < stmts->stmts_used; j++) {
+         IRStmt* stj = stmts->stmts[j];
          if (stj->tag == Ist_NoOp) 
             continue;
          if (identicalPutIs(st, stj)) {
@@ -4524,7 +4735,7 @@ void do_redundant_PutI_elimination ( IRSB* bb, VexRegisterUpdates pxControl )
          if (st->tag == Ist_Dirty)
             /* give up; could do better here */
             break;
-         if (guestAccessWhichMightOverlapPutI(bb->tyenv, st, stj))
+         if (guestAccessWhichMightOverlapPutI(tyenv, stmts, st, stj))
             /* give up */
            break;
       }
@@ -4532,12 +4743,11 @@ void do_redundant_PutI_elimination ( IRSB* bb, VexRegisterUpdates pxControl )
       if (delete) {
          if (DEBUG_IROPT) {
             vex_printf("rPI:  "); 
-            ppIRStmt(st); 
+            ppIRStmt(st, tyenv, 0);
             vex_printf("\n");
          }
-         bb->stmts[i] = IRStmt_NoOp();
+         stmts->stmts[i] = IRStmt_NoOp();
       }
-
    }
 }
 
@@ -4598,12 +4808,24 @@ static void deltaIRExpr ( IRExpr* e, Int delta )
    }
 }
 
-/* Adjust all tmp values (names) in st by delta.  st is destructively
-   modified. */
-
-static void deltaIRStmt ( IRStmt* st, Int delta )
+static void deltaIRTemp(IRTypeEnv* tyenv, IRStmtVec* stmts, IRTemp *tmp,
+                        UInt delta)
 {
-   Int      i;
+   *tmp += delta;
+
+   /* Adjust IRTemp's ID and also defset of the current IRStmtVec. */
+   tyenv->ids[*tmp] = stmts->id;
+   setIRTempDefined(stmts->defset, *tmp);
+}
+
+static void deltaIRStmtVec(IRTypeEnv* tyenv, IRStmtVec* stmts,
+                           UInt delta_tmp, UInt delta_id, IRStmtVec* parent);
+
+/* Adjust all tmp values (names) in st by delta_tmp. st is destructively
+   modified. */
+static void deltaIRStmt(IRTypeEnv* tyenv, IRStmtVec* stmts, IRStmt* st,
+                        UInt delta_tmp, UInt delta_id)
+{
    IRDirty* d;
    switch (st->tag) {
       case Ist_NoOp:
@@ -4611,79 +4833,109 @@ static void deltaIRStmt ( IRStmt* st, Int delta )
       case Ist_MBE:
          break;
       case Ist_AbiHint:
-         deltaIRExpr(st->Ist.AbiHint.base, delta);
-         deltaIRExpr(st->Ist.AbiHint.nia, delta);
+         deltaIRExpr(st->Ist.AbiHint.base, delta_tmp);
+         deltaIRExpr(st->Ist.AbiHint.nia, delta_tmp);
          break;
       case Ist_Put:
-         deltaIRExpr(st->Ist.Put.data, delta);
+         deltaIRExpr(st->Ist.Put.data, delta_tmp);
          break;
       case Ist_PutI:
-         deltaIRExpr(st->Ist.PutI.details->ix, delta);
-         deltaIRExpr(st->Ist.PutI.details->data, delta);
+         deltaIRExpr(st->Ist.PutI.details->ix, delta_tmp);
+         deltaIRExpr(st->Ist.PutI.details->data, delta_tmp);
          break;
-      case Ist_WrTmp: 
-         st->Ist.WrTmp.tmp += delta;
-         deltaIRExpr(st->Ist.WrTmp.data, delta);
+      case Ist_WrTmp:
+         deltaIRTemp(tyenv, stmts, &st->Ist.WrTmp.tmp, delta_tmp);
+         deltaIRExpr(st->Ist.WrTmp.data, delta_tmp);
          break;
       case Ist_Exit:
-         deltaIRExpr(st->Ist.Exit.guard, delta);
+         deltaIRExpr(st->Ist.Exit.guard, delta_tmp);
          break;
       case Ist_Store:
-         deltaIRExpr(st->Ist.Store.addr, delta);
-         deltaIRExpr(st->Ist.Store.data, delta);
+         deltaIRExpr(st->Ist.Store.addr, delta_tmp);
+         deltaIRExpr(st->Ist.Store.data, delta_tmp);
          break;
       case Ist_StoreG: {
          IRStoreG* sg = st->Ist.StoreG.details;
-         deltaIRExpr(sg->addr, delta);
-         deltaIRExpr(sg->data, delta);
-         deltaIRExpr(sg->guard, delta);
+         deltaIRExpr(sg->addr, delta_tmp);
+         deltaIRExpr(sg->data, delta_tmp);
+         deltaIRExpr(sg->guard, delta_tmp);
          break;
       }
       case Ist_LoadG: {
          IRLoadG* lg = st->Ist.LoadG.details;
-         lg->dst += delta;
-         deltaIRExpr(lg->addr, delta);
-         deltaIRExpr(lg->alt, delta);
-         deltaIRExpr(lg->guard, delta);
+         deltaIRTemp(tyenv, stmts, &lg->dst, delta_tmp);
+         deltaIRExpr(lg->addr, delta_tmp);
+         deltaIRExpr(lg->alt, delta_tmp);
+         deltaIRExpr(lg->guard, delta_tmp);
          break;
       }
       case Ist_CAS:
          if (st->Ist.CAS.details->oldHi != IRTemp_INVALID)
-            st->Ist.CAS.details->oldHi += delta;
-         st->Ist.CAS.details->oldLo += delta;
-         deltaIRExpr(st->Ist.CAS.details->addr, delta);
+            deltaIRTemp(tyenv, stmts, &st->Ist.CAS.details->oldHi, delta_tmp);
+         deltaIRTemp(tyenv, stmts, &st->Ist.CAS.details->oldLo, delta_tmp);
+         deltaIRExpr(st->Ist.CAS.details->addr, delta_tmp);
          if (st->Ist.CAS.details->expdHi)
-            deltaIRExpr(st->Ist.CAS.details->expdHi, delta);
-         deltaIRExpr(st->Ist.CAS.details->expdLo, delta);
+            deltaIRExpr(st->Ist.CAS.details->expdHi, delta_tmp);
+         deltaIRExpr(st->Ist.CAS.details->expdLo, delta_tmp);
          if (st->Ist.CAS.details->dataHi)
-            deltaIRExpr(st->Ist.CAS.details->dataHi, delta);
-         deltaIRExpr(st->Ist.CAS.details->dataLo, delta);
+            deltaIRExpr(st->Ist.CAS.details->dataHi, delta_tmp);
+         deltaIRExpr(st->Ist.CAS.details->dataLo, delta_tmp);
          break;
       case Ist_LLSC:
-         st->Ist.LLSC.result += delta;
-         deltaIRExpr(st->Ist.LLSC.addr, delta);
+         deltaIRTemp(tyenv, stmts, &st->Ist.LLSC.result, delta_tmp);
+         deltaIRExpr(st->Ist.LLSC.addr, delta_tmp);
          if (st->Ist.LLSC.storedata)
-            deltaIRExpr(st->Ist.LLSC.storedata, delta);
+            deltaIRExpr(st->Ist.LLSC.storedata, delta_tmp);
          break;
       case Ist_Dirty:
          d = st->Ist.Dirty.details;
-         deltaIRExpr(d->guard, delta);
-         for (i = 0; d->args[i]; i++) {
+         deltaIRExpr(d->guard, delta_tmp);
+         for (UInt i = 0; d->args[i]; i++) {
             IRExpr* arg = d->args[i];
             if (LIKELY(!is_IRExpr_VECRET_or_GSPTR(arg)))
-               deltaIRExpr(arg, delta);
+               deltaIRExpr(arg, delta_tmp);
          }
          if (d->tmp != IRTemp_INVALID)
-            d->tmp += delta;
+            deltaIRTemp(tyenv, stmts, &d->tmp, delta_tmp);
          if (d->mAddr)
-            deltaIRExpr(d->mAddr, delta);
+            deltaIRExpr(d->mAddr, delta_tmp);
          break;
+      case Ist_IfThenElse: {
+         IRIfThenElse* ite = st->Ist.IfThenElse.details;
+         deltaIRExpr(ite->cond, delta_tmp);
+         /* Traverse "then" and "else" legs. Also nested IRStmtVec's need to
+            be unrolled otherwise the main IRStmtVec will break horribly. */
+         deltaIRStmtVec(tyenv, ite->then_leg, delta_tmp, delta_id, stmts);
+         deltaIRStmtVec(tyenv, ite->else_leg, delta_tmp, delta_id, stmts);
+
+         for (UInt i = 0; i < ite->phi_nodes->phis_used; i++) {
+            IRPhi* phi = ite->phi_nodes->phis[i];
+            phi->dst     += delta_tmp;
+            phi->srcThen += delta_tmp;
+            phi->srcElse += delta_tmp;
+         }
+         break;
+      }
       default: 
-         vex_printf("\n"); ppIRStmt(st); vex_printf("\n");
+         vex_printf("\n"); ppIRStmt(st, tyenv, 0); vex_printf("\n");
          vpanic("deltaIRStmt");
    }
 }
 
+/* Called only for nested IRStmtVec's. */
+static void deltaIRStmtVec(IRTypeEnv* tyenv, IRStmtVec* stmts,
+                           UInt delta_tmp, UInt delta_id, IRStmtVec* parent)
+{
+   /* Clear the defset now. It still points to original IRTemp's however
+      we are now moving to another set of IRTemp's shifted by 'delta'. */
+   clearIRTempDefSet(stmts->defset);
+   stmts->id     += delta_id;
+   stmts->parent = parent;
+
+   for (UInt i = 0; i < stmts->stmts_used; i++) {
+      deltaIRStmt(tyenv, stmts, stmts->stmts[i], delta_tmp, delta_id);
+   }
+}
 
 /* If possible, return a loop-unrolled version of bb0.  The original
    is changed.  If not possible, return NULL.  */
@@ -4709,8 +4961,8 @@ static Int calc_unroll_factor( IRSB* bb )
    Int n_stmts, i;
 
    n_stmts = 0;
-   for (i = 0; i < bb->stmts_used; i++) {
-      if (bb->stmts[i]->tag != Ist_NoOp)
+   for (i = 0; i < bb->stmts->stmts_used; i++) {
+      if (bb->stmts->stmts[i]->tag != Ist_NoOp)
          n_stmts++;
    }
 
@@ -4743,7 +4995,7 @@ static Int calc_unroll_factor( IRSB* bb )
 
 static IRSB* maybe_loop_unroll_BB ( IRSB* bb0, Addr my_addr )
 {
-   Int      i, j, jmax, n_vars;
+   Int      i, j, jmax;
    Bool     xxx_known;
    Addr64   xxx_value, yyy_value;
    IRExpr*  udst;
@@ -4801,14 +5053,14 @@ static IRSB* maybe_loop_unroll_BB ( IRSB* bb0, Addr my_addr )
       is 'if (c) goto X'.
    */
    yyy_value = xxx_value;
-   for (i = bb0->stmts_used-1; i >= 0; i--)
-      if (bb0->stmts[i])
+   for (i = bb0->stmts->stmts_used - 1; i >= 0; i--)
+      if (bb0->stmts->stmts[i])
          break;
 
    if (i < 0)
       return NULL; /* block with no stmts.  Strange. */
 
-   st = bb0->stmts[i];
+   st = bb0->stmts->stmts[i];
    if (st->tag != Ist_Exit)
       return NULL;
    if (st->Ist.Exit.jk != Ijk_Boring)
@@ -4840,8 +5092,8 @@ static IRSB* maybe_loop_unroll_BB ( IRSB* bb0, Addr my_addr )
    bb1 = deepCopyIRSB( bb0 );
    bb0 = NULL;
    udst = NULL; /* is now invalid */
-   for (i = bb1->stmts_used-1; i >= 0; i--)
-      if (bb1->stmts[i])
+   for (i = bb1->stmts->stmts_used - 1; i >= 0; i--)
+      if (bb1->stmts->stmts[i])
          break;
 
    /* The next bunch of assertions should be true since we already
@@ -4849,7 +5101,7 @@ static IRSB* maybe_loop_unroll_BB ( IRSB* bb0, Addr my_addr )
 
    vassert(i >= 0);
 
-   st = bb1->stmts[i];
+   st = bb1->stmts->stmts[i];
    vassert(st->tag == Ist_Exit);
 
    con = st->Ist.Exit.dst;
@@ -4885,19 +5137,33 @@ static IRSB* maybe_loop_unroll_BB ( IRSB* bb0, Addr my_addr )
 
    jmax = unroll_factor==8 ? 3 : (unroll_factor==4 ? 2 : 1);
    for (j = 1; j <= jmax; j++) {
-
-      n_vars = bb1->tyenv->types_used;
+      UInt n_vars = bb1->tyenv->used;
+      UInt n_ids  = bb1->id_seq;
 
       bb2 = deepCopyIRSB(bb1);
-      for (i = 0; i < n_vars; i++)
-         (void)newIRTemp(bb1->tyenv, bb2->tyenv->types[i]);
 
-      for (i = 0; i < bb2->stmts_used; i++) {
+      /* This is tricky. We need to copy types. We also need to increase IDs for
+         nested IRStmtVec's. This can be achieved here. But we also need to keep
+         track in which IRStmtVec each IRTemp is defined and that can be set
+         only during traversal. So we do only types here and deal with IDs and
+         defset during statement traversal. */
+      ensureSpaceInIRTypeEnv(bb1->tyenv, bb1->tyenv->used + n_vars);
+      for (i = 0; i < n_vars; i++) {
+         bb1->tyenv->types[n_vars + i] = bb2->tyenv->types[i];
+         bb1->tyenv->ids[n_vars + i] = IRStmtVecID_INVALID;
+      }
+      bb1->tyenv->used += n_vars;
+
+      for (i = 0; i < bb2->stmts->stmts_used; i++) {
          /* deltaIRStmt destructively modifies the stmt, but 
             that's OK since bb2 is a complete fresh copy of bb1. */
-         deltaIRStmt(bb2->stmts[i], n_vars);
-         addStmtToIRSB(bb1, bb2->stmts[i]);
+         deltaIRStmt(bb1->tyenv, bb1->stmts, bb2->stmts->stmts[i],
+                     n_vars, n_ids);
+         addStmtToIRStmtVec(bb1->stmts, bb2->stmts->stmts[i]);
       }
+
+      /* Account for duplicated nested IRStmtVec's */
+      bb1->id_seq += (n_ids - 1);
    }
 
    if (DEBUG_IROPT) {
@@ -4986,12 +5252,22 @@ static void ppAEnv ( ATmpInfo* env )
 {
    Int i;
    for (i = 0; i < A_NENV; i++) {
-      vex_printf("%d  tmp %d  val ", i, (Int)env[i].binder);
+      vex_printf("%d  tmp ", i);
+      ppIRTemp(env[i].binder);
+      vex_printf("  val ");
       if (env[i].bindee) 
          ppIRExpr(env[i].bindee);
       else 
          vex_printf("(null)");
       vex_printf("\n");
+   }
+}
+
+static void initAEnv(ATmpInfo env[], ATmpInfo parent[])
+{
+   for (UInt i = 0; i < A_NENV; i++) {
+      env[i].bindee = (parent != NULL) ? parent[i].bindee : NULL;
+      env[i].binder = (parent != NULL) ? parent[i].binder : IRTemp_INVALID;
    }
 }
 
@@ -5077,11 +5353,10 @@ static void addToEnvFront ( ATmpInfo* env, IRTemp binder, IRExpr* bindee )
    env[0].getInterval.high = -1; /* filled in later */
 }
 
-/* Given uses :: array of UShort, indexed by IRTemp
+/* Given uses :: array of UShort, indexed by IRTemp.
    Add the use-occurrences of temps in this expression 
-   to the env. 
-*/
-static void aoccCount_Expr ( UShort* uses, IRExpr* e )
+   to the env. */
+static void aoccCount_Expr(UShort uses[], const IRExpr* e)
 {
    Int i;
 
@@ -5142,14 +5417,15 @@ static void aoccCount_Expr ( UShort* uses, IRExpr* e )
     }
 }
 
+static void aoccCount_IRStmtVec(UShort uses[], const IRStmtVec* stmts,
+                                Bool* max_ga_known, Addr* max_ga);
 
-/* Given uses :: array of UShort, indexed by IRTemp
+/* Given uses :: array of UShort, indexed by IRTemp.
    Add the use-occurrences of temps in this statement 
-   to the env. 
-*/
-static void aoccCount_Stmt ( UShort* uses, IRStmt* st )
+   to the env. */
+static void aoccCount_Stmt(UShort uses[], const IRStmt* st, Bool* max_ga_known,
+                           Addr* max_ga)
 {
-   Int      i;
    IRDirty* d;
    IRCAS*   cas;
    switch (st->tag) {
@@ -5205,7 +5481,7 @@ static void aoccCount_Stmt ( UShort* uses, IRStmt* st )
          if (d->mFx != Ifx_None)
             aoccCount_Expr(uses, d->mAddr);
          aoccCount_Expr(uses, d->guard);
-         for (i = 0; d->args[i]; i++) {
+         for (UInt i = 0; d->args[i]; i++) {
             IRExpr* arg = d->args[i];
             if (LIKELY(!is_IRExpr_VECRET_or_GSPTR(arg)))
                aoccCount_Expr(uses, arg);
@@ -5218,20 +5494,55 @@ static void aoccCount_Stmt ( UShort* uses, IRStmt* st )
       case Ist_Exit:
          aoccCount_Expr(uses, st->Ist.Exit.guard);
          return;
+      case Ist_IfThenElse: {
+         IRIfThenElse* ite = st->Ist.IfThenElse.details;
+         aoccCount_Expr(uses, ite->cond);
+         aoccCount_IRStmtVec(uses, ite->then_leg, max_ga_known, max_ga);
+         aoccCount_IRStmtVec(uses, ite->else_leg, max_ga_known, max_ga);
+         for (UInt i = 0; i < ite->phi_nodes->phis_used; i++) {
+            IRPhi* phi = ite->phi_nodes->phis[i];
+            uses[phi->srcThen]++;
+            uses[phi->srcElse]++;
+         }
+         return;
+      }
       default: 
-         vex_printf("\n"); ppIRStmt(st); vex_printf("\n");
+         vex_printf("\n"); ppIRStmt(st, NULL, 0); vex_printf("\n");
          vpanic("aoccCount_Stmt");
    }
 }
 
+static void aoccCount_IRStmtVec(UShort uses[], const IRStmtVec* stmts,
+                                Bool* max_ga_known, Addr* max_ga)
+{
+   for (UInt i = 0; i < stmts->stmts_used; i++) {
+      const IRStmt* st = stmts->stmts[i];
+      switch (st->tag) {
+         case Ist_NoOp:
+            continue;
+         case Ist_IMark: {
+            UInt len = st->Ist.IMark.len;
+            Addr mga = st->Ist.IMark.addr + (len < 1 ? 1 : len) - 1;
+            *max_ga_known = True;
+            if (mga > *max_ga)
+               *max_ga = mga;
+            break;
+         }
+         default:
+            break;
+      }
+      aoccCount_Stmt(uses, st, max_ga_known, max_ga);
+   }
+}
+
+
 /* Look up a binding for tmp in the env.  If found, return the bound
    expression, and set the env's binding to NULL so it is marked as
-   used.  If not found, return NULL. */
+   unused.  If not found, return NULL. */
 
 static IRExpr* atbSubst_Temp ( ATmpInfo* env, IRTemp tmp )
 {
-   Int i;
-   for (i = 0; i < A_NENV; i++) {
+   for (UInt i = 0; i < A_NENV; i++) {
       if (env[i].binder == tmp && env[i].bindee != NULL) {
          IRExpr* bindee = env[i].bindee;
          env[i].bindee = NULL;
@@ -5501,11 +5812,16 @@ static IRExpr* atbSubst_Expr ( ATmpInfo* env, IRExpr* e )
    }
 }
 
-/* Same deal as atbSubst_Expr, except for stmts. */
+static IRStmtVec* atbSubst_StmtVec(
+   const IRTypeEnv* tyenv, ATmpInfo* env, IRStmtVec* stmts,
+   Bool (*preciseMemExnsFn)(Int, Int, VexRegisterUpdates),
+   VexRegisterUpdates pxControl, UShort uses[]);
 
-static IRStmt* atbSubst_Stmt ( ATmpInfo* env, IRStmt* st )
+/* Same deal as atbSubst_Expr, except for stmts. */
+static IRStmt* atbSubst_Stmt(const IRTypeEnv* tyenv, ATmpInfo* env, IRStmt* st,
+   Bool (*preciseMemExnsFn)(Int, Int, VexRegisterUpdates),
+   VexRegisterUpdates pxControl, UShort uses[])
 {
-   Int     i;
    IRDirty *d, *d2;
    IRCAS   *cas, *cas2;
    IRPutI  *puti, *puti2;
@@ -5596,14 +5912,52 @@ static IRStmt* atbSubst_Stmt ( ATmpInfo* env, IRStmt* st )
          if (d2->mFx != Ifx_None)
             d2->mAddr = atbSubst_Expr(env, d2->mAddr);
          d2->guard = atbSubst_Expr(env, d2->guard);
-         for (i = 0; d2->args[i]; i++) {
+         for (UInt i = 0; d2->args[i]; i++) {
             IRExpr* arg = d2->args[i];
             if (LIKELY(!is_IRExpr_VECRET_or_GSPTR(arg)))
                d2->args[i] = atbSubst_Expr(env, arg);
          }
          return IRStmt_Dirty(d2);
+      case Ist_IfThenElse: {
+         IRIfThenElse* ite = st->Ist.IfThenElse.details;
+         ATmpInfo then_env[A_NENV];
+         initAEnv(then_env, env);
+         IRStmtVec* then_leg = atbSubst_StmtVec(tyenv, then_env, ite->then_leg,
+                                             preciseMemExnsFn, pxControl, uses);
+
+         ATmpInfo else_env[A_NENV];
+         initAEnv(else_env, env);
+         IRStmtVec* else_leg = atbSubst_StmtVec(tyenv, else_env, ite->else_leg,
+                                             preciseMemExnsFn, pxControl, uses);
+
+         const IRPhiVec* phi_nodes = ite->phi_nodes;
+         IRPhiVec* out = emptyIRPhiVec();
+         for (UInt i = 0; i < phi_nodes->phis_used; i++) {
+            IRPhi* phi = phi_nodes->phis[i];
+            if (uses[phi->dst] == 0) {
+               if (0) vex_printf("DEAD phi node\n");
+               continue; /* for (UInt i = 0; i < phi_nodes->phis_used; i++) */
+            }
+            addIRPhiToIRPhiVec(out, phi);
+
+            /* Dump bindings in env (if any) which lead to
+               phi->srcThen or phi->srcElse. */
+            IRExpr* e = atbSubst_Temp(then_env, phi->srcThen);
+            if (e != NULL) {
+               addStmtToIRStmtVec(then_leg, IRStmt_WrTmp(phi->srcThen, e));
+            }
+
+            e = atbSubst_Temp(else_env, phi->srcElse);
+            if (e != NULL) {
+               addStmtToIRStmtVec(else_leg, IRStmt_WrTmp(phi->srcElse, e));
+            }
+         }
+
+         return IRStmt_IfThenElse(atbSubst_Expr(env, ite->cond), ite->hint,
+                                  then_leg, else_leg, out);
+      }
       default: 
-         vex_printf("\n"); ppIRStmt(st); vex_printf("\n");
+         vex_printf("\n"); ppIRStmt(st, NULL, 0); vex_printf("\n");
          vpanic("atbSubst_Stmt");
    }
 }
@@ -5668,7 +6022,7 @@ static Interval dirty_helper_puts (
    requiresPreciseMemExns return whether or not that modification
    requires precise exceptions. */
 static Interval stmt_modifies_guest_state ( 
-                   IRSB *bb, const IRStmt *st,
+                   const IRTypeEnv *tyenv, const IRStmt *st,
                    Bool (*preciseMemExnsFn)(Int,Int,VexRegisterUpdates),
                    VexRegisterUpdates pxControl,
                    /*OUT*/Bool *requiresPreciseMemExns
@@ -5679,7 +6033,7 @@ static Interval stmt_modifies_guest_state (
    switch (st->tag) {
    case Ist_Put: {
       Int offset = st->Ist.Put.offset;
-      Int size = sizeofIRType(typeOfIRExpr(bb->tyenv, st->Ist.Put.data));
+      Int size = sizeofIRType(typeOfIRExpr(tyenv, st->Ist.Put.data));
 
       *requiresPreciseMemExns
          = preciseMemExnsFn(offset, offset + size - 1, pxControl);
@@ -5721,139 +6075,57 @@ static Interval stmt_modifies_guest_state (
    }
 }
 
-/* notstatic */ Addr ado_treebuild_BB (
-                        IRSB* bb,
-                        Bool (*preciseMemExnsFn)(Int,Int,VexRegisterUpdates),
-                        VexRegisterUpdates pxControl
-                     )
+static IRStmtVec* atbSubst_StmtVec(
+   const IRTypeEnv* tyenv, ATmpInfo* env, IRStmtVec* stmts,
+   Bool (*preciseMemExnsFn)(Int, Int, VexRegisterUpdates),
+   VexRegisterUpdates pxControl, UShort uses[])
 {
-   Int      i, j, k, m;
-   Bool     stmtStores, invalidateMe;
-   Interval putInterval;
-   IRStmt*  st;
-   IRStmt*  st2;
-   ATmpInfo env[A_NENV];
+   /* The stmts are being reordered, and we are guaranteed to end up with no
+      more than the number we started with. Use i to be the cursor of the
+      current stmt examined and j <= i to be that for the current stmt being
+      written. */
+   UInt j = 0;
+   for (UInt i = 0; i < stmts->stmts_used; i++) {
 
-   Bool   max_ga_known = False;
-   Addr   max_ga       = 0;
-
-   Int       n_tmps = bb->tyenv->types_used;
-   UShort*   uses   = LibVEX_Alloc_inline(n_tmps * sizeof(UShort));
-
-   /* Phase 1.  Scan forwards in bb, counting use occurrences of each
-      temp.  Also count occurrences in the bb->next field.  Take the
-      opportunity to also find the maximum guest address in the block,
-      since that will be needed later for deciding when we can safely
-      elide event checks. */
-
-   for (i = 0; i < n_tmps; i++)
-      uses[i] = 0;
-
-   for (i = 0; i < bb->stmts_used; i++) {
-      st = bb->stmts[i];
-      switch (st->tag) {
-         case Ist_NoOp:
-            continue;
-         case Ist_IMark: {
-            UInt len = st->Ist.IMark.len;
-            Addr mga = st->Ist.IMark.addr + (len < 1 ? 1 : len) - 1;
-            max_ga_known = True;
-            if (mga > max_ga)
-               max_ga = mga;
-            break;
-         }
-         default:
-            break;
-      }
-      aoccCount_Stmt( uses, st );
-   }
-   aoccCount_Expr(uses, bb->next );
-
-#  if 0
-   for (i = 0; i < n_tmps; i++) {
-      if (uses[i] == 0)
-        continue;
-      ppIRTemp( (IRTemp)i );
-      vex_printf("  used %d\n", (Int)uses[i] );
-   }
-#  endif
-
-   /* Phase 2.  Scan forwards in bb.  For each statement in turn:
-
-         If the env is full, emit the end element.  This guarantees
-         there is at least one free slot in the following.
-
-         On seeing 't = E', occ(t)==1,  
-            let E'=env(E)
-            delete this stmt
-            add t -> E' to the front of the env
-            Examine E' and set the hints for E' appropriately
-              (doesLoad? doesGet?)
-
-         On seeing any other stmt, 
-            let stmt' = env(stmt)
-            remove from env any 't=E' binds invalidated by stmt
-                emit the invalidated stmts
-            emit stmt'
-            compact any holes in env 
-              by sliding entries towards the front
-
-      Finally, apply env to bb->next.  
-   */
-
-   for (i = 0; i < A_NENV; i++) {
-      env[i].bindee = NULL;
-      env[i].binder = IRTemp_INVALID;
-   }
-
-   /* The stmts in bb are being reordered, and we are guaranteed to
-      end up with no more than the number we started with.  Use i to
-      be the cursor of the current stmt examined and j <= i to be that
-      for the current stmt being written. 
-   */
-   j = 0;
-   for (i = 0; i < bb->stmts_used; i++) {
-
-      st = bb->stmts[i];
+      IRStmt* st = stmts->stmts[i];
       if (st->tag == Ist_NoOp)
          continue;
      
       /* Ensure there's at least one space in the env, by emitting
          the oldest binding if necessary. */
-      if (env[A_NENV-1].bindee != NULL) {
-         bb->stmts[j] = IRStmt_WrTmp( env[A_NENV-1].binder, 
-                                      env[A_NENV-1].bindee );
+      if (env[A_NENV - 1].bindee != NULL) {
+         stmts->stmts[j] = IRStmt_WrTmp(env[A_NENV - 1].binder,
+                                        env[A_NENV - 1].bindee);
          j++;
          vassert(j <= i);
-         env[A_NENV-1].bindee = NULL;
+         env[A_NENV - 1].bindee = NULL;
       }
 
       /* Consider current stmt. */
       if (st->tag == Ist_WrTmp && uses[st->Ist.WrTmp.tmp] <= 1) {
-         IRExpr *e, *e2;
-
          /* optional extra: dump dead bindings as we find them.
             Removes the need for a prior dead-code removal pass. */
          if (uses[st->Ist.WrTmp.tmp] == 0) {
 	    if (0) vex_printf("DEAD binding\n");
-            continue; /* for (i = 0; i < bb->stmts_used; i++) loop */
+            continue; /* for (UInt i = 0; i < stmts->stmts_used; i++) loop */
          }
          vassert(uses[st->Ist.WrTmp.tmp] == 1);
 
          /* ok, we have 't = E', occ(t)==1.  Do the abovementioned
             actions. */
-         e  = st->Ist.WrTmp.data;
-         e2 = atbSubst_Expr(env, e);
+         IRExpr* e  = st->Ist.WrTmp.data;
+         IRExpr* e2 = atbSubst_Expr(env, e);
          addToEnvFront(env, st->Ist.WrTmp.tmp, e2);
          setHints_Expr(&env[0].doesLoad, &env[0].getInterval, e2);
          /* don't advance j, as we are deleting this stmt and instead
             holding it temporarily in the env. */
-         continue; /* for (i = 0; i < bb->stmts_used; i++) loop */
+         continue; /* for (UInt i = 0; i < stmts->stmts_used; i++) loop */
       }
 
       /* we get here for any other kind of statement. */
       /* 'use up' any bindings required by the current statement. */
-      st2 = atbSubst_Stmt(env, st);
+      IRStmt* st2 = atbSubst_Stmt(tyenv, env, st, preciseMemExnsFn, pxControl,
+                                  uses);
 
       /* Now, before this stmt, dump any bindings in env that it
          invalidates.  These need to be dumped in the order in which
@@ -5864,29 +6136,28 @@ static Interval stmt_modifies_guest_state (
          consideration does, or might do (sidely safe @ True). */
 
       Bool putRequiresPreciseMemExns;
-      putInterval = stmt_modifies_guest_state(
-                       bb, st, preciseMemExnsFn, pxControl,
-                       &putRequiresPreciseMemExns
-                    );
+      Interval putInterval = stmt_modifies_guest_state(
+                                tyenv, st, preciseMemExnsFn, pxControl,
+                                &putRequiresPreciseMemExns);
 
       /* be True if this stmt writes memory or might do (==> we don't
          want to reorder other loads or stores relative to it).  Also,
          both LL and SC fall under this classification, since we
          really ought to be conservative and not reorder any other
          memory transactions relative to them. */
-      stmtStores
+      Bool stmtStores
          = toBool( st->tag == Ist_Store
                    || (st->tag == Ist_Dirty
                        && dirty_helper_stores(st->Ist.Dirty.details))
                    || st->tag == Ist_LLSC
                    || st->tag == Ist_CAS );
 
-      for (k = A_NENV-1; k >= 0; k--) {
+      for (Int k = A_NENV - 1; k >= 0; k--) {
          if (env[k].bindee == NULL)
             continue;
          /* Compare the actions of this stmt with the actions of
             binding 'k', to see if they invalidate the binding. */
-         invalidateMe
+         Bool invalidateMe
             = toBool(
               /* a store invalidates loaded data */
               (env[k].doesLoad && stmtStores)
@@ -5896,7 +6167,7 @@ static Interval stmt_modifies_guest_state (
               /* a put invalidates loaded data. That means, in essense, that
                  a load expression cannot be substituted into a statement
                  that follows the put. But there is nothing wrong doing so
-                 except when the put statement requries precise exceptions.
+                 except when the put statement requires precise exceptions.
                  Think of a load that is moved past a put where the put
                  updates the IP in the guest state. If the load generates
                  a segfault, the wrong address (line number) would be
@@ -5912,7 +6183,7 @@ static Interval stmt_modifies_guest_state (
               || st->tag == Ist_AbiHint
               );
          if (invalidateMe) {
-            bb->stmts[j] = IRStmt_WrTmp( env[k].binder, env[k].bindee );
+            stmts->stmts[j] = IRStmt_WrTmp(env[k].binder, env[k].bindee);
             j++;
             vassert(j <= i);
             env[k].bindee = NULL;
@@ -5920,8 +6191,8 @@ static Interval stmt_modifies_guest_state (
       }
 
       /* Slide in-use entries in env up to the front */
-      m = 0;
-      for (k = 0; k < A_NENV; k++) {
+      UInt m = 0;
+      for (UInt k = 0; k < A_NENV; k++) {
          if (env[k].bindee != NULL) {
             env[m] = env[k];
             m++;
@@ -5932,21 +6203,131 @@ static Interval stmt_modifies_guest_state (
       }
 
       /* finally, emit the substituted statement */
-      bb->stmts[j] = st2;
-      /* vex_printf("**2  "); ppIRStmt(bb->stmts[j]); vex_printf("\n"); */
+      stmts->stmts[j] = st2;
+      /* vex_printf("**2  "); ppIRStmt(stmts->stmts[j]); vex_printf("\n");*/
       j++;
 
       vassert(j <= i+1);
    } /* for each stmt in the original bb ... */
 
-   /* Finally ... substitute the ->next field as much as possible, and
-      dump any left-over bindings.  Hmm.  Perhaps there should be no
-      left over bindings?  Or any left-over bindings are
-      by definition dead? */
+   /* Finally ... dump any left-over bindings.  Hmm.  Perhaps there should be no
+      left over bindings?  Or any left-over bindings are by definition dead? */
+   stmts->stmts_used = j;
+   return stmts;
+}
+
+/* notstatic */ Addr ado_treebuild_BB (
+                        IRSB* bb,
+                        Bool (*preciseMemExnsFn)(Int,Int,VexRegisterUpdates),
+                        VexRegisterUpdates pxControl
+                     )
+{
+   ATmpInfo env[A_NENV];
+
+   Bool   max_ga_known = False;
+   Addr   max_ga       = 0;
+
+   Int     n_tmps = bb->tyenv->used;
+   UShort* uses   = LibVEX_Alloc_inline(n_tmps * sizeof(UShort));
+
+   /* Phase 1.  Scan forwards in bb, counting use occurrences of each
+      temp.  Also count occurrences in the bb->next field.  Take the
+      opportunity to also find the maximum guest address in the block,
+      since that will be needed later for deciding when we can safely
+      elide event checks. */
+
+   for (UInt i = 0; i < n_tmps; i++)
+      uses[i] = 0;
+
+   aoccCount_IRStmtVec(uses, bb->stmts, &max_ga_known, &max_ga);
+   aoccCount_Expr(uses, bb->next);
+
+#  if 0
+   for (i = 0; i < n_tmps; i++) {
+      if (uses[i] == 0)
+        continue;
+      ppIRTemp( (IRTemp)i );
+      vex_printf("  used %d\n", (Int)uses[i] );
+   }
+#  endif
+
+   /* Phase 2.  Scan forwards in bb.  For each statement in turn:
+
+         If the env is full, emit the end element.  This guarantees
+         there is at least one free slot in the following.
+
+         On seeing 't = E', occ(t)==1,
+            let E'=env(E)
+            delete this stmt
+            add t -> E' to the front of the env
+            Examine E' and set the hints for E' appropriately
+              (doesLoad? doesGet?)
+
+         On seeing any other stmt,
+            let stmt' = env(stmt)
+            remove from env any 't=E' binds invalidated by stmt
+                emit the invalidated stmts
+            emit stmt'
+            compact any holes in env
+              by sliding entries towards the front
+
+      Finally, apply env to bb->next.
+   */
+
+   initAEnv(env, NULL);
+   bb->stmts = atbSubst_StmtVec(bb->tyenv, env, bb->stmts, preciseMemExnsFn,
+                                pxControl, uses);
+
+   /* Finally ... substitute the ->next field as much as possible. */
    bb->next = atbSubst_Expr(env, bb->next);
-   bb->stmts_used = j;
 
    return max_ga_known ? max_ga : ~(Addr)0;
+}
+
+
+/*---------------------------------------------------------------*/
+/*--- The phi nodes deconstruction                            ---*/
+/*---------------------------------------------------------------*/
+
+/* This isn't part of IR optimisation however this pass is needed before IRSB
+   is handed to instruction selection phase. Deconstructs all phi nodes.
+   Consider this example:
+      t2 = phi(t1,t0)
+   which gets trivially deconstructed into statements appended to:
+      - then leg:
+         t2 = t1
+      - else leg:
+         t2 = t0
+
+   Such an IRSB no longer holds SSA property after this pass but subsequent
+   phases do no require it. */
+static void deconstruct_phi_nodes_IRStmtVec(IRStmtVec* stmts)
+{
+   for (UInt i = 0; i < stmts->stmts_used; i++) {
+      IRStmt* st = stmts->stmts[i];
+      if (st->tag != Ist_IfThenElse) {
+         continue;
+      }
+
+      IRIfThenElse* ite = st->Ist.IfThenElse.details;
+      IRStmtVec* then_leg = ite->then_leg;
+      IRStmtVec* else_leg = ite->else_leg;
+      for (UInt j = 0; j < ite->phi_nodes->phis_used; j++) {
+         const IRPhi* phi = ite->phi_nodes->phis[j];
+         addStmtToIRStmtVec(then_leg, IRStmt_WrTmp(phi->dst,
+                                                   IRExpr_RdTmp(phi->srcThen)));
+         addStmtToIRStmtVec(else_leg, IRStmt_WrTmp(phi->dst,
+                                                   IRExpr_RdTmp(phi->srcElse)));
+      }
+
+      deconstruct_phi_nodes_IRStmtVec(then_leg);
+      deconstruct_phi_nodes_IRStmtVec(else_leg);
+   }
+}
+
+void deconstruct_phi_nodes(IRSB *irsb)
+{
+   deconstruct_phi_nodes_IRStmtVec(irsb->stmts);
 }
 
 
@@ -6233,33 +6614,30 @@ static IRExpr* do_XOR_TRANSFORMS_IRExpr ( IRExpr** env, IRExpr* e )
 }
 
 
-/* SB is modified in-place.  Visit all the IRExprs and, for those
+/* IRStmtVec is modified in-place. Visit all the IRExprs and, for those
    which are allowed to be non-atomic, perform the XOR transform if
-   possible.  This makes |sb| be non-flat, but that's ok, the caller
+   possible.  This makes |stmts| be non-flat, but that's ok, the caller
    can re-flatten it.  Returns True iff any changes were made. */
-static Bool do_XOR_TRANSFORM_IRSB ( IRSB* sb )
+static Bool do_XOR_TRANSFORM_IRStmtVec(IRTypeEnv* tyenv, IRStmtVec* stmts)
 {
-   Int  i;
    Bool changed = False;
 
    /* Make the tmp->expr environment, so we can use it for
       chasing expressions. */
-   Int      n_tmps = sb->tyenv->types_used;
+   UInt     n_tmps = tyenv->used;
    IRExpr** env = LibVEX_Alloc_inline(n_tmps * sizeof(IRExpr*));
-   for (i = 0; i < n_tmps; i++)
+   for (UInt i = 0; i < n_tmps; i++)
       env[i] = NULL;
 
-   for (i = 0; i < sb->stmts_used; i++) {
-      IRStmt* st = sb->stmts[i];
+   for (UInt i = 0; i < stmts->stmts_used; i++) {
+      IRStmt* st = stmts->stmts[i];
       if (st->tag != Ist_WrTmp)
          continue;
-      IRTemp t = st->Ist.WrTmp.tmp;
-      vassert(t >= 0 && t < n_tmps);
-      env[t] = st->Ist.WrTmp.data;
+      env[st->Ist.WrTmp.tmp] = st->Ist.WrTmp.data;
    }
 
-   for (i = 0; i < sb->stmts_used; i++) {
-      IRStmt* st = sb->stmts[i];
+   for (UInt i = 0; i < stmts->stmts_used; i++) {
+      IRStmt* st = stmts->stmts[i];
 
       switch (st->tag) {
          case Ist_AbiHint:
@@ -6341,16 +6719,28 @@ static Bool do_XOR_TRANSFORM_IRSB ( IRSB* sb )
          case Ist_Exit:
             vassert(isIRAtom(st->Ist.Exit.guard));
             break;
+         case Ist_IfThenElse: {
+            IRIfThenElse* ite = st->Ist.IfThenElse.details;
+            vassert(isIRAtom(ite->cond));
+            changed |= do_XOR_TRANSFORM_IRStmtVec(tyenv, ite->then_leg);
+            changed |= do_XOR_TRANSFORM_IRStmtVec(tyenv, ite->else_leg);
+            break;
+         }
          default:
-            vex_printf("\n"); ppIRStmt(st);
-            vpanic("do_XOR_TRANSFORMS_IRSB");
+            vex_printf("\n"); ppIRStmt(st, tyenv, 0);
+            vpanic("do_XOR_TRANSFORMS_IRStmtVec");
       }
    }
 
-   vassert(isIRAtom(sb->next));
    return changed;
 }
 
+static Bool do_XOR_TRANSFORM_IRSB ( IRSB* sb )
+{
+   vassert(isIRAtom(sb->next));
+
+   return do_XOR_TRANSFORM_IRStmtVec(sb->tyenv, sb->stmts);
+}
 
 static IRSB* do_MSVC_HACKS ( IRSB* sb )
 {
@@ -6443,9 +6833,9 @@ IRSB* expensive_transformations( IRSB* bb, VexRegisterUpdates pxControl )
 {
    (void)do_cse_BB( bb, False/*!allowLoadsToBeCSEd*/ );
    collapse_AddSub_chains_BB( bb );
-   do_redundant_GetI_elimination( bb );
+   do_redundant_GetI_elimination(bb->tyenv, bb->stmts);
    if (pxControl < VexRegUpdAllregsAtEachInsn) {
-      do_redundant_PutI_elimination( bb, pxControl );
+      do_redundant_PutI_elimination(bb->tyenv, bb->stmts, pxControl);
    }
    do_deadcode_BB( bb );
    return bb;
@@ -6458,20 +6848,17 @@ IRSB* expensive_transformations( IRSB* bb, VexRegisterUpdates pxControl )
    - find out if there are any floating or vector-typed temporaries
 */
 
-static void considerExpensives ( /*OUT*/Bool* hasGetIorPutI,
-                                 /*OUT*/Bool* hasVorFtemps,
-                                 IRSB* bb )
+static void considerExpensives_IRStmtVec(/*OUT*/Bool* hasGetIorPutI,
+                                         /*OUT*/Bool* hasVorFtemps,
+                                         IRTypeEnv* tyenv,
+                                         IRStmtVec* stmts)
 {
-   Int      i, j;
-   IRStmt*  st;
+   Int      j;
    IRDirty* d;
    IRCAS*   cas;
 
-   *hasGetIorPutI = False;
-   *hasVorFtemps  = False;
-
-   for (i = 0; i < bb->stmts_used; i++) {
-      st = bb->stmts[i];
+   for (UInt i = 0; i < stmts->stmts_used; i++) {
+      IRStmt* st = stmts->stmts[i];
       switch (st->tag) {
          case Ist_AbiHint:
             vassert(isIRAtom(st->Ist.AbiHint.base));
@@ -6483,7 +6870,7 @@ static void considerExpensives ( /*OUT*/Bool* hasGetIorPutI,
          case Ist_WrTmp:  
             if (st->Ist.WrTmp.data->tag == Iex_GetI)
                *hasGetIorPutI = True;
-            switch (typeOfIRTemp(bb->tyenv, st->Ist.WrTmp.tmp)) {
+            switch (typeOfIRTemp(tyenv, st->Ist.WrTmp.tmp)) {
                case Ity_I1: case Ity_I8: case Ity_I16: 
                case Ity_I32: case Ity_I64: case Ity_I128: 
                   break;
@@ -6550,14 +6937,33 @@ static void considerExpensives ( /*OUT*/Bool* hasGetIorPutI,
          case Ist_Exit:
             vassert(isIRAtom(st->Ist.Exit.guard));
             break;
+         case Ist_IfThenElse: {
+            IRIfThenElse* ite = st->Ist.IfThenElse.details;
+            vassert(isIRAtom(ite->cond));
+            considerExpensives_IRStmtVec(hasGetIorPutI, hasVorFtemps,
+                                         tyenv, ite->then_leg);
+            considerExpensives_IRStmtVec(hasGetIorPutI, hasVorFtemps,
+                                         tyenv, ite->else_leg);
+            break;
+         }
          default: 
          bad:
-            ppIRStmt(st);
-            vpanic("considerExpensives");
+            ppIRStmt(st, tyenv, 0);
+            vpanic("considerExpensives_IRStmtVec");
       }
    }
 }
 
+static void considerExpensives(/*OUT*/Bool* hasGetIorPutI,
+                               /*OUT*/Bool* hasVorFtemps,
+                               IRSB* bb)
+{
+   *hasGetIorPutI = False;
+   *hasVorFtemps  = False;
+
+   considerExpensives_IRStmtVec(hasGetIorPutI, hasVorFtemps, bb->tyenv,
+                                bb->stmts);
+}
 
 /* ---------------- The main iropt entry point. ---------------- */
 
