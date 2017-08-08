@@ -208,7 +208,8 @@ static Addr32 guest_EIP_bbstart;
    translated. */
 static Addr32 guest_EIP_curr_instr;
 
-/* The IRSB* into which we're generating code. */
+/* The IRSB* into which we're generating code. All functions below work
+   implicitly with the main statement vector held by irsb->stmts. */
 static IRSB* irsb;
 
 
@@ -309,17 +310,18 @@ static IRSB* irsb;
 #define R_GS 5
 
 
-/* Add a statement to the list held by "irbb". */
+/* Add a statement to the main statement vector held by "irbb->stmts". */
 static void stmt ( IRStmt* st )
 {
-   addStmtToIRSB( irsb, st );
+   addStmtToIRStmtVec(irsb->stmts, st);
 }
 
-/* Generate a new temporary of the given type. */
+/* Generate a new temporary of the given type.
+   Works only for the main IRStmtVec #0. */
 static IRTemp newTemp ( IRType ty )
 {
    vassert(isPlausibleIRType(ty));
-   return newIRTemp( irsb->tyenv, ty );
+   return newIRTemp(irsb->tyenv, irsb->stmts, ty);
 }
 
 /* Various simple conversions */
@@ -970,7 +972,7 @@ static void setFlags_DEP1_DEP2_shift ( IROp    op32,
    Int ccOp = ty==Ity_I8 ? 2 : (ty==Ity_I16 ? 1 : 0);
 
    vassert(ty == Ity_I8 || ty == Ity_I16 || ty == Ity_I32);
-   vassert(guard);
+   vassert(guard != IRTemp_INVALID);
 
    /* Both kinds of right shifts are handled by the same thunk
       operation. */
@@ -1728,7 +1730,6 @@ IRTemp disAMode ( Int* len, UChar sorb, Int delta, HChar* buf )
 
       default:
          vpanic("disAMode(x86)");
-         return 0; /*notreached*/
    }
 }
 
@@ -3432,7 +3433,6 @@ static IRTemp gen_LZCNT ( IRType ty, IRTemp src )
              mkU32(8 * sizeofIRType(ty)),
              unop(Iop_Clz32, mkexpr(src32x))
    ));
-
    IRTemp res = newTemp(ty);
    assign(res, narrowTo(ty, mkexpr(res32)));
    return res;
@@ -8050,8 +8050,6 @@ static IRTemp math_BSWAP ( IRTemp t1, IRType ty )
       return t2;
    }
    vassert(0);
-   /*NOTREACHED*/
-   return IRTemp_INVALID;
 }
 
 /*------------------------------------------------------------*/
@@ -15501,13 +15499,13 @@ DisResult disInstr_X86 ( IRSB*        irsb_IN,
    guest_EIP_curr_instr = (Addr32)guest_IP;
    guest_EIP_bbstart    = (Addr32)toUInt(guest_IP - delta);
 
-   x1 = irsb_IN->stmts_used;
+   x1 = irsb_IN->stmts->stmts_used;
    expect_CAS = False;
    dres = disInstr_X86_WRK ( &expect_CAS, resteerOkFn,
                              resteerCisOk,
                              callback_opaque,
                              delta, archinfo, abiinfo, sigill_diag_IN );
-   x2 = irsb_IN->stmts_used;
+   x2 = irsb_IN->stmts->stmts_used;
    vassert(x2 >= x1);
 
    /* See comment at the top of disInstr_X86_WRK for meaning of
@@ -15515,7 +15513,7 @@ DisResult disInstr_X86 ( IRSB*        irsb_IN,
       IRCAS as directed by the returned expect_CAS value. */
    has_CAS = False;
    for (i = x1; i < x2; i++) {
-      if (irsb_IN->stmts[i]->tag == Ist_CAS)
+      if (irsb_IN->stmts->stmts[i]->tag == Ist_CAS)
          has_CAS = True;
    }
 
@@ -15528,8 +15526,7 @@ DisResult disInstr_X86 ( IRSB*        irsb_IN,
                                 callback_opaque,
                                 delta, archinfo, abiinfo, sigill_diag_IN );
       for (i = x1; i < x2; i++) {
-         vex_printf("\t\t");
-         ppIRStmt(irsb_IN->stmts[i]);
+         ppIRStmt(irsb_IN->stmts->stmts[i], irsb_IN->tyenv, 4);
          vex_printf("\n");
       }
       /* Failure of this assertion is serious and denotes a bug in
