@@ -33,6 +33,8 @@
    without prior written permission.
 */
 
+/* Copyright (C) 2017-2017 Ivo Raisr <ivosh@ivosh.net> */
+
 #include "libvex_basictypes.h"
 #include "libvex_ir.h"
 #include "libvex.h"
@@ -114,7 +116,7 @@ void ppIRTemp ( IRTemp tmp )
    if (tmp == IRTemp_INVALID)
       vex_printf("IRTemp_INVALID");
    else
-      vex_printf( "t%u", tmp);
+      vex_printf("t%u", tmp);
 }
 
 void ppIROp ( IROp op )
@@ -1567,8 +1569,73 @@ void ppIRMBusEvent ( IRMBusEvent event )
    }
 }
 
-void ppIRStmt ( const IRStmt* s )
+void ppIRPhi(const IRPhi* phi)
 {
+   ppIRTemp(phi->dst);
+   vex_printf(" = phi(");
+   ppIRTemp(phi->srcThen);
+   vex_printf(",");
+   ppIRTemp(phi->srcElse);
+   vex_printf(")");
+}
+
+static void print_depth(UInt depth) {
+   for (UInt i = 0; i < depth; i++) {
+      vex_printf("    ");
+   }
+}
+
+void ppIRPhiVec(const IRPhiVec* phis, UInt depth)
+{
+   for (UInt i = 0; i < phis->phis_used; i++) {
+      print_depth(depth);
+      ppIRPhi(phis->phis[i]);
+      if (i < phis->phis_used - 1) {
+         vex_printf("\n");
+      }
+   }
+}
+
+void ppIRTempDefSet(const IRTempDefSet* defset, UInt depth)
+{
+   ppIRTypeEnvDefd(NULL, defset, depth);
+}
+
+void ppIRIfThenElse_Hint(IRIfThenElse_Hint hint)
+{
+   switch (hint) {
+   case IfThenElse_ThenLikely: vex_printf("IfThenElse_ThenLikely"); break;
+   case IfThenElse_ElseLikely: vex_printf("IfThenElse_ElseLikely"); break;
+   default: vpanic("ppIRIfThenElse_Hint");
+   }
+}
+
+void ppIRIfThenElseCondHint(const IRIfThenElse* ite)
+{
+   vex_printf("if (");
+   ppIRExpr(ite->cond);
+   vex_printf(") [");
+   ppIRIfThenElse_Hint(ite->hint);
+   vex_printf("]");
+}
+
+void ppIRIfThenElse(const IRIfThenElse* ite, const IRTypeEnv* tyenv, UInt depth)
+{
+   ppIRIfThenElseCondHint(ite);
+   vex_printf(" then {\n");
+   ppIRStmtVec(ite->then_leg, tyenv, depth + 1);
+   print_depth(depth);
+   vex_printf("} else {\n");
+   ppIRStmtVec(ite->else_leg, tyenv, depth + 1);
+   print_depth(depth);
+   vex_printf("}\n");
+   ppIRPhiVec(ite->phi_nodes, depth);
+}
+
+void ppIRStmt(const IRStmt* s, const IRTypeEnv* tyenv, UInt depth)
+{
+   print_depth(depth);
+
    if (!s) {
       vex_printf("!!! IRStmt* which is NULL !!!");
       return;
@@ -1649,41 +1716,83 @@ void ppIRStmt ( const IRStmt* s )
          ppIRJumpKind(s->Ist.Exit.jk);
          vex_printf(" } ");
          break;
-      default: 
+      case Ist_IfThenElse:
+         ppIRIfThenElse(s->Ist.IfThenElse.details, tyenv, depth);
+         break;
+      default:
          vpanic("ppIRStmt");
    }
 }
 
-void ppIRTypeEnv ( const IRTypeEnv* env )
+void ppIRTypeEnv(const IRTypeEnv* env)
 {
-   UInt i;
-   for (i = 0; i < env->types_used; i++) {
+   for (UInt i = 0; i < env->used; i++) {
       if (i % 8 == 0)
-         vex_printf( "   ");
+         print_depth(1);
       ppIRTemp(i);
-      vex_printf( ":");
+      vex_printf("[%u]:", env->ids[i]);
       ppIRType(env->types[i]);
       if (i % 8 == 7) 
          vex_printf( "\n"); 
       else 
          vex_printf( "   ");
    }
-   if (env->types_used > 0 && env->types_used % 8 != 7) 
+   if (env->used > 0 && env->used % 8 != 7)
       vex_printf( "\n"); 
+}
+
+void ppIRTypeEnvDefd(const IRTypeEnv* tyenv, const IRTempDefSet* defset,
+                     UInt depth)
+{
+   UInt tmps_printed = 0;
+
+   for (UInt slot = 0; slot < defset->slots_used; slot++) {
+      UChar slot_value = defset->set[slot];
+      for (UInt bit = 0; bit < sizeof(UChar); bit++) {
+         if (slot_value & (1 << bit)) {
+            if (tmps_printed % 8 == 0)
+               print_depth(depth);
+
+            IRTemp tmp = slot * sizeof(UChar) + bit;
+            ppIRTemp(tmp);
+            if (tyenv != NULL) {
+               vex_printf(":");
+               ppIRType(tyenv->types[tmp]);
+            }
+
+            if (tmps_printed % 8 == 7) {
+               vex_printf("\n"); 
+            } else {
+               vex_printf("   ");
+            }
+
+            tmps_printed += 1;
+         }
+      }
+   }
+
+   if (tmps_printed > 0 && tmps_printed % 8 != 7)
+      vex_printf("\n");
+}
+
+void ppIRStmtVec(const IRStmtVec* stmts, const IRTypeEnv* tyenv, UInt depth)
+{
+   ppIRTypeEnvDefd(tyenv, stmts->defset, depth);
+   vex_printf("\n");
+   for (UInt i = 0; i < stmts->stmts_used; i++) {
+      ppIRStmt(stmts->stmts[i], tyenv, depth);
+      vex_printf("\n");
+   }
 }
 
 void ppIRSB ( const IRSB* bb )
 {
-   Int i;
+   UInt depth = 0;
+
    vex_printf("IRSB {\n");
-   ppIRTypeEnv(bb->tyenv);
-   vex_printf("\n");
-   for (i = 0; i < bb->stmts_used; i++) {
-      vex_printf( "   ");
-      ppIRStmt(bb->stmts[i]);
-      vex_printf( "\n");
-   }
-   vex_printf( "   PUT(%d) = ", bb->offsIP );
+   ppIRStmtVec(bb->stmts, bb->tyenv, depth + 1);
+   print_depth(depth + 1);
+   vex_printf("PUT(%d) = ", bb->offsIP);
    ppIRExpr( bb->next );
    vex_printf( "; exit-");
    ppIRJumpKind(bb->jumpkind);
@@ -2128,6 +2237,49 @@ IRLoadG* mkIRLoadG ( IREndness end, IRLoadGOp cvt,
    return lg;
 }
 
+/* Constructors -- IRIfThenElse */
+
+IRPhi* mkIRPhi(IRTemp dst, IRTemp srcThen, IRTemp srcElse)
+{
+   IRPhi* phi   = LibVEX_Alloc_inline(sizeof(IRPhi));
+   phi->dst     = dst;
+   phi->srcThen = srcThen;
+   phi->srcElse = srcElse;
+   return phi;
+}
+
+IRPhiVec* emptyIRPhiVec(void)
+{
+   IRPhiVec* vec  = LibVEX_Alloc_inline(sizeof(IRPhiVec));
+   vec->phis_used = 0;
+   vec->phis_size = 8;
+   vec->phis      = LibVEX_Alloc_inline(vec->phis_size * sizeof(IRPhi*));
+   return vec;
+}
+
+IRTempDefSet* emptyIRTempDefSet(void)
+{
+   IRTempDefSet* defset = LibVEX_Alloc_inline(sizeof(IRTempDefSet));
+   defset->slots_used   = 0;
+   defset->slots_size   = 8 / sizeof(UChar);
+   vassert(defset->slots_size >= 1);
+   defset->set = LibVEX_Alloc_inline(defset->slots_size * sizeof(UChar));
+   return defset;
+}
+
+IRIfThenElse* mkIRIfThenElse(IRExpr* cond, IRIfThenElse_Hint hint,
+                             IRStmtVec* then_leg, IRStmtVec* else_leg,
+                             IRPhiVec* phi_nodes)
+{
+   IRIfThenElse* ite = LibVEX_Alloc_inline(sizeof(IRIfThenElse));
+   ite->cond         = cond;
+   ite->hint         = hint;
+   ite->then_leg     = then_leg;
+   ite->else_leg     = else_leg;
+   ite->phi_nodes    = phi_nodes;
+   return ite;
+}
+
 
 /* Constructors -- IRStmt */
 
@@ -2239,16 +2391,43 @@ IRStmt* IRStmt_Exit ( IRExpr* guard, IRJumpKind jk, IRConst* dst,
    return s;
 }
 
+IRStmt* IRStmt_IfThenElse(IRExpr* cond, IRIfThenElse_Hint hint,
+                          IRStmtVec* then_leg, IRStmtVec* else_leg,
+                          IRPhiVec* phi_nodes)
+{
+   IRStmt* s                 = LibVEX_Alloc_inline(sizeof(IRStmt));
+   s->tag                    = Ist_IfThenElse;
+   s->Ist.IfThenElse.details = mkIRIfThenElse(cond, hint, then_leg, else_leg,
+                                              phi_nodes);
+   return s;
+}
+
 
 /* Constructors -- IRTypeEnv */
 
-IRTypeEnv* emptyIRTypeEnv ( void )
+static IRTypeEnv* emptyIRTypeEnv ( void )
 {
    IRTypeEnv* env   = LibVEX_Alloc_inline(sizeof(IRTypeEnv));
    env->types       = LibVEX_Alloc_inline(8 * sizeof(IRType));
-   env->types_size  = 8;
-   env->types_used  = 0;
+   env->ids         = LibVEX_Alloc_inline(8 * sizeof(IRStmtVecID));
+   env->size        = 8;
+   env->used        = 0;
    return env;
+}
+
+
+/* Constructors -- IRStmtVec */
+
+IRStmtVec* emptyIRStmtVec(void)
+{
+   IRStmtVec* stmts  = LibVEX_Alloc_inline(sizeof(IRStmtVec));
+   stmts->stmts_used = 0;
+   stmts->stmts_size = 8;
+   stmts->stmts      = LibVEX_Alloc_inline(stmts->stmts_size * sizeof(IRStmt*));
+   stmts->id         = IRStmtVecID_INVALID;
+   stmts->parent     = NULL;
+   stmts->defset     = emptyIRTempDefSet();
+   return stmts;
 }
 
 
@@ -2256,23 +2435,32 @@ IRTypeEnv* emptyIRTypeEnv ( void )
 
 IRSB* emptyIRSB ( void )
 {
-   IRSB* bb       = LibVEX_Alloc_inline(sizeof(IRSB));
-   bb->tyenv      = emptyIRTypeEnv();
-   bb->stmts_used = 0;
-   bb->stmts_size = 8;
-   bb->stmts      = LibVEX_Alloc_inline(bb->stmts_size * sizeof(IRStmt*));
-   bb->next       = NULL;
-   bb->jumpkind   = Ijk_Boring;
-   bb->offsIP     = 0;
+   IRSB* bb     = LibVEX_Alloc_inline(sizeof(IRSB));
+   bb->tyenv    = emptyIRTypeEnv();
+   bb->stmts    = emptyIRStmtVec();
+   bb->id_seq   = 0;
+   bb->next     = NULL;
+   bb->jumpkind = Ijk_Boring;
+   bb->offsIP   = 0;
+
+   bb->stmts->id = nextIRStmtVecID(bb);
    return bb;
 }
 
+IRStmtVecID nextIRStmtVecID(IRSB* irsb)
+{
+   IRStmtVecID next = irsb->id_seq;
+   irsb->id_seq += 1;
+   vassert(irsb->id_seq != IRStmtVecID_INVALID);
+   return next;
+}
 
-/*---------------------------------------------------------------*/
-/*--- (Deep) copy constructors.  These make complete copies   ---*/
-/*--- the original, which can be modified without affecting   ---*/
-/*--- the original.                                           ---*/
-/*---------------------------------------------------------------*/
+
+/*----------------------------------------------------------------*/
+/*--- (Deep) copy constructors.  These make complete copies    ---*/
+/*--- of the original, which can be modified without affecting ---*/
+/*--- the original.                                            ---*/
+/*----------------------------------------------------------------*/
 
 /* Copying IR Expr vectors (for call args). */
 
@@ -2437,7 +2625,35 @@ IRPutI* deepCopyIRPutI ( const IRPutI * puti )
                    deepCopyIRExpr(puti->data));
 }
 
-IRStmt* deepCopyIRStmt ( const IRStmt* s )
+IRPhi* deepCopyIRPhi(const IRPhi* phi)
+{
+   return mkIRPhi(phi->dst, phi->srcThen, phi->srcElse);
+}
+
+IRPhiVec* deepCopyIRPhiVec(const IRPhiVec* vec)
+{
+   IRPhiVec* vec2  = LibVEX_Alloc_inline(sizeof(IRPhiVec));
+   vec2->phis_used = vec2->phis_size = vec->phis_used;
+   IRPhi **phis2   = LibVEX_Alloc_inline(vec2->phis_used * sizeof(IRPhi*));
+   for (UInt i = 0; i < vec2->phis_used; i++)
+      phis2[i] = deepCopyIRPhi(vec->phis[i]);
+   vec2->phis      = phis2;
+   return vec2;
+}
+
+IRTempDefSet* deepCopyIRTempDefSet(const IRTempDefSet* defset)
+{
+   IRTempDefSet* defset2 = LibVEX_Alloc_inline(sizeof(IRTempDefSet));
+   defset2->slots_used   = defset2->slots_size = defset->slots_used;
+   UChar* set2 = LibVEX_Alloc_inline(defset2->slots_used * sizeof(UChar));
+   for (UInt i = 0; i < defset2->slots_used; i++) {
+      set2[i] = defset->set[i];
+   }
+   defset2->set          = set2;
+   return defset2;
+}
+
+IRStmt* deepCopyIRStmt(const IRStmt* s, IRStmtVec* parent)
 {
    switch (s->tag) {
       case Ist_NoOp:
@@ -2494,33 +2710,51 @@ IRStmt* deepCopyIRStmt ( const IRStmt* s )
                             s->Ist.Exit.jk,
                             deepCopyIRConst(s->Ist.Exit.dst),
                             s->Ist.Exit.offsIP);
+      case Ist_IfThenElse: {
+         const IRIfThenElse* ite = s->Ist.IfThenElse.details;
+         return IRStmt_IfThenElse(deepCopyIRExpr(ite->cond), ite->hint,
+                                  deepCopyIRStmtVec(ite->then_leg, parent),
+                                  deepCopyIRStmtVec(ite->else_leg, parent),
+                                  deepCopyIRPhiVec(ite->phi_nodes));
+      }
       default: 
          vpanic("deepCopyIRStmt");
    }
 }
 
-IRTypeEnv* deepCopyIRTypeEnv ( const IRTypeEnv* src )
+IRStmtVec* deepCopyIRStmtVec(const IRStmtVec* src, IRStmtVec* parent)
 {
-   Int        i;
+   IRStmtVec* vec2  = LibVEX_Alloc_inline(sizeof(IRStmtVec));
+   vec2->id         = src->id;
+   vec2->parent     = parent;
+   vec2->defset     = deepCopyIRTempDefSet(src->defset);
+   vec2->stmts_used = vec2->stmts_size = src->stmts_used;
+   IRStmt **stmts2  = LibVEX_Alloc_inline(vec2->stmts_used * sizeof(IRStmt*));
+   for (UInt i = 0; i < vec2->stmts_used; i++) {
+      stmts2[i] = deepCopyIRStmt(src->stmts[i], vec2);
+   }
+   vec2->stmts      = stmts2;
+   return vec2;
+}
+
+IRTypeEnv* deepCopyIRTypeEnv(const IRTypeEnv* src)
+{
    IRTypeEnv* dst = LibVEX_Alloc_inline(sizeof(IRTypeEnv));
-   dst->types_size = src->types_size;
-   dst->types_used = src->types_used;
-   dst->types = LibVEX_Alloc_inline(dst->types_size * sizeof(IRType));
-   for (i = 0; i < src->types_used; i++)
+   dst->size      = src->size;
+   dst->used      = src->used;
+   dst->types     = LibVEX_Alloc_inline(dst->size * sizeof(IRType));
+   dst->ids       = LibVEX_Alloc_inline(dst->size * sizeof(IRStmtVecID));
+   for (UInt i = 0; i < src->used; i++) {
       dst->types[i] = src->types[i];
+      dst->ids[i]   = src->ids[i];
+   }
    return dst;
 }
 
 IRSB* deepCopyIRSB ( const IRSB* bb )
 {
-   Int      i;
-   IRStmt** sts2;
    IRSB* bb2 = deepCopyIRSBExceptStmts(bb);
-   bb2->stmts_used = bb2->stmts_size = bb->stmts_used;
-   sts2 = LibVEX_Alloc_inline(bb2->stmts_used * sizeof(IRStmt*));
-   for (i = 0; i < bb2->stmts_used; i++)
-      sts2[i] = deepCopyIRStmt(bb->stmts[i]);
-   bb2->stmts = sts2;
+   bb2->stmts = deepCopyIRStmtVec(bb->stmts, NULL);
    return bb2;
 }
 
@@ -2528,6 +2762,7 @@ IRSB* deepCopyIRSBExceptStmts ( const IRSB* bb )
 {
    IRSB* bb2     = emptyIRSB();
    bb2->tyenv    = deepCopyIRTypeEnv(bb->tyenv);
+   bb2->id_seq   = bb->id_seq;
    bb2->next     = deepCopyIRExpr(bb->next);
    bb2->jumpkind = bb->jumpkind;
    bb2->offsIP   = bb->offsIP;
@@ -3543,51 +3778,145 @@ void typeOfPrimop ( IROp op,
 
 
 /*---------------------------------------------------------------*/
+/*--- Helper functions for the IR -- IR Phi Nodes             ---*/
+/*---------------------------------------------------------------*/
+
+void addIRPhiToIRPhiVec(IRPhiVec* phi_nodes, IRPhi* phi)
+{
+   if (phi_nodes->phis_used == phi_nodes->phis_size) {
+      IRPhi** phis2
+         = LibVEX_Alloc_inline(2 * phi_nodes->phis_size * sizeof(IRPhi*));
+      for (UInt i = 0; i < phi_nodes->phis_size; i++)
+         phis2[i] = phi_nodes->phis[i];
+      phi_nodes->phis = phis2;
+      phi_nodes->phis_size *= 2;
+   }
+
+   vassert(phi_nodes->phis_used < phi_nodes->phis_size);
+   phi_nodes->phis[phi_nodes->phis_used] = phi;
+   phi_nodes->phis_used += 1;
+}
+
+
+/*---------------------------------------------------------------*/
+/*--- Helper functions for the IR -- IR Temp Defined Set      ---*/
+/*---------------------------------------------------------------*/
+
+void setIRTempDefined(IRTempDefSet* defset, IRTemp tmp)
+{
+   UInt slots_required = (tmp + sizeof(UChar)) / sizeof(UChar);
+
+   if (slots_required >= defset->slots_size) {
+      UInt new_size  = (slots_required > 2 * defset->slots_size) ?
+                       slots_required : 2 * defset->slots_size;
+      UChar* new_set = LibVEX_Alloc_inline(new_size * sizeof(UChar));
+      for (UInt i = 0; i < defset->slots_used; i++) {
+         new_set[i] = defset->set[i];
+      }
+      defset->set        = new_set;
+      defset->slots_size = new_size;
+   }
+
+   if (slots_required > defset->slots_used) {
+      for (UInt i = defset->slots_used; i < slots_required; i++) {
+         defset->set[i] = 0;
+      }
+      defset->slots_used = slots_required;
+   }
+
+   vassert(!isIRTempDefined(defset, tmp));
+
+   UInt mask = (1 << (tmp % sizeof(UChar)));
+   defset->set[tmp / sizeof(UChar)] |= mask;
+}
+
+void clearIRTempDefSet(IRTempDefSet* defset)
+{
+   for (UInt i = 0; i < defset->slots_used; i++) {
+      defset->set[i] = 0;
+   }
+}
+
+/*---------------------------------------------------------------*/
 /*--- Helper functions for the IR -- IR Basic Blocks          ---*/
 /*---------------------------------------------------------------*/
 
-void addStmtToIRSB ( IRSB* bb, IRStmt* st )
+void addStmtToIRStmtVec(IRStmtVec* stmts, IRStmt* st)
 {
-   Int i;
-   if (bb->stmts_used == bb->stmts_size) {
-      IRStmt** stmts2 = LibVEX_Alloc_inline(2 * bb->stmts_size * sizeof(IRStmt*));
-      for (i = 0; i < bb->stmts_size; i++)
-         stmts2[i] = bb->stmts[i];
-      bb->stmts = stmts2;
-      bb->stmts_size *= 2;
+   if (stmts->stmts_used == stmts->stmts_size) {
+      IRStmt** stmts2
+         = LibVEX_Alloc_inline(2 * stmts->stmts_size * sizeof(IRStmt*));
+      for (UInt i = 0; i < stmts->stmts_size; i++)
+         stmts2[i] = stmts->stmts[i];
+      stmts->stmts = stmts2;
+      stmts->stmts_size *= 2;
    }
-   vassert(bb->stmts_used < bb->stmts_size);
-   bb->stmts[bb->stmts_used] = st;
-   bb->stmts_used++;
+   vassert(stmts->stmts_used < stmts->stmts_size);
+   stmts->stmts[stmts->stmts_used] = st;
+   stmts->stmts_used++;
 }
 
+void addStmtToIRSB ( IRSB* bb, IRStmt* st )
+{
+   addStmtToIRStmtVec(bb->stmts, st);
+}
+
+IRStmt *addEmptyIfThenElse(IRSB* bb, IRStmtVec* parent, IRExpr* cond,
+                           IRIfThenElse_Hint hint)
+{
+   IRStmtVec* then_leg = emptyIRStmtVec();
+   then_leg->id        = nextIRStmtVecID(bb);
+   then_leg->parent    = parent;
+
+   IRStmtVec* else_leg = emptyIRStmtVec();
+   else_leg->id        = nextIRStmtVecID(bb);
+   else_leg->parent    = parent;
+
+   IRStmt* st = IRStmt_IfThenElse(cond, hint, then_leg, else_leg,
+                                  emptyIRPhiVec());
+   addStmtToIRStmtVec(parent, st);
+   return st;
+}
 
 /*---------------------------------------------------------------*/
 /*--- Helper functions for the IR -- IR Type Environments     ---*/
 /*---------------------------------------------------------------*/
 
-/* Allocate a new IRTemp, given its type. */
-
-IRTemp newIRTemp ( IRTypeEnv* env, IRType ty )
+void ensureSpaceInIRTypeEnv(IRTypeEnv* env, UInt new_size)
 {
-   vassert(env);
-   vassert(env->types_used >= 0);
-   vassert(env->types_size >= 0);
-   vassert(env->types_used <= env->types_size);
-   if (env->types_used < env->types_size) {
-      env->types[env->types_used] = ty;
-      return env->types_used++;
-   } else {
-      Int i;
-      Int new_size = env->types_size==0 ? 8 : 2*env->types_size;
-      IRType* new_types 
-         = LibVEX_Alloc_inline(new_size * sizeof(IRType));
-      for (i = 0; i < env->types_used; i++)
+   vassert(env != NULL);
+
+   if (new_size > env->size) {
+      IRType*      new_types = LibVEX_Alloc_inline(new_size * sizeof(IRType));
+      IRStmtVecID* new_ids   = LibVEX_Alloc_inline(new_size * sizeof(IRStmtVecID));
+      for (UInt i = 0; i < env->used; i++) {
          new_types[i] = env->types[i];
-      env->types      = new_types;
-      env->types_size = new_size;
-      return newIRTemp(env, ty);
+         new_ids[i]   = env->ids[i];
+      }
+      env->types = new_types;
+      env->ids   = new_ids;
+      env->size  = new_size;
    }
+}
+
+IRTemp newIRTemp(IRTypeEnv* env, IRStmtVec* stmts, IRType ty)
+{
+   vassert(env != NULL);
+   vassert(stmts != NULL);
+   vassert(env->used >= 0);
+   vassert(env->size >= 0);
+   vassert(env->used <= env->size);
+
+   if (env->used == env->size) {
+      ensureSpaceInIRTypeEnv(env, 2 * env->size);
+   }
+
+   IRTemp tmp      = env->used;
+   env->used       += 1;
+   env->types[tmp] = ty;
+   env->ids[tmp]   = stmts->id;
+   setIRTempDefined(stmts->defset, tmp);
+   return tmp;
 }
 
 
@@ -3599,7 +3928,7 @@ inline
 IRType typeOfIRTemp ( const IRTypeEnv* env, IRTemp tmp )
 {
    vassert(tmp >= 0);
-   vassert(tmp < env->types_used);
+   vassert(tmp < env->used);
    return env->types[tmp];
 }
 
@@ -3729,6 +4058,9 @@ static inline Bool isIRAtom_or_VECRET_or_GSPTR ( const IRExpr* e )
   return UNLIKELY(is_IRExpr_VECRET_or_GSPTR(e));
 }
 
+static Bool isFlatIRStmtVec(const IRStmtVec* stmts);
+
+static
 Bool isFlatIRStmt ( const IRStmt* st )
 {
    Int      i;
@@ -3828,11 +4160,30 @@ Bool isFlatIRStmt ( const IRStmt* st )
          return True;
       case Ist_Exit:
          return isIRAtom(st->Ist.Exit.guard);
+      case Ist_IfThenElse:
+         return isIRAtom(st->Ist.IfThenElse.details->cond)
+                && isFlatIRStmtVec(st->Ist.IfThenElse.details->then_leg)
+                && isFlatIRStmtVec(st->Ist.IfThenElse.details->else_leg);
       default: 
          vpanic("isFlatIRStmt(st)");
    }
 }
 
+static
+Bool isFlatIRStmtVec(const IRStmtVec* stmts)
+{
+   for (UInt i = 0; i < stmts->stmts_used; i++) {
+      if (!isFlatIRStmt(stmts->stmts[i]))
+         return False;
+   }
+
+   return True;
+}
+
+Bool isFlatIRSB(const IRSB* irsb)
+{
+   return isFlatIRStmtVec(irsb->stmts);
+}
 
 /*---------------------------------------------------------------*/
 /*--- Sanity checking                                         ---*/
@@ -3845,6 +4196,10 @@ Bool isFlatIRStmt ( const IRStmt* st )
    bit expression, depending on the guest's word size.
 
    Each temp is assigned only once, before its uses.
+   Each temp assigned and referenced is in scope.
+
+   Phi functions refer to existing, already assigned temporaries from
+   [parent, then leg, else leg].
 */
 
 static inline Int countArgs ( IRExpr** args )
@@ -3863,7 +4218,7 @@ void sanityCheckFail ( const IRSB* bb, const IRStmt* stmt, const HChar* what )
    ppIRSB(bb);
    if (stmt) {
       vex_printf("\nIN STATEMENT:\n\n");
-      ppIRStmt(stmt);
+      ppIRStmt(stmt, bb->tyenv, 1);
    }
    vex_printf("\n\nERROR = %s\n\n", what );
    vpanic("sanityCheckFail: exiting due to bad IR");
@@ -3903,29 +4258,62 @@ static Bool saneIRConst ( const IRConst* con )
    }
 }
 
-/* Traverse a Stmt/Expr, inspecting IRTemp uses.  Report any out of
-   range ones.  Report any which are read and for which the current
-   def_count is zero. */
+/* Traverse a Stmt/Expr, inspecting IRTemp uses. Report any out of range or out
+   of scope ones. Report any which are read and for which the current
+   def_count is zero. Report any which are assigned more than once or assigned
+   after being used. */
 
-static
-void useBeforeDef_Temp ( const IRSB* bb, const IRStmt* stmt, IRTemp tmp,
-                         Int* def_counts )
+static Bool inRangeIRTemp(const IRTypeEnv* tyenv, IRTemp tmp)
 {
-   if (tmp < 0 || tmp >= bb->tyenv->types_used)
-      sanityCheckFail(bb,stmt, "out of range Temp in IRExpr");
-   if (def_counts[tmp] < 1)
-      sanityCheckFail(bb,stmt, "IRTemp use before def in IRExpr");
+   if (tmp >= 0 || tmp < tyenv->used) {
+      return True;
+   }
+   return False;
+}
+
+static Bool inScopeIRTemp(const IRTypeEnv* tyenv, const IRStmtVec* stmts,
+                          IRTemp tmp)
+{
+   IRStmtVecID id = tyenv->ids[tmp];
+   vassert(id != IRStmtVecID_INVALID);
+
+   while (!(isIRTempDefined(stmts->defset, tmp))) {
+      stmts = stmts->parent;
+      if (stmts == NULL)
+         return False;
+   }
+
+   return True;
 }
 
 static
-void assignedOnce_Temp(const IRSB *bb, const IRStmt *stmt, IRTemp tmp,
-                       Int *def_counts, UInt n_def_counts,
-                       const HChar *err_msg_out_of_range,
-                       const HChar *err_msg_assigned_more_than_once)
+void useBeforeDef_Temp(const IRSB* bb, const IRStmtVec* stmts,
+                       const IRStmt* stmt, IRTemp tmp, UInt def_counts[])
 {
-   if (tmp < 0 || tmp >= n_def_counts) {
+   const IRTypeEnv* tyenv = bb->tyenv;
+
+   if (!inRangeIRTemp(tyenv, tmp))
+      sanityCheckFail(bb, stmt, "out of range Temp in IRExpr");
+   if (!inScopeIRTemp(tyenv, stmts, tmp))
+      sanityCheckFail(bb, stmt, "out of scope Temp in IRExpr");
+
+   if (def_counts[tmp] < 1)
+      sanityCheckFail(bb, stmt, "IRTemp use before def in IRExpr");
+}
+
+static
+void assignedOnce_Temp(const IRSB* bb, const IRStmtVec* stmts,
+                       const IRStmt* stmt, IRTemp tmp, UInt def_counts[],
+                       const HChar* err_msg_out_of_range,
+                       const HChar* err_msg_out_of_scope,
+                       const HChar* err_msg_assigned_more_than_once)
+{
+   const IRTypeEnv* tyenv = bb->tyenv;
+
+   if (!inRangeIRTemp(tyenv, tmp))
       sanityCheckFail(bb, stmt, err_msg_out_of_range);
-   }
+   if (!inScopeIRTemp(tyenv, stmts, tmp))
+      sanityCheckFail(bb, stmt, err_msg_out_of_scope);
 
    def_counts[tmp]++;
    if (def_counts[tmp] > 1) {
@@ -3934,43 +4322,44 @@ void assignedOnce_Temp(const IRSB *bb, const IRStmt *stmt, IRTemp tmp,
 }
 
 static
-void useBeforeDef_Expr ( const IRSB* bb, const IRStmt* stmt,
-                         const IRExpr* expr, Int* def_counts )
+void useBeforeDef_Expr(const IRSB *bb, const IRStmtVec* stmts,
+                       const IRStmt* stmt, const IRExpr* expr,
+                       UInt def_counts[])
 {
    Int i;
    switch (expr->tag) {
       case Iex_Get: 
          break;
       case Iex_GetI:
-         useBeforeDef_Expr(bb,stmt,expr->Iex.GetI.ix,def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, expr->Iex.GetI.ix, def_counts);
          break;
       case Iex_RdTmp:
-         useBeforeDef_Temp(bb,stmt,expr->Iex.RdTmp.tmp,def_counts);
+         useBeforeDef_Temp(bb, stmts, stmt, expr->Iex.RdTmp.tmp, def_counts);
          break;
       case Iex_Qop: {
          const IRQop* qop = expr->Iex.Qop.details;
-         useBeforeDef_Expr(bb,stmt,qop->arg1,def_counts);
-         useBeforeDef_Expr(bb,stmt,qop->arg2,def_counts);
-         useBeforeDef_Expr(bb,stmt,qop->arg3,def_counts);
-         useBeforeDef_Expr(bb,stmt,qop->arg4,def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, qop->arg1, def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, qop->arg2, def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, qop->arg3, def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, qop->arg4, def_counts);
          break;
       }
       case Iex_Triop: {
          const IRTriop* triop = expr->Iex.Triop.details;
-         useBeforeDef_Expr(bb,stmt,triop->arg1,def_counts);
-         useBeforeDef_Expr(bb,stmt,triop->arg2,def_counts);
-         useBeforeDef_Expr(bb,stmt,triop->arg3,def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, triop->arg1, def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, triop->arg2, def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, triop->arg3, def_counts);
          break;
       }
       case Iex_Binop:
-         useBeforeDef_Expr(bb,stmt,expr->Iex.Binop.arg1,def_counts);
-         useBeforeDef_Expr(bb,stmt,expr->Iex.Binop.arg2,def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, expr->Iex.Binop.arg1, def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, expr->Iex.Binop.arg2, def_counts);
          break;
       case Iex_Unop:
-         useBeforeDef_Expr(bb,stmt,expr->Iex.Unop.arg,def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, expr->Iex.Unop.arg, def_counts);
          break;
       case Iex_Load:
-         useBeforeDef_Expr(bb,stmt,expr->Iex.Load.addr,def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, expr->Iex.Load.addr, def_counts);
          break;
       case Iex_Const:
          break;
@@ -3981,24 +4370,55 @@ void useBeforeDef_Expr ( const IRSB* bb, const IRStmt* stmt,
                /* These aren't allowed in CCall lists.  Let's detect
                   and throw them out here, though, rather than
                   segfaulting a bit later on. */
-               sanityCheckFail(bb,stmt, "IRExprP__* value in CCall arg list");
+               sanityCheckFail(bb,stmt,
+                               "IRExprP__* value in CCall arg list");
             } else {
-               useBeforeDef_Expr(bb,stmt,arg,def_counts);
+               useBeforeDef_Expr(bb, stmts, stmt, arg, def_counts);
             }
          }
          break;
       case Iex_ITE:
-         useBeforeDef_Expr(bb,stmt,expr->Iex.ITE.cond,def_counts);
-         useBeforeDef_Expr(bb,stmt,expr->Iex.ITE.iftrue,def_counts);
-         useBeforeDef_Expr(bb,stmt,expr->Iex.ITE.iffalse,def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, expr->Iex.ITE.cond, def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, expr->Iex.ITE.iftrue, def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, expr->Iex.ITE.iffalse, def_counts);
          break;
       default:
          vpanic("useBeforeDef_Expr");
    }
 }
 
+static void useBeforeDef_IRPhi(const IRSB* bb, const IRStmtVec* stmts,
+                               const IRStmt* stmt, const IRPhi* phi,
+                               UInt def_counts[])
+{
+   vassert(stmt->tag == Ist_IfThenElse);
+
+   IRStmtVec* then_leg = stmt->Ist.IfThenElse.details->then_leg;
+   IRStmtVec* else_leg = stmt->Ist.IfThenElse.details->else_leg;
+
+   useBeforeDef_Temp(bb, then_leg, stmt, phi->srcThen, def_counts);
+   useBeforeDef_Temp(bb, else_leg, stmt, phi->srcElse, def_counts);
+
+   /* Check also that referenced IRStmtVec's actually exist and belong to
+      "parent", "then", and "else", respectively. */
+   const IRTypeEnv* tyenv = bb->tyenv;
+   if (tyenv->ids[phi->dst] != stmts->id) {
+      sanityCheckFail(bb, stmt, "Istmt.IfThenElse.Phi.dst does not "
+                                "reference parent IRStmtVec");
+   }
+   if (tyenv->ids[phi->srcThen] != then_leg->id) {
+      sanityCheckFail(bb, stmt, "Istmt.IfThenElse.Phi.srcThen does not "
+                                "reference \"then\" IRStmtVec leg");
+   }
+   if (tyenv->ids[phi->srcElse] != else_leg->id) {
+      sanityCheckFail(bb, stmt, "Istmt.IfThenElse.Phi.srcElse does not "
+                                "reference \"else\" IRStmtVec leg");
+   }
+}
+
 static
-void useBeforeDef_Stmt ( const IRSB* bb, const IRStmt* stmt, Int* def_counts )
+void useBeforeDef_Stmt(const IRSB* bb, const IRStmtVec* stmts,
+                       const IRStmt* stmt, UInt def_counts[])
 {
    Int       i;
    const IRDirty*  d;
@@ -4010,50 +4430,51 @@ void useBeforeDef_Stmt ( const IRSB* bb, const IRStmt* stmt, Int* def_counts )
       case Ist_IMark:
          break;
       case Ist_AbiHint:
-         useBeforeDef_Expr(bb,stmt,stmt->Ist.AbiHint.base,def_counts);
-         useBeforeDef_Expr(bb,stmt,stmt->Ist.AbiHint.nia,def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, stmt->Ist.AbiHint.base, def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, stmt->Ist.AbiHint.nia, def_counts);
          break;
       case Ist_Put:
-         useBeforeDef_Expr(bb,stmt,stmt->Ist.Put.data,def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, stmt->Ist.Put.data, def_counts);
          break;
       case Ist_PutI:
          puti = stmt->Ist.PutI.details;
-         useBeforeDef_Expr(bb,stmt,puti->ix,def_counts);
-         useBeforeDef_Expr(bb,stmt,puti->data,def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, puti->ix, def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, puti->data, def_counts);
          break;
       case Ist_WrTmp:
-         useBeforeDef_Expr(bb,stmt,stmt->Ist.WrTmp.data,def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, stmt->Ist.WrTmp.data, def_counts);
          break;
       case Ist_Store:
-         useBeforeDef_Expr(bb,stmt,stmt->Ist.Store.addr,def_counts);
-         useBeforeDef_Expr(bb,stmt,stmt->Ist.Store.data,def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, stmt->Ist.Store.addr, def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, stmt->Ist.Store.data, def_counts);
          break;
       case Ist_StoreG:
          sg = stmt->Ist.StoreG.details;
-         useBeforeDef_Expr(bb,stmt,sg->addr,def_counts);
-         useBeforeDef_Expr(bb,stmt,sg->data,def_counts);
-         useBeforeDef_Expr(bb,stmt,sg->guard,def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, sg->addr, def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, sg->data, def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, sg->guard, def_counts);
          break;
       case Ist_LoadG:
          lg = stmt->Ist.LoadG.details;
-         useBeforeDef_Expr(bb,stmt,lg->addr,def_counts);
-         useBeforeDef_Expr(bb,stmt,lg->alt,def_counts);
-         useBeforeDef_Expr(bb,stmt,lg->guard,def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, lg->addr, def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, lg->alt, def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, lg->guard, def_counts);
          break;
       case Ist_CAS:
          cas = stmt->Ist.CAS.details;
-         useBeforeDef_Expr(bb,stmt,cas->addr,def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, cas->addr, def_counts);
          if (cas->expdHi)
-            useBeforeDef_Expr(bb,stmt,cas->expdHi,def_counts);
-         useBeforeDef_Expr(bb,stmt,cas->expdLo,def_counts);
+            useBeforeDef_Expr(bb, stmts, stmt, cas->expdHi, def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, cas->expdLo, def_counts);
          if (cas->dataHi)
-            useBeforeDef_Expr(bb,stmt,cas->dataHi,def_counts);
-         useBeforeDef_Expr(bb,stmt,cas->dataLo,def_counts);
+            useBeforeDef_Expr(bb, stmts, stmt, cas->dataHi, def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, cas->dataLo, def_counts);
          break;
       case Ist_LLSC:
-         useBeforeDef_Expr(bb,stmt,stmt->Ist.LLSC.addr,def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, stmt->Ist.LLSC.addr, def_counts);
          if (stmt->Ist.LLSC.storedata != NULL)
-            useBeforeDef_Expr(bb,stmt,stmt->Ist.LLSC.storedata,def_counts);
+            useBeforeDef_Expr(bb, stmts, stmt, stmt->Ist.LLSC.storedata,
+                              def_counts);
          break;
       case Ist_Dirty:
          d = stmt->Ist.Dirty.details;
@@ -4063,17 +4484,23 @@ void useBeforeDef_Stmt ( const IRSB* bb, const IRStmt* stmt, Int* def_counts )
                /* This is ensured by isFlatIRStmt */
               ;
             } else {
-               useBeforeDef_Expr(bb,stmt,arg,def_counts);
+               useBeforeDef_Expr(bb, stmts, stmt, arg, def_counts);
             }
          }
          if (d->mFx != Ifx_None)
-            useBeforeDef_Expr(bb,stmt,d->mAddr,def_counts);
+            useBeforeDef_Expr(bb, stmts, stmt, d->mAddr, def_counts);
          break;
       case Ist_NoOp:
       case Ist_MBE:
          break;
       case Ist_Exit:
-         useBeforeDef_Expr(bb,stmt,stmt->Ist.Exit.guard,def_counts);
+         useBeforeDef_Expr(bb, stmts, stmt, stmt->Ist.Exit.guard, def_counts);
+         break;
+      case Ist_IfThenElse:
+         useBeforeDef_Expr(bb, stmts, stmt, stmt->Ist.IfThenElse.details->cond,
+                           def_counts);
+         /* Traversing into legs and phi nodes driven from
+            sanityCheckIRStmtVec(). */
          break;
       default: 
          vpanic("useBeforeDef_Stmt");
@@ -4081,48 +4508,59 @@ void useBeforeDef_Stmt ( const IRSB* bb, const IRStmt* stmt, Int* def_counts )
 }
 
 static
-void assignedOnce_Stmt(const IRSB *bb, const IRStmt *stmt,
-                       Int *def_counts, UInt n_def_counts)
+void assignedOnce_Stmt(const IRSB* bb, const IRStmtVec* stmts,
+                       const IRStmt* stmt, UInt def_counts[])
 {
    switch (stmt->tag) {
    case Ist_WrTmp:
       assignedOnce_Temp(
-         bb, stmt, stmt->Ist.WrTmp.tmp, def_counts, n_def_counts,
+         bb, stmts, stmt, stmt->Ist.WrTmp.tmp, def_counts,
          "IRStmt.Tmp: destination tmp is out of range",
+         "IRStmt.Tmp: destination tmp is out of scope",
          "IRStmt.Tmp: destination tmp is assigned more than once");
       break;
    case Ist_LoadG:
       assignedOnce_Temp(
-         bb, stmt, stmt->Ist.LoadG.details->dst, def_counts, n_def_counts,
+         bb, stmts, stmt, stmt->Ist.LoadG.details->dst, def_counts,
          "IRStmt.LoadG: destination tmp is out of range",
+         "IRStmt.LoadG: destination tmp is out of scope",
          "IRStmt.LoadG: destination tmp is assigned more than once");
       break;
    case Ist_Dirty:
       if (stmt->Ist.Dirty.details->tmp != IRTemp_INVALID) {
          assignedOnce_Temp(
-            bb, stmt, stmt->Ist.Dirty.details->tmp, def_counts, n_def_counts,
+            bb, stmts, stmt, stmt->Ist.Dirty.details->tmp, def_counts,
             "IRStmt.Dirty: destination tmp is out of range",
+            "IRStmt.Dirty: destination tmp is out of scope",
             "IRStmt.Dirty: destination tmp is assigned more than once");
       }
       break;
    case Ist_CAS:
       if (stmt->Ist.CAS.details->oldHi != IRTemp_INVALID) {
          assignedOnce_Temp(
-            bb, stmt, stmt->Ist.CAS.details->oldHi, def_counts, n_def_counts,
+            bb, stmts, stmt, stmt->Ist.CAS.details->oldHi, def_counts,
             "IRStmt.CAS: destination tmpHi is out of range",
+            "IRStmt.CAS: destination tmpHi is out of scope",
             "IRStmt.CAS: destination tmpHi is assigned more than once");
       }
       assignedOnce_Temp(
-         bb, stmt, stmt->Ist.CAS.details->oldLo, def_counts, n_def_counts,
+         bb, stmts, stmt, stmt->Ist.CAS.details->oldLo, def_counts,
          "IRStmt.CAS: destination tmpLo is out of range",
+         "IRStmt.CAS: destination tmpLo is out of scope",
          "IRStmt.CAS: destination tmpLo is assigned more than once");
       break;
    case Ist_LLSC:
       assignedOnce_Temp(
-         bb, stmt, stmt->Ist.LLSC.result, def_counts, n_def_counts,
+         bb, stmts, stmt, stmt->Ist.LLSC.result, def_counts,
          "IRStmt.LLSC: destination tmp is out of range",
+         "IRStmt.LLSC: destination tmp is out of scope",
          "IRStmt.LLSC: destination tmp is assigned more than once");
       break;
+   case Ist_IfThenElse: {
+      /* Traversing into legs and phi nodes driven from
+         sanityCheckIRStmtVec(). */
+      break;
+   }
    // Ignore all other cases
    case Ist_NoOp: case Ist_IMark: case Ist_AbiHint: case Ist_Put: case Ist_PutI:
    case Ist_Store: case Ist_StoreG: case Ist_MBE: case Ist_Exit:
@@ -4132,9 +4570,19 @@ void assignedOnce_Stmt(const IRSB *bb, const IRStmt *stmt,
    }
 }
 
+static void assignedOnce_IRPhi(const IRSB* bb, const IRStmtVec* stmts,
+                               const IRStmt* stmt, const IRPhi* phi,
+                               UInt def_counts[])
+{
+   assignedOnce_Temp(bb, stmts, stmt, phi->dst, def_counts,
+      "IRStmt.IfThenElse.Phi: destination tmp is out of range",
+      "IRStmt.IfThenElse.Phi: destination tmp is out of scope",
+      "IRStmt.IfThenElse: destination tmp is assigned more than once");
+}
+
 static
-void tcExpr ( const IRSB* bb, const IRStmt* stmt, const IRExpr* expr,
-              IRType gWordTy )
+void tcExpr(const IRSB* bb, const IRStmtVec* stmts, const IRStmt* stmt,
+            const IRExpr* expr, IRType gWordTy)
 {
    Int        i;
    IRType     t_dst, t_arg1, t_arg2, t_arg3, t_arg4;
@@ -4144,8 +4592,8 @@ void tcExpr ( const IRSB* bb, const IRStmt* stmt, const IRExpr* expr,
       case Iex_RdTmp:
          break;
       case Iex_GetI:
-         tcExpr(bb,stmt, expr->Iex.GetI.ix, gWordTy );
-         if (typeOfIRExpr(tyenv,expr->Iex.GetI.ix) != Ity_I32)
+         tcExpr(bb, stmts, stmt, expr->Iex.GetI.ix, gWordTy);
+         if (typeOfIRExpr(tyenv, expr->Iex.GetI.ix) != Ity_I32)
             sanityCheckFail(bb,stmt,"IRExpr.GetI.ix: not :: Ity_I32");
          if (!saneIRRegArray(expr->Iex.GetI.descr))
             sanityCheckFail(bb,stmt,"IRExpr.GetI.descr: invalid descr");
@@ -4153,10 +4601,10 @@ void tcExpr ( const IRSB* bb, const IRStmt* stmt, const IRExpr* expr,
       case Iex_Qop: {
          IRType ttarg1, ttarg2, ttarg3, ttarg4;
          const IRQop* qop = expr->Iex.Qop.details;
-         tcExpr(bb,stmt, qop->arg1, gWordTy );
-         tcExpr(bb,stmt, qop->arg2, gWordTy );
-         tcExpr(bb,stmt, qop->arg3, gWordTy );
-         tcExpr(bb,stmt, qop->arg4, gWordTy );
+         tcExpr(bb, stmts, stmt, qop->arg1, gWordTy);
+         tcExpr(bb, stmts, stmt, qop->arg2, gWordTy);
+         tcExpr(bb, stmts, stmt, qop->arg3, gWordTy);
+         tcExpr(bb, stmts, stmt, qop->arg4, gWordTy);
          typeOfPrimop(qop->op, 
                       &t_dst, &t_arg1, &t_arg2, &t_arg3, &t_arg4);
          if (t_arg1 == Ity_INVALID || t_arg2 == Ity_INVALID 
@@ -4205,9 +4653,9 @@ void tcExpr ( const IRSB* bb, const IRStmt* stmt, const IRExpr* expr,
       case Iex_Triop: {
          IRType ttarg1, ttarg2, ttarg3;
          const IRTriop *triop = expr->Iex.Triop.details;
-         tcExpr(bb,stmt, triop->arg1, gWordTy );
-         tcExpr(bb,stmt, triop->arg2, gWordTy );
-         tcExpr(bb,stmt, triop->arg3, gWordTy );
+         tcExpr(bb, stmts, stmt, triop->arg1, gWordTy);
+         tcExpr(bb, stmts, stmt, triop->arg2, gWordTy);
+         tcExpr(bb, stmts, stmt, triop->arg3, gWordTy);
          typeOfPrimop(triop->op, 
                       &t_dst, &t_arg1, &t_arg2, &t_arg3, &t_arg4);
          if (t_arg1 == Ity_INVALID || t_arg2 == Ity_INVALID 
@@ -4249,8 +4697,8 @@ void tcExpr ( const IRSB* bb, const IRStmt* stmt, const IRExpr* expr,
       }
       case Iex_Binop: {
          IRType ttarg1, ttarg2;
-         tcExpr(bb,stmt, expr->Iex.Binop.arg1, gWordTy );
-         tcExpr(bb,stmt, expr->Iex.Binop.arg2, gWordTy );
+         tcExpr(bb, stmts, stmt, expr->Iex.Binop.arg1, gWordTy);
+         tcExpr(bb, stmts, stmt, expr->Iex.Binop.arg2, gWordTy);
          typeOfPrimop(expr->Iex.Binop.op, 
                       &t_dst, &t_arg1, &t_arg2, &t_arg3, &t_arg4);
          if (t_arg1 == Ity_INVALID || t_arg2 == Ity_INVALID 
@@ -4286,7 +4734,7 @@ void tcExpr ( const IRSB* bb, const IRStmt* stmt, const IRExpr* expr,
          break;
       }
       case Iex_Unop:
-         tcExpr(bb,stmt, expr->Iex.Unop.arg, gWordTy );
+         tcExpr(bb, stmts, stmt, expr->Iex.Unop.arg, gWordTy);
          typeOfPrimop(expr->Iex.Unop.op, 
                       &t_dst, &t_arg1, &t_arg2, &t_arg3, &t_arg4);
          if (t_arg1 == Ity_INVALID || t_arg2 != Ity_INVALID
@@ -4296,7 +4744,7 @@ void tcExpr ( const IRSB* bb, const IRStmt* stmt, const IRExpr* expr,
             sanityCheckFail(bb,stmt,"Iex.Unop: arg ty doesn't match op ty");
          break;
       case Iex_Load:
-         tcExpr(bb,stmt, expr->Iex.Load.addr, gWordTy);
+         tcExpr(bb, stmts, stmt, expr->Iex.Load.addr, gWordTy);
          if (typeOfIRExpr(tyenv, expr->Iex.Load.addr) != gWordTy)
             sanityCheckFail(bb,stmt,"Iex.Load.addr: not :: guest word type");
          if (expr->Iex.Load.end != Iend_LE && expr->Iex.Load.end != Iend_BE)
@@ -4313,10 +4761,11 @@ void tcExpr ( const IRSB* bb, const IRStmt* stmt, const IRExpr* expr,
             IRExpr* arg = expr->Iex.CCall.args[i];
             if (UNLIKELY(is_IRExpr_VECRET_or_GSPTR(arg)))
                sanityCheckFail(bb,stmt,"Iex.CCall.args: is VECRET/GSPTR");
-            tcExpr(bb,stmt, arg, gWordTy);
+            tcExpr(bb, stmts, stmt, arg, gWordTy);
          }
          if (expr->Iex.CCall.retty == Ity_I1)
-            sanityCheckFail(bb,stmt,"Iex.CCall.retty: cannot return :: Ity_I1");
+            sanityCheckFail(bb,stmt,
+                            "Iex.CCall.retty: cannot return :: Ity_I1");
          for (i = 0; expr->Iex.CCall.args[i]; i++)
             if (typeOfIRExpr(tyenv, expr->Iex.CCall.args[i]) == Ity_I1)
                sanityCheckFail(bb,stmt,"Iex.CCall.arg: arg :: Ity_I1");
@@ -4326,9 +4775,9 @@ void tcExpr ( const IRSB* bb, const IRStmt* stmt, const IRExpr* expr,
             sanityCheckFail(bb,stmt,"Iex.Const.con: invalid const");
          break;
       case Iex_ITE:
-         tcExpr(bb,stmt, expr->Iex.ITE.cond, gWordTy);
-         tcExpr(bb,stmt, expr->Iex.ITE.iftrue, gWordTy);
-         tcExpr(bb,stmt, expr->Iex.ITE.iffalse, gWordTy);
+         tcExpr(bb, stmts, stmt, expr->Iex.ITE.cond, gWordTy);
+         tcExpr(bb, stmts, stmt, expr->Iex.ITE.iftrue, gWordTy);
+         tcExpr(bb, stmts, stmt, expr->Iex.ITE.iffalse, gWordTy);
          if (typeOfIRExpr(tyenv, expr->Iex.ITE.cond) != Ity_I1)
             sanityCheckFail(bb,stmt,"Iex.ITE.cond: cond :: Ity_I1");
          if (typeOfIRExpr(tyenv, expr->Iex.ITE.iftrue)
@@ -4340,11 +4789,27 @@ void tcExpr ( const IRSB* bb, const IRStmt* stmt, const IRExpr* expr,
    }
 }
 
+static
+void tcPhi(const IRSB* bb, const IRStmtVec* stmts, const IRStmt* stmt,
+           const IRPhi* phi)
+{
+   vassert(stmt->tag == Ist_IfThenElse);
+   const IRTypeEnv* tyenv = bb->tyenv;
+
+   if (typeOfIRTemp(tyenv, phi->srcThen) != typeOfIRTemp(tyenv, phi->srcElse)) {
+      sanityCheckFail(bb, stmt, "IRStmt.IfThenElse.Phi: 'then' and 'else' "
+                                "tmp do not match");
+   }
+   if (typeOfIRTemp(tyenv, phi->dst) != typeOfIRTemp(tyenv, phi->srcThen)) {
+      sanityCheckFail(bb, stmt, "IRStmt.IfThenElse.Phi: 'dst' and 'then' "
+                                "tmp do not match");
+   }
+}
 
 static
-void tcStmt ( const IRSB* bb, const IRStmt* stmt, IRType gWordTy )
+void tcStmt(const IRSB* bb, const IRStmtVec* stmts, const IRStmt* stmt,
+            Bool require_flat, IRType gWordTy)
 {
-   Int        i;
    IRType     tyExpd, tyData;
    const IRTypeEnv* tyenv = bb->tyenv;
    switch (stmt->tag) {
@@ -4365,35 +4830,35 @@ void tcStmt ( const IRSB* bb, const IRStmt* stmt, IRType gWordTy )
                                     "not :: guest word type");
          break;
       case Ist_Put:
-         tcExpr( bb, stmt, stmt->Ist.Put.data, gWordTy );
-         if (typeOfIRExpr(tyenv,stmt->Ist.Put.data) == Ity_I1)
+         tcExpr(bb, stmts, stmt, stmt->Ist.Put.data, gWordTy);
+         if (typeOfIRExpr(tyenv, stmt->Ist.Put.data) == Ity_I1)
             sanityCheckFail(bb,stmt,"IRStmt.Put.data: cannot Put :: Ity_I1");
          break;
       case Ist_PutI:{
          const IRPutI* puti = stmt->Ist.PutI.details;
-         tcExpr( bb, stmt, puti->data, gWordTy );
-         tcExpr( bb, stmt, puti->ix, gWordTy );
-         if (typeOfIRExpr(tyenv,puti->data) == Ity_I1)
-            sanityCheckFail(bb,stmt,"IRStmt.PutI.data: cannot PutI :: Ity_I1");
-         if (typeOfIRExpr(tyenv,puti->data) 
-             != puti->descr->elemTy)
+         tcExpr(bb, stmts, stmt, puti->data, gWordTy);
+         tcExpr(bb, stmts, stmt, puti->ix, gWordTy);
+         if (typeOfIRExpr(tyenv, puti->data) == Ity_I1)
+            sanityCheckFail(bb,stmt,
+                            "IRStmt.PutI.data: cannot PutI :: Ity_I1");
+         if (typeOfIRExpr(tyenv, puti->data) != puti->descr->elemTy)
             sanityCheckFail(bb,stmt,"IRStmt.PutI.data: data ty != elem ty");
-         if (typeOfIRExpr(tyenv,puti->ix) != Ity_I32)
+         if (typeOfIRExpr(tyenv, puti->ix) != Ity_I32)
             sanityCheckFail(bb,stmt,"IRStmt.PutI.ix: not :: Ity_I32");
          if (!saneIRRegArray(puti->descr))
             sanityCheckFail(bb,stmt,"IRStmt.PutI.descr: invalid descr");
          break;
       }
       case Ist_WrTmp:
-         tcExpr( bb, stmt, stmt->Ist.WrTmp.data, gWordTy );
+         tcExpr(bb, stmts, stmt, stmt->Ist.WrTmp.data, gWordTy);
          if (typeOfIRTemp(tyenv, stmt->Ist.WrTmp.tmp)
              != typeOfIRExpr(tyenv, stmt->Ist.WrTmp.data))
             sanityCheckFail(bb,stmt,
                             "IRStmt.Put.Tmp: tmp and expr do not match");
          break;
       case Ist_Store:
-         tcExpr( bb, stmt, stmt->Ist.Store.addr, gWordTy );
-         tcExpr( bb, stmt, stmt->Ist.Store.data, gWordTy );
+         tcExpr(bb, stmts, stmt, stmt->Ist.Store.addr, gWordTy);
+         tcExpr(bb, stmts, stmt, stmt->Ist.Store.data, gWordTy);
          if (typeOfIRExpr(tyenv, stmt->Ist.Store.addr) != gWordTy)
             sanityCheckFail(bb,stmt,
                             "IRStmt.Store.addr: not :: guest word type");
@@ -4405,9 +4870,9 @@ void tcStmt ( const IRSB* bb, const IRStmt* stmt, IRType gWordTy )
          break;
       case Ist_StoreG: {
          const IRStoreG* sg = stmt->Ist.StoreG.details;
-         tcExpr( bb, stmt, sg->addr, gWordTy );
-         tcExpr( bb, stmt, sg->data, gWordTy );
-         tcExpr( bb, stmt, sg->guard, gWordTy );
+         tcExpr(bb, stmts, stmt, sg->addr, gWordTy);
+         tcExpr(bb, stmts, stmt, sg->data, gWordTy);
+         tcExpr(bb, stmts, stmt, sg->guard, gWordTy);
          if (typeOfIRExpr(tyenv, sg->addr) != gWordTy)
             sanityCheckFail(bb,stmt,"IRStmtG...addr: not :: guest word type");
          if (typeOfIRExpr(tyenv, sg->data) == Ity_I1)
@@ -4420,9 +4885,9 @@ void tcStmt ( const IRSB* bb, const IRStmt* stmt, IRType gWordTy )
       }
       case Ist_LoadG: {
          const IRLoadG* lg = stmt->Ist.LoadG.details;
-         tcExpr( bb, stmt, lg->addr, gWordTy );
-         tcExpr( bb, stmt, lg->alt, gWordTy );
-         tcExpr( bb, stmt, lg->guard, gWordTy );
+         tcExpr(bb, stmts, stmt, lg->addr, gWordTy);
+         tcExpr(bb, stmts, stmt, lg->alt, gWordTy);
+         tcExpr(bb, stmts, stmt, lg->guard, gWordTy);
          if (typeOfIRExpr(tyenv, lg->guard) != Ity_I1)
             sanityCheckFail(bb,stmt,"IRStmt.LoadG.guard: not :: Ity_I1");
          if (typeOfIRExpr(tyenv, lg->addr) != gWordTy)
@@ -4439,12 +4904,12 @@ void tcStmt ( const IRSB* bb, const IRStmt* stmt, IRType gWordTy )
       case Ist_CAS: {
          const IRCAS* cas = stmt->Ist.CAS.details;
          /* make sure it's definitely either a CAS or a DCAS */
-         if (cas->oldHi == IRTemp_INVALID 
+         if (cas->oldHi == IRTemp_INVALID
              && cas->expdHi == NULL && cas->dataHi == NULL) {
             /* fine; it's a single cas */
          }
          else
-         if (cas->oldHi != IRTemp_INVALID 
+         if (cas->oldHi != IRTemp_INVALID
              && cas->expdHi != NULL && cas->dataHi != NULL) {
             /* fine; it's a double cas */
          }
@@ -4453,7 +4918,7 @@ void tcStmt ( const IRSB* bb, const IRStmt* stmt, IRType gWordTy )
             goto bad_cas;
          }
          /* check the address type */
-         tcExpr( bb, stmt, cas->addr, gWordTy );
+         tcExpr(bb, stmts, stmt, cas->addr, gWordTy);
          if (typeOfIRExpr(tyenv, cas->addr) != gWordTy) goto bad_cas;
          /* check types on the {old,expd,data}Lo components agree */
          tyExpd = typeOfIRExpr(tyenv, cas->expdLo);
@@ -4526,7 +4991,7 @@ void tcStmt ( const IRSB* bb, const IRStmt* stmt, IRType gWordTy )
          }
          if (d->nFxState < 0 || d->nFxState > VEX_N_FXSTATE)
             goto bad_dirty;
-         for (i = 0; i < d->nFxState; i++) {
+         for (UInt i = 0; i < d->nFxState; i++) {
             if (d->fxState[i].fx == Ifx_None) goto bad_dirty;
             if (d->fxState[i].size <= 0) goto bad_dirty;
             if (d->fxState[i].nRepeats == 0) {
@@ -4541,7 +5006,7 @@ void tcStmt ( const IRSB* bb, const IRStmt* stmt, IRType gWordTy )
          }
          /* check guard */
          if (d->guard == NULL) goto bad_dirty;
-         tcExpr( bb, stmt, d->guard, gWordTy );
+         tcExpr(bb, stmts, stmt, d->guard, gWordTy);
          if (typeOfIRExpr(tyenv, d->guard) != Ity_I1)
             sanityCheckFail(bb,stmt,"IRStmt.Dirty.guard not :: Ity_I1");
          /* check types, minimally */
@@ -4552,7 +5017,7 @@ void tcStmt ( const IRSB* bb, const IRStmt* stmt, IRType gWordTy )
                sanityCheckFail(bb,stmt,"IRStmt.Dirty.dst :: Ity_I1");
          }
          UInt nVECRETs = 0, nGSPTRs = 0;
-         for (i = 0; d->args[i] != NULL; i++) {
+         for (UInt i = 0; d->args[i] != NULL; i++) {
             if (i >= 32)
                sanityCheckFail(bb,stmt,"IRStmt.Dirty: > 32 args");
             const IRExpr* arg = d->args[i];
@@ -4611,8 +5076,8 @@ void tcStmt ( const IRSB* bb, const IRStmt* stmt, IRType gWordTy )
          }
          break;
       case Ist_Exit:
-         tcExpr( bb, stmt, stmt->Ist.Exit.guard, gWordTy );
-         if (typeOfIRExpr(tyenv,stmt->Ist.Exit.guard) != Ity_I1)
+         tcExpr(bb, stmts, stmt, stmt->Ist.Exit.guard, gWordTy);
+         if (typeOfIRExpr(tyenv, stmt->Ist.Exit.guard) != Ity_I1)
             sanityCheckFail(bb,stmt,"IRStmt.Exit.guard: not :: Ity_I1");
          if (!saneIRConst(stmt->Ist.Exit.dst))
             sanityCheckFail(bb,stmt,"IRStmt.Exit.dst: bad dst");
@@ -4622,77 +5087,156 @@ void tcStmt ( const IRSB* bb, const IRStmt* stmt, IRType gWordTy )
          if (stmt->Ist.Exit.offsIP < 16)
             sanityCheckFail(bb,stmt,"IRStmt.Exit.offsIP: too low");
          break;
+      case Ist_IfThenElse:
+         tcExpr(bb, stmts, stmt, stmt->Ist.IfThenElse.details->cond, gWordTy);
+         if (typeOfIRExpr(tyenv, stmt->Ist.IfThenElse.details->cond) != Ity_I1)
+            sanityCheckFail(bb,stmt,"IRStmt.IfThenElse.cond: not :: Ity_I1");
+         /* Traversing into legs and phi nodes driven from
+            sanityCheckIRStmtVec(). */
+         break;
       default:
          vpanic("tcStmt");
    }
 }
 
-void sanityCheckIRSB ( const IRSB* bb, const HChar* caller,
-                       Bool require_flat, IRType guest_word_size )
+static void sanityCheckIRPhiNodes(const IRSB* bb, const IRStmtVec* stmts,
+              const IRStmt* stmt, const IRPhiVec* phi_nodes, UInt def_counts[])
 {
-   Int     i;
-   Int     n_temps    = bb->tyenv->types_used;
-   Int*    def_counts = LibVEX_Alloc_inline(n_temps * sizeof(Int));
+   for (UInt i = 0; i < phi_nodes->phis_used; i++) {
+      const IRPhi* phi = phi_nodes->phis[i];
+      useBeforeDef_IRPhi(bb, stmts, stmt, phi, def_counts);
+      assignedOnce_IRPhi(bb, stmts, stmt, phi, def_counts);
+      tcPhi(bb, stmts, stmt, phi);
+   }
+}
+
+static
+void sanityCheckIRStmtVec(const IRSB* bb, const IRStmtVec* stmts,
+                          Bool require_flat, UInt def_counts[],
+                          UInt id_counts[], UInt n_ids, IRType gWordTy)
+{
+   IRStmtVecID id = stmts->id;
+   if (id == IRStmtVecID_INVALID) {
+      vpanic("sanityCheckIRStmtVec: invalid IRStmtVec ID");
+   }
+
+   if (id >= n_ids) {
+      vex_printf("IRStmtVec's ID (%u) is larger than number of IRStmtVec's "
+                 "(%u)\n", id, n_ids);
+      sanityCheckFail(bb, NULL, "IRStmtVec's ID larger than number of "
+                                "IRStmtVec's");
+   }
+
+   id_counts[id] += 1;
+   if (id_counts[id] > 1) {
+      sanityCheckFail(bb, NULL, "the same IRStmtVec ID used more than once");
+   }
+
+   if (stmts->stmts_used < 0 || stmts->stmts_size < 8
+       || stmts->stmts_used > stmts->stmts_size) {
+      /* this IRStmtVec is so strange we can't even print it */
+      vpanic("sanityCheckIRStmtVec: stmts array limits wierd");
+   }
+
+   for (UInt i = 0; i < stmts->stmts_used; i++) {
+      const IRStmt *stmt = stmts->stmts[i];
+      if (stmt == NULL)
+         sanityCheckFail(bb, stmt, "IRStmt: is NULL");
+
+      /* Check for flatness, if required. */
+      if (require_flat) {
+         if (!isFlatIRStmt(stmt)) {
+            sanityCheckFail(bb, stmt, "IRStmt: is not flat");
+         }
+      }
+
+      /* Count the defs of each temp.  Only one def is allowed.
+         Also, check that each used temp has already been defd. */
+      useBeforeDef_Stmt(bb, stmts, stmt, def_counts);
+      assignedOnce_Stmt(bb, stmts, stmt, def_counts);
+      tcStmt(bb, stmts, stmt, require_flat, gWordTy);
+
+      if (stmt->tag == Ist_IfThenElse) {
+         const IRIfThenElse* ite = stmt->Ist.IfThenElse.details;
+         const IRStmtVec* then_leg = ite->then_leg;
+         const IRStmtVec* else_leg = ite->else_leg;
+
+         if (then_leg->parent == NULL) {
+            sanityCheckFail(bb, stmt, "IfThenElse.then.parent is NULL");
+         }
+         if (else_leg->parent == NULL) {
+            sanityCheckFail(bb, stmt, "IfThenElse.else.parent is NULL");
+         }
+         if (then_leg->parent != stmts) {
+            sanityCheckFail(bb, stmt, "IfThenElse.then.parent does not point "
+                                      "to its parent");
+         }
+         if (else_leg->parent != stmts) {
+            sanityCheckFail(bb, stmt, "IfThenElse.else.parent does not point "
+                                      "to its parent");
+         }
+
+         sanityCheckIRStmtVec(bb, then_leg, require_flat, def_counts,
+                              id_counts, n_ids, gWordTy);
+         sanityCheckIRStmtVec(bb, else_leg, require_flat, def_counts,
+                              id_counts, n_ids, gWordTy);
+         sanityCheckIRPhiNodes(bb, stmts, stmt, ite->phi_nodes, def_counts);
+      }
+   }
+}
+
+/* Sanity checks basic block of IR.
+   Also checks for IRTyEnvID uniqueness. */
+void sanityCheckIRSB(const IRSB* bb, const  HChar* caller, Bool require_flat,
+                     IRType gWordTy)
+{
+   UInt n_ids = bb->id_seq;
+   UInt *id_counts = LibVEX_Alloc_inline(n_ids * sizeof(UInt));
+   for (UInt i = 0; i < n_ids; i++) {
+      id_counts[i] = 0;
+   }
+
+   const IRTypeEnv* tyenv = bb->tyenv;
+   UInt n_temps = tyenv->used;
+   UInt *def_counts = LibVEX_Alloc_inline(n_temps * sizeof(UInt));
+   for (UInt i = 0; i < n_temps; i++) {
+      def_counts[i] = 0;
+   }
 
    if (0)
       vex_printf("sanityCheck: %s\n", caller);
 
-   vassert(guest_word_size == Ity_I32
-           || guest_word_size == Ity_I64);
-
-   if (bb->stmts_used < 0 || bb->stmts_size < 8
-       || bb->stmts_used > bb->stmts_size)
-      /* this BB is so strange we can't even print it */
-      vpanic("sanityCheckIRSB: stmts array limits wierd");
+   vassert(gWordTy == Ity_I32 || gWordTy == Ity_I64);
 
    /* Ensure each temp has a plausible type. */
-   for (i = 0; i < n_temps; i++) {
-      IRType ty = typeOfIRTemp(bb->tyenv,(IRTemp)i);
+   for (UInt i = 0; i < n_temps; i++) {
+      IRTemp temp = (IRTemp) i;
+      IRType ty = typeOfIRTemp(tyenv, temp);
       if (!isPlausibleIRType(ty)) {
-         vex_printf("Temp t%d declared with implausible type 0x%x\n",
-                    i, (UInt)ty);
-         sanityCheckFail(bb,NULL,"Temp declared with implausible type");
+         vex_printf("Temp ");
+         ppIRTemp(temp);
+         vex_printf(" declared with implausible type 0x%x\n", (UInt) ty);
+         sanityCheckFail(bb, NULL, "Temp declared with implausible type");
       }
    }
 
-   const IRStmt* stmt;
+   sanityCheckIRStmtVec(bb, bb->stmts, require_flat, def_counts, id_counts,
+                        n_ids, gWordTy);
 
-   /* Check for flatness, if required. */
    if (require_flat) {
-      for (i = 0; i < bb->stmts_used; i++) {
-         stmt = bb->stmts[i];
-         if (!stmt)
-            sanityCheckFail(bb, stmt, "IRStmt: is NULL");
-         if (!isFlatIRStmt(stmt))
-            sanityCheckFail(bb, stmt, "IRStmt: is not flat");
-      }
-      if (!isIRAtom(bb->next))
+      if (!isIRAtom(bb->next)) {
          sanityCheckFail(bb, NULL, "bb->next is not an atom");
+      }
    }
 
-   /* Count the defs of each temp.  Only one def is allowed.
-      Also, check that each used temp has already been defd. */
-
-   for (i = 0; i < n_temps; i++)
-      def_counts[i] = 0;
-
-   for (i = 0; i < bb->stmts_used; i++) {
-      stmt = bb->stmts[i];
-      /* Check any temps used by this statement. */
-      useBeforeDef_Stmt(bb,stmt,def_counts);
-
-      /* Now make note of any temps defd by this statement. */
-      assignedOnce_Stmt(bb, stmt, def_counts, n_temps);
-   }
-
-   /* Typecheck everything. */
-   for (i = 0; i < bb->stmts_used; i++)
-      tcStmt(bb, bb->stmts[i], guest_word_size);
-   if (typeOfIRExpr(bb->tyenv,bb->next) != guest_word_size)
+   /* Typecheck also next destination. */
+   if (typeOfIRExpr(bb->tyenv, bb->next) != gWordTy) {
       sanityCheckFail(bb, NULL, "bb->next field has wrong type");
+   }
    /* because it would intersect with host_EvC_* */
-   if (bb->offsIP < 16)
+   if (bb->offsIP < 16) {
       sanityCheckFail(bb, NULL, "bb->offsIP: too low");
+   }
 }
 
 /*---------------------------------------------------------------*/
