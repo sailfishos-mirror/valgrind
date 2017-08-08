@@ -268,39 +268,38 @@ IRSB* tool_instrument_then_gdbserver_if_needed ( VgCallbackClosure* closureV,
    only parts of SP.  Bizarre, but it has been known to happen.
 */
 static
-IRSB* vg_SP_update_pass ( void*             closureV,
-                          IRSB*             sb_in, 
-                          const VexGuestLayout*   layout, 
-                          const VexGuestExtents*  vge,
-                          const VexArchInfo*      vai,
-                          IRType            gWordTy, 
-                          IRType            hWordTy )
+IRStmtVec* vg_SP_update_IRStmtVec(void*                  closureV,
+                                  IRTypeEnv*             tyenv,
+                                  IRStmtVec*             stmts_in,
+                                  IRStmtVec*             parent,
+                                  const VexGuestLayout*  layout,
+                                  const VexGuestExtents* vge,
+                                  const VexArchInfo*     vai,
+                                  IRType                 gWordTy,
+                                  IRType                 hWordTy)
 {
-   Int         i, j, k, minoff_ST, maxoff_ST, sizeof_SP, offset_SP;
+   Int         j, k, minoff_ST, maxoff_ST;
    Int         first_SP, last_SP, first_Put, last_Put;
    IRDirty     *dcall, *d;
-   IRStmt*     st;
    IRExpr*     e;
    IRRegArray* descr;
-   IRType      typeof_SP;
    Long        delta, con;
 
    /* Set up stuff for tracking the guest IP */
    Bool   curr_IP_known = False;
    Addr   curr_IP       = 0;
 
-   /* Set up BB */
-   IRSB* bb     = emptyIRSB();
-   bb->tyenv    = deepCopyIRTypeEnv(sb_in->tyenv);
-   bb->next     = deepCopyIRExpr(sb_in->next);
-   bb->jumpkind = sb_in->jumpkind;
-   bb->offsIP   = sb_in->offsIP;
+   /* Set up new IRStmtVec */
+   IRStmtVec* out = emptyIRStmtVec();
+   out->parent    = parent;
+   out->id        = stmts_in->id;
+   out->defset    = deepCopyIRTempDefSet(stmts_in->defset);
 
    delta = 0;
 
-   sizeof_SP = layout->sizeof_SP;
-   offset_SP = layout->offset_SP;
-   typeof_SP = sizeof_SP==4 ? Ity_I32 : Ity_I64;
+   UInt sizeof_SP   = layout->sizeof_SP;
+   UInt offset_SP   = layout->offset_SP;
+   IRType typeof_SP = sizeof_SP==4 ? Ity_I32 : Ity_I64;
    vg_assert(sizeof_SP == 4 || sizeof_SP == 8);
 
    /* --- Start of #defines --- */
@@ -351,7 +350,7 @@ IRSB* vg_SP_update_pass ( void*             closureV,
          dcall->fxState[0].nRepeats  = 0;                               \
          dcall->fxState[0].repeatLen = 0;                               \
                                                                         \
-         addStmtToIRSB( bb, IRStmt_Dirty(dcall) );                      \
+         addStmtToIRStmtVec(out, IRStmt_Dirty(dcall));                  \
                                                                         \
          vg_assert(syze > 0);                                           \
          update_SP_aliases(syze);                                       \
@@ -381,7 +380,7 @@ IRSB* vg_SP_update_pass ( void*             closureV,
          dcall->fxState[0].nRepeats  = 0;                               \
          dcall->fxState[0].repeatLen = 0;                               \
                                                                         \
-         addStmtToIRSB( bb, IRStmt_Dirty(dcall) );                      \
+         addStmtToIRStmtVec(out, IRStmt_Dirty(dcall) );                 \
                                                                         \
          vg_assert(syze > 0);                                           \
          update_SP_aliases(-(syze));                                    \
@@ -392,11 +391,11 @@ IRSB* vg_SP_update_pass ( void*             closureV,
 
    /* --- End of #defines --- */
 
+   // TODO-JIT: can we move this to vg_SP_update_pass?
    clear_SP_aliases();
 
-   for (i = 0; i <  sb_in->stmts_used; i++) {
-
-      st = sb_in->stmts[i];
+   for (UInt i = 0; i < stmts_in->stmts_used; i++) {
+      IRStmt* st = stmts_in->stmts[i];
 
       if (st->tag == Ist_IMark) {
          curr_IP_known = True;
@@ -409,9 +408,9 @@ IRSB* vg_SP_update_pass ( void*             closureV,
       if (e->tag != Iex_Get)              goto case2;
       if (e->Iex.Get.offset != offset_SP) goto case2;
       if (e->Iex.Get.ty != typeof_SP)     goto case2;
-      vg_assert( typeOfIRTemp(bb->tyenv, st->Ist.WrTmp.tmp) == typeof_SP );
+      vg_assert( typeOfIRTemp(tyenv, st->Ist.WrTmp.tmp) == typeof_SP );
       add_SP_alias(st->Ist.WrTmp.tmp, 0);
-      addStmtToIRSB( bb, st );
+      addStmtToIRStmtVec(out, st);
       continue;
 
      case2:
@@ -424,13 +423,13 @@ IRSB* vg_SP_update_pass ( void*             closureV,
       if (e->Iex.Binop.arg2->tag != Iex_Const) goto case3;
       if (!IS_ADD_OR_SUB(e->Iex.Binop.op)) goto case3;
       con = GET_CONST(e->Iex.Binop.arg2->Iex.Const.con);
-      vg_assert( typeOfIRTemp(bb->tyenv, st->Ist.WrTmp.tmp) == typeof_SP );
+      vg_assert( typeOfIRTemp(tyenv, st->Ist.WrTmp.tmp) == typeof_SP );
       if (IS_ADD(e->Iex.Binop.op)) {
          add_SP_alias(st->Ist.WrTmp.tmp, delta + con);
       } else {
          add_SP_alias(st->Ist.WrTmp.tmp, delta - con);
       }
-      addStmtToIRSB( bb, st );
+      addStmtToIRStmtVec(out, st);
       continue;
 
      case3:
@@ -439,9 +438,9 @@ IRSB* vg_SP_update_pass ( void*             closureV,
       e = st->Ist.WrTmp.data;
       if (e->tag != Iex_RdTmp) goto case4;
       if (!get_SP_delta(e->Iex.RdTmp.tmp, &delta)) goto case4;
-      vg_assert( typeOfIRTemp(bb->tyenv, st->Ist.WrTmp.tmp) == typeof_SP );
+      vg_assert( typeOfIRTemp(tyenv, st->Ist.WrTmp.tmp) == typeof_SP );
       add_SP_alias(st->Ist.WrTmp.tmp, delta);
-      addStmtToIRSB( bb, st );
+      addStmtToIRStmtVec(out, st);
       continue;
 
      case4:
@@ -454,7 +453,7 @@ IRSB* vg_SP_update_pass ( void*             closureV,
       last_SP   = first_SP + sizeof_SP - 1;
       first_Put = st->Ist.Put.offset;
       last_Put  = first_Put
-                  + sizeofIRType( typeOfIRExpr( bb->tyenv, st->Ist.Put.data ))
+                  + sizeofIRType(typeOfIRExpr(tyenv, st->Ist.Put.data))
                   - 1;
       vg_assert(first_SP <= last_SP);
       vg_assert(first_Put <= last_Put);
@@ -472,31 +471,31 @@ IRSB* vg_SP_update_pass ( void*             closureV,
             put_SP_alias is immediately preceded by an assertion that
             we are putting in a binding for a correctly-typed
             temporary. */
-         vg_assert( typeOfIRTemp(bb->tyenv, tttmp) == typeof_SP );
+         vg_assert( typeOfIRTemp(tyenv, tttmp) == typeof_SP );
          /* From the same type-and-offset-correctness argument, if 
             we found a useable alias, it must for an "exact" write of SP. */
          vg_assert(first_SP == first_Put);
          vg_assert(last_SP == last_Put);
          switch (delta) {
-            case    0:                      addStmtToIRSB(bb,st); continue;
-            case    4: DO_DIE(  4,  tttmp); addStmtToIRSB(bb,st); continue;
-            case   -4: DO_NEW(  4,  tttmp); addStmtToIRSB(bb,st); continue;
-            case    8: DO_DIE(  8,  tttmp); addStmtToIRSB(bb,st); continue;
-            case   -8: DO_NEW(  8,  tttmp); addStmtToIRSB(bb,st); continue;
-            case   12: DO_DIE(  12, tttmp); addStmtToIRSB(bb,st); continue;
-            case  -12: DO_NEW(  12, tttmp); addStmtToIRSB(bb,st); continue;
-            case   16: DO_DIE(  16, tttmp); addStmtToIRSB(bb,st); continue;
-            case  -16: DO_NEW(  16, tttmp); addStmtToIRSB(bb,st); continue;
-            case   32: DO_DIE(  32, tttmp); addStmtToIRSB(bb,st); continue;
-            case  -32: DO_NEW(  32, tttmp); addStmtToIRSB(bb,st); continue;
-            case  112: DO_DIE( 112, tttmp); addStmtToIRSB(bb,st); continue;
-            case -112: DO_NEW( 112, tttmp); addStmtToIRSB(bb,st); continue;
-            case  128: DO_DIE( 128, tttmp); addStmtToIRSB(bb,st); continue;
-            case -128: DO_NEW( 128, tttmp); addStmtToIRSB(bb,st); continue;
-            case  144: DO_DIE( 144, tttmp); addStmtToIRSB(bb,st); continue;
-            case -144: DO_NEW( 144, tttmp); addStmtToIRSB(bb,st); continue;
-            case  160: DO_DIE( 160, tttmp); addStmtToIRSB(bb,st); continue;
-            case -160: DO_NEW( 160, tttmp); addStmtToIRSB(bb,st); continue;
+            case    0:                     addStmtToIRStmtVec(out,st); continue;
+            case    4: DO_DIE( 4,  tttmp); addStmtToIRStmtVec(out,st); continue;
+            case   -4: DO_NEW( 4,  tttmp); addStmtToIRStmtVec(out,st); continue;
+            case    8: DO_DIE( 8,  tttmp); addStmtToIRStmtVec(out,st); continue;
+            case   -8: DO_NEW( 8,  tttmp); addStmtToIRStmtVec(out,st); continue;
+            case   12: DO_DIE( 12, tttmp); addStmtToIRStmtVec(out,st); continue;
+            case  -12: DO_NEW( 12, tttmp); addStmtToIRStmtVec(out,st); continue;
+            case   16: DO_DIE( 16, tttmp); addStmtToIRStmtVec(out,st); continue;
+            case  -16: DO_NEW( 16, tttmp); addStmtToIRStmtVec(out,st); continue;
+            case   32: DO_DIE( 32, tttmp); addStmtToIRStmtVec(out,st); continue;
+            case  -32: DO_NEW( 32, tttmp); addStmtToIRStmtVec(out,st); continue;
+            case  112: DO_DIE(112, tttmp); addStmtToIRStmtVec(out,st); continue;
+            case -112: DO_NEW(112, tttmp); addStmtToIRStmtVec(out,st); continue;
+            case  128: DO_DIE(128, tttmp); addStmtToIRStmtVec(out,st); continue;
+            case -128: DO_NEW(128, tttmp); addStmtToIRStmtVec(out,st); continue;
+            case  144: DO_DIE(144, tttmp); addStmtToIRStmtVec(out,st); continue;
+            case -144: DO_NEW(144, tttmp); addStmtToIRStmtVec(out,st); continue;
+            case  160: DO_DIE(160, tttmp); addStmtToIRStmtVec(out,st); continue;
+            case -160: DO_NEW(160, tttmp); addStmtToIRStmtVec(out,st); continue;
             default:  
                /* common values for ppc64: 144 128 160 112 176 */
                n_SP_updates_generic_known++;
@@ -524,9 +523,9 @@ IRSB* vg_SP_update_pass ( void*             closureV,
         generic:
          /* Pass both the old and new SP values to this helper.  Also,
             pass an origin tag, even if it isn't needed. */
-         old_SP = newIRTemp(bb->tyenv, typeof_SP);
-         addStmtToIRSB( 
-            bb,
+         old_SP = newIRTemp(tyenv, out, typeof_SP);
+         addStmtToIRStmtVec(
+            out,
             IRStmt_WrTmp( old_SP, IRExpr_Get(offset_SP, typeof_SP) ) 
          );
 
@@ -552,9 +551,9 @@ IRSB* vg_SP_update_pass ( void*             closureV,
                           mkIRExprVec_2( IRExpr_RdTmp(old_SP), st->Ist.Put.data )
                        );
 
-            addStmtToIRSB( bb, IRStmt_Dirty(dcall) );
+            addStmtToIRStmtVec(out, IRStmt_Dirty(dcall));
             /* don't forget the original assignment */
-            addStmtToIRSB( bb, st );
+            addStmtToIRStmtVec(out, st);
          } else {
             /* We have a partial update to SP.  We need to know what
                the new SP will be, and hand that to the helper call,
@@ -569,15 +568,16 @@ IRSB* vg_SP_update_pass ( void*             closureV,
             */
             IRTemp new_SP;
             /* 1 */
-            addStmtToIRSB( bb, st );
+            addStmtToIRStmtVec(out, st);
             /* 2 */
-            new_SP = newIRTemp(bb->tyenv, typeof_SP);
-            addStmtToIRSB( 
-               bb,
+            new_SP = newIRTemp(tyenv, out, typeof_SP);
+            addStmtToIRStmtVec(
+               out,
                IRStmt_WrTmp( new_SP, IRExpr_Get(offset_SP, typeof_SP) ) 
             );
             /* 3 */
-            addStmtToIRSB( bb, IRStmt_Put(offset_SP, IRExpr_RdTmp(old_SP) ));
+            addStmtToIRStmtVec(out,
+                               IRStmt_Put(offset_SP, IRExpr_RdTmp(old_SP)));
             /* 4 */
             vg_assert(curr_IP_known);
             if (NULL != VG_(tdict).track_new_mem_stack_w_ECU)
@@ -597,9 +597,10 @@ IRSB* vg_SP_update_pass ( void*             closureV,
                           mkIRExprVec_2( IRExpr_RdTmp(old_SP),
                                          IRExpr_RdTmp(new_SP) )
                        );
-            addStmtToIRSB( bb, IRStmt_Dirty(dcall) );
+            addStmtToIRStmtVec(out, IRStmt_Dirty(dcall));
             /* 5 */
-            addStmtToIRSB( bb, IRStmt_Put(offset_SP, IRExpr_RdTmp(new_SP) ));
+            addStmtToIRStmtVec(out,
+                               IRStmt_Put(offset_SP, IRExpr_RdTmp(new_SP)));
          }
 
          /* Forget what we already know. */
@@ -610,7 +611,7 @@ IRSB* vg_SP_update_pass ( void*             closureV,
 
          if (first_Put == first_SP && last_Put == last_SP
              && st->Ist.Put.data->tag == Iex_RdTmp) {
-            vg_assert( typeOfIRTemp(bb->tyenv, st->Ist.Put.data->Iex.RdTmp.tmp)
+            vg_assert( typeOfIRTemp(tyenv, st->Ist.Put.data->Iex.RdTmp.tmp)
                        == typeof_SP );
             add_SP_alias(st->Ist.Put.data->Iex.RdTmp.tmp, 0);
          }
@@ -646,15 +647,27 @@ IRSB* vg_SP_update_pass ( void*             closureV,
          }
       }
 
-      /* well, not interesting.  Just copy and keep going. */
-      addStmtToIRSB( bb, st );
+      if (st->tag == Ist_IfThenElse) {
+         st = IRStmt_IfThenElse(
+                st->Ist.IfThenElse.details->cond,
+                st->Ist.IfThenElse.details->hint,
+                vg_SP_update_IRStmtVec(closureV, tyenv,
+                                       st->Ist.IfThenElse.details->then_leg,
+                                       out, layout, vge, vai, gWordTy, hWordTy),
+                vg_SP_update_IRStmtVec(closureV, tyenv,
+                                       st->Ist.IfThenElse.details->else_leg,
+                                       out, layout, vge, vai, gWordTy, hWordTy),
+                st->Ist.IfThenElse.details->phi_nodes);
+      }
 
-   } /* for (i = 0; i < sb_in->stmts_used; i++) */
+      /* Well, not interesting.  Just copy and keep going. */
+      addStmtToIRStmtVec(out, st);
+   } /* for (UInt i = 0; i < stmts_in->stmts_used; i++) */
 
-   return bb;
+   return out;
 
   complain:
-   VG_(core_panic)("vg_SP_update_pass: PutI or Dirty which overlaps SP");
+   VG_(core_panic)("vg_SP_update_IRStmtVec: PutI or Dirty which overlaps SP");
 
 #undef IS_ADD
 #undef IS_SUB
@@ -662,6 +675,29 @@ IRSB* vg_SP_update_pass ( void*             closureV,
 #undef GET_CONST
 #undef DO_NEW
 #undef DO_DIE
+}
+
+/* See vg_SP_update_IRStmtVec() for detailed explanation. */
+static
+IRSB* vg_SP_update_pass(void*                  closureV,
+                        IRSB*                  sb_in,
+                        const VexGuestLayout*  layout,
+                        const VexGuestExtents* vge,
+                        const VexArchInfo*     vai,
+                        IRType                 gWordTy,
+                        IRType                 hWordTy)
+{
+   /* Set up BB */
+   IRSB* bb     = emptyIRSB();
+   bb->tyenv    = deepCopyIRTypeEnv(sb_in->tyenv);
+   bb->id_seq   = sb_in->id_seq;
+   bb->next     = deepCopyIRExpr(sb_in->next);
+   bb->jumpkind = sb_in->jumpkind;
+   bb->offsIP   = sb_in->offsIP;
+
+   bb->stmts = vg_SP_update_IRStmtVec(closureV, bb->tyenv, sb_in->stmts, NULL,
+                                      layout, vge, vai, gWordTy, hWordTy);
+   return bb;
 }
 
 /*------------------------------------------------------------*/
@@ -999,11 +1035,11 @@ static IRExpr* mkU32 ( UInt n ) {
 static IRExpr* mkU8 ( UChar n ) {
    return IRExpr_Const(IRConst_U8(n));
 }
-static IRExpr* narrowTo32 ( IRTypeEnv* tyenv, IRExpr* e ) {
-   if (typeOfIRExpr(tyenv, e) == Ity_I32) {
+static IRExpr* narrowTo32 ( IRStmtVec* stmts, IRExpr* e ) {
+   if (typeOfIRExpr(stmts, e) == Ity_I32) {
       return e;
    } else {
-      vg_assert(typeOfIRExpr(tyenv, e) == Ity_I64);
+      vg_assert(typeOfIRExpr(stmts, e) == Ity_I64);
       return IRExpr_Unop(Iop_64to32, e);
    }
 }
@@ -1056,7 +1092,7 @@ static void gen_PUSH ( IRSB* bb, IRExpr* e )
    t1    = newIRTemp( bb->tyenv, ty_Word );
    one   = mkU(1);
 
-   vg_assert(typeOfIRExpr(bb->tyenv, e) == ty_Word);
+   vg_assert(typeOfIRExpr(bb->stmts, e) == ty_Word);
 
    /* t1 = guest_REDIR_SP + 1 */
    addStmtToIRSB(
@@ -1102,7 +1138,7 @@ static void gen_PUSH ( IRSB* bb, IRExpr* e )
    addStmtToIRSB(
       bb, 
       IRStmt_PutI(mkIRPutI(descr, 
-                           narrowTo32(bb->tyenv,IRExpr_RdTmp(t1)), 0, e)));
+                           narrowTo32(bb->stmts, IRExpr_RdTmp(t1)), 0, e)));
 }
 
 
@@ -1182,7 +1218,7 @@ static IRTemp gen_POP ( IRSB* bb )
       bb,
       IRStmt_WrTmp(
          res, 
-         IRExpr_GetI(descr, narrowTo32(bb->tyenv,IRExpr_RdTmp(t1)), 0)
+         IRExpr_GetI(descr, narrowTo32(bb->stmts, IRExpr_RdTmp(t1)), 0)
       )
    );
 
@@ -1325,8 +1361,8 @@ Bool mk_preamble__set_NRADDR_to_zero ( void* closureV, IRSB* bb )
       = sizeof(((VexGuestArchState*)0)->guest_NRADDR);
    vg_assert(nraddr_szB == 4 || nraddr_szB == 8);
    vg_assert(nraddr_szB == VG_WORDSIZE);
-   addStmtToIRSB( 
-      bb,
+   addStmtToIRStmtVec(
+      bb->stmts,
       IRStmt_Put( 
          offsetof(VexGuestArchState,guest_NRADDR),
          nraddr_szB == 8 ? mkU64(0) : mkU32(0)
@@ -1383,8 +1419,8 @@ Bool mk_preamble__set_NRADDR_to_nraddr ( void* closureV, IRSB* bb )
       = sizeof(((VexGuestArchState*)0)->guest_NRADDR);
    vg_assert(nraddr_szB == 4 || nraddr_szB == 8);
    vg_assert(nraddr_szB == VG_WORDSIZE);
-   addStmtToIRSB( 
-      bb,
+   addStmtToIRStmtVec(
+      bb->stmts,
       IRStmt_Put( 
          offsetof(VexGuestArchState,guest_NRADDR),
          nraddr_szB == 8
