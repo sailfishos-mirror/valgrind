@@ -318,7 +318,6 @@ IRSB* LibVEX_FrontEnd ( /*MOD*/ VexTranslateArgs* vta,
 
    VexGuestLayout* guest_layout;
    IRSB*           irsb;
-   Int             i;
    Int             offB_CMSTART, offB_CMLEN, offB_GUEST_IP, szB_GUEST_IP;
    IRType          guest_word_type;
    IRType          host_word_type;
@@ -587,7 +586,7 @@ IRSB* LibVEX_FrontEnd ( /*MOD*/ VexTranslateArgs* vta,
 
    vassert(vta->guest_extents->n_used >= 1 && vta->guest_extents->n_used <= 3);
    vassert(vta->guest_extents->base[0] == vta->guest_bytes_addr);
-   for (i = 0; i < vta->guest_extents->n_used; i++) {
+   for (UInt i = 0; i < vta->guest_extents->n_used; i++) {
       vassert(vta->guest_extents->len[i] < 10000); /* sanity */
    }
 
@@ -606,7 +605,7 @@ IRSB* LibVEX_FrontEnd ( /*MOD*/ VexTranslateArgs* vta,
          UInt   guest_bytes_read = (UInt)vta->guest_extents->len[0];
          vex_printf("GuestBytes %lx %u ", vta->guest_bytes_addr, 
                                           guest_bytes_read );
-         for (i = 0; i < guest_bytes_read; i++) {
+         for (UInt i = 0; i < guest_bytes_read; i++) {
             UInt b = (UInt)p[i];
             vex_printf(" %02x", b );
             sum = (sum << 1) ^ b;
@@ -630,8 +629,9 @@ IRSB* LibVEX_FrontEnd ( /*MOD*/ VexTranslateArgs* vta,
    // the output of the front end, and iropt never screws up the IR by
    // itself, unless it is being hacked on.  So remove this post-iropt
    // check in "production" use.
-   // sanityCheckIRSB( irsb, "after initial iropt", 
-   //                  True/*must be flat*/, guest_word_type );
+   /* TODO-JIT: remove for "production" use. */
+   sanityCheckIRSB(irsb, "after initial iropt",
+                   True/*must be flat*/, guest_word_type);
 
    if (vex_traceflags & VEX_TRACE_OPT1) {
       vex_printf("\n------------------------" 
@@ -670,9 +670,10 @@ IRSB* LibVEX_FrontEnd ( /*MOD*/ VexTranslateArgs* vta,
    // JRS 2016 Aug 03: as above, this never actually fails in practice.
    // And we'll sanity check anyway after the post-instrumentation
    // cleanup pass.  So skip this check in "production" use.
-   // if (vta->instrument1 || vta->instrument2)
-   //    sanityCheckIRSB( irsb, "after instrumentation",
-   //                     True/*must be flat*/, guest_word_type );
+   /* TODO-JIT: remove for "production" use. */
+   if (vta->instrument1 || vta->instrument2)
+       sanityCheckIRSB(irsb, "after instrumentation",
+                       True/*must be flat*/, guest_word_type );
 
    /* Do a post-instrumentation cleanup pass. */
    if (vta->instrument1 || vta->instrument2) {
@@ -710,12 +711,14 @@ static void libvex_BackEnd ( const VexTranslateArgs *vta,
    Bool         (*isMove)       ( const HInstr*, HReg*, HReg* );
    void         (*getRegUsage)  ( HRegUsage*, const HInstr*, Bool );
    void         (*mapRegs)      ( HRegRemap*, HInstr*, Bool );
+   HInstrIfThenElse* (*isIfThenElse)(const HInstr*);
    void         (*genSpill)     ( HInstr**, HInstr**, HReg, Int, Bool );
    void         (*genReload)    ( HInstr**, HInstr**, HReg, Int, Bool );
    HInstr*      (*directReload) ( HInstr*, HReg, Short );
    void         (*ppInstr)      ( const HInstr*, Bool );
+   void         (*ppCondCode)   ( HCondCode );
    void         (*ppReg)        ( HReg );
-   HInstrArray* (*iselSB)       ( const IRSB*, VexArch, const VexArchInfo*,
+   HInstrSB*    (*iselSB)       ( const IRSB*, VexArch, const VexArchInfo*,
                                   const VexAbiInfo*, Int, Int, Bool, Bool,
                                   Addr );
    Int          (*emit)         ( /*MB_MOD*/Bool*,
@@ -727,14 +730,14 @@ static void libvex_BackEnd ( const VexTranslateArgs *vta,
    const RRegUniverse* rRegUniv = NULL;
 
    Bool            mode64, chainingAllowed;
-   Int             i, j, k, out_used;
+   Int             out_used;
    Int guest_sizeB;
    Int offB_HOST_EvC_COUNTER;
    Int offB_HOST_EvC_FAILADDR;
    Addr            max_ga;
    UChar           insn_bytes[128];
-   HInstrArray*    vcode;
-   HInstrArray*    rcode;
+   HInstrSB*       vcode;
+   HInstrSB*       rcode;
 
    isMove                  = NULL;
    getRegUsage             = NULL;
@@ -743,6 +746,7 @@ static void libvex_BackEnd ( const VexTranslateArgs *vta,
    genReload               = NULL;
    directReload            = NULL;
    ppInstr                 = NULL;
+   ppCondCode              = NULL;
    ppReg                   = NULL;
    iselSB                  = NULL;
    emit                    = NULL;
@@ -857,10 +861,12 @@ static void libvex_BackEnd ( const VexTranslateArgs *vta,
          getRegUsage  
             = CAST_TO_TYPEOF(getRegUsage) X86FN(getRegUsage_X86Instr);
          mapRegs      = CAST_TO_TYPEOF(mapRegs) X86FN(mapRegs_X86Instr);
+         isIfThenElse = CAST_TO_TYPEOF(isIfThenElse) X86FN(isIfThenElse_X86Instr);
          genSpill     = CAST_TO_TYPEOF(genSpill) X86FN(genSpill_X86);
          genReload    = CAST_TO_TYPEOF(genReload) X86FN(genReload_X86);
          directReload = CAST_TO_TYPEOF(directReload) X86FN(directReload_X86);
          ppInstr      = CAST_TO_TYPEOF(ppInstr) X86FN(ppX86Instr);
+         ppCondCode   = CAST_TO_TYPEOF(ppCondCode) X86FN(ppX86CondCode);
          ppReg        = CAST_TO_TYPEOF(ppReg) X86FN(ppHRegX86);
          iselSB       = X86FN(iselSB_X86);
          emit         = CAST_TO_TYPEOF(emit) X86FN(emit_X86Instr);
@@ -1034,6 +1040,14 @@ static void libvex_BackEnd ( const VexTranslateArgs *vta,
    }
    /* end HACK */
 
+   if (irsb->id_seq > 1) {
+      /* We have some IfThenElse statements. Deconstruct phi nodes. */
+      deconstruct_phi_nodes(irsb);
+
+      /* Now the IRSB no longer holds SSA. However there is no need to because
+         instruction selection pass does not rely on SSA property. */
+   }
+
    if (vex_traceflags & VEX_TRACE_VCODE)
       vex_printf("\n------------------------" 
                    " Instruction selection "
@@ -1059,20 +1073,16 @@ static void libvex_BackEnd ( const VexTranslateArgs *vta,
       vex_printf("\n");
 
    if (vex_traceflags & VEX_TRACE_VCODE) {
-      for (i = 0; i < vcode->arr_used; i++) {
-         vex_printf("%3d   ", i);
-         ppInstr(vcode->arr[i], mode64);
-         vex_printf("\n");
-      }
+      ppHInstrSB(vcode, isIfThenElse, ppInstr, ppCondCode, mode64);
       vex_printf("\n");
    }
 
    /* Register allocate. */
    rcode = doRegisterAllocation ( vcode, rRegUniv,
-                                  isMove, getRegUsage, mapRegs, 
+                                  isMove, getRegUsage, mapRegs, isIfThenElse,
                                   genSpill, genReload, directReload, 
                                   guest_sizeB,
-                                  ppInstr, ppReg, mode64 );
+                                  ppInstr, ppCondCode, ppReg, mode64 );
 
    vexAllocSanityCheck();
 
@@ -1080,11 +1090,7 @@ static void libvex_BackEnd ( const VexTranslateArgs *vta,
       vex_printf("\n------------------------" 
                    " Register-allocated code "
                    "------------------------\n\n");
-      for (i = 0; i < rcode->arr_used; i++) {
-         vex_printf("%3d   ", i);
-         ppInstr(rcode->arr[i], mode64);
-         vex_printf("\n");
-      }
+      ppHInstrSB(rcode, isIfThenElse, ppInstr, ppCondCode, mode64);
       vex_printf("\n");
    }
 
@@ -1103,22 +1109,25 @@ static void libvex_BackEnd ( const VexTranslateArgs *vta,
    }
 
    out_used = 0; /* tracks along the host_bytes array */
-   for (i = 0; i < rcode->arr_used; i++) {
-      HInstr* hi           = rcode->arr[i];
+   /* TODO-JIT: This needs another interface when assembler/flattener
+                is given whole HInstrSB and also pointer to function
+                which prints emitted bytes. */
+   for (UInt i = 0; i < rcode->insns->insns_used; i++) {
+      HInstr* hi           = rcode->insns->insns[i];
       Bool    hi_isProfInc = False;
       if (UNLIKELY(vex_traceflags & VEX_TRACE_ASM)) {
          ppInstr(hi, mode64);
          vex_printf("\n");
       }
-      j = emit( &hi_isProfInc,
-                insn_bytes, sizeof insn_bytes, hi,
-                mode64, vta->archinfo_host.endness,
-                vta->disp_cp_chain_me_to_slowEP,
-                vta->disp_cp_chain_me_to_fastEP,
-                vta->disp_cp_xindir,
-                vta->disp_cp_xassisted );
+      Int j = emit(&hi_isProfInc,
+                   insn_bytes, sizeof insn_bytes, hi,
+                   mode64, vta->archinfo_host.endness,
+                   vta->disp_cp_chain_me_to_slowEP,
+                   vta->disp_cp_chain_me_to_fastEP,
+                   vta->disp_cp_xindir,
+                   vta->disp_cp_xassisted);
       if (UNLIKELY(vex_traceflags & VEX_TRACE_ASM)) {
-         for (k = 0; k < j; k++)
+         for (Int k = 0; k < j; k++)
             vex_printf("%02x ", (UInt)insn_bytes[k]);
          vex_printf("\n\n");
       }
@@ -1135,7 +1144,7 @@ static void libvex_BackEnd ( const VexTranslateArgs *vta,
          res->offs_profInc = out_used;
       }
       { UChar* dst = &vta->host_bytes[out_used];
-        for (k = 0; k < j; k++) {
+        for (Int k = 0; k < j; k++) {
            dst[k] = insn_bytes[k];
         }
         out_used += j;
@@ -1149,8 +1158,8 @@ static void libvex_BackEnd ( const VexTranslateArgs *vta,
 
    if (vex_traceflags) {
       /* Print the expansion ratio for this SB. */
-      j = 0; /* total guest bytes */
-      for (i = 0; i < vta->guest_extents->n_used; i++) {
+      UInt j = 0; /* total guest bytes */
+      for (UInt i = 0; i < vta->guest_extents->n_used; i++) {
          j += vta->guest_extents->len[i];
       }
       if (1) vex_printf("VexExpansionRatio %d %d   %d :10\n\n",
