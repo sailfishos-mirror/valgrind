@@ -271,9 +271,9 @@ IRSB* bb_to_IR (
       each).  We won't know until later the extents and checksums of
       the areas, if any, that need to be checked. */
    nop = IRStmt_NoOp();
-   selfcheck_idx = irsb->stmts_used;
+   selfcheck_idx = irsb->stmts->stmts_used;
    for (i = 0; i < 3 * 5; i++)
-      addStmtToIRSB( irsb, nop );
+      addStmtToIRStmtVec(irsb->stmts, nop);
 
    /* If the caller supplied a function to add its own preamble, use
       it now. */
@@ -322,7 +322,7 @@ IRSB* bb_to_IR (
       /* This is the irsb statement array index of the first stmt in
          this insn.  That will always be the instruction-mark
          descriptor. */
-      first_stmt_idx = irsb->stmts_used;
+      first_stmt_idx = irsb->stmts->stmts_used;
 
       /* Add an instruction-mark statement.  We won't know until after
          disassembling the instruction how long it instruction is, so
@@ -341,19 +341,19 @@ IRSB* bb_to_IR (
          libvex_guest_arm.h. */
       if (arch_guest == VexArchARM && (guest_IP_curr_instr & 1)) {
          /* Thumb insn => mask out the T bit, but put it in delta */
-         addStmtToIRSB( irsb,
-                        IRStmt_IMark(guest_IP_curr_instr & ~(Addr)1,
-                                     0, /* len */
-                                     1  /* delta */
-                        )
+         addStmtToIRStmtVec(irsb->stmts,
+                            IRStmt_IMark(guest_IP_curr_instr & ~(Addr)1,
+                                         0, /* len */
+                                         1  /* delta */
+                            )
          );
       } else {
          /* All other targets: store IP as-is, and set delta to zero. */
-         addStmtToIRSB( irsb,
-                        IRStmt_IMark(guest_IP_curr_instr,
-                                     0, /* len */
-                                     0  /* delta */
-                        )
+         addStmtToIRStmtVec(irsb->stmts,
+                            IRStmt_IMark(guest_IP_curr_instr,
+                                         0, /* len */
+                                         0  /* delta */
+                            )
          );
       }
 
@@ -408,18 +408,17 @@ IRSB* bb_to_IR (
       }
 
       /* Fill in the insn-mark length field. */
-      vassert(first_stmt_idx >= 0 && first_stmt_idx < irsb->stmts_used);
-      imark = irsb->stmts[first_stmt_idx];
+      vassert(first_stmt_idx >= 0 && first_stmt_idx < irsb->stmts->stmts_used);
+      imark = irsb->stmts->stmts[first_stmt_idx];
       vassert(imark);
       vassert(imark->tag == Ist_IMark);
       vassert(imark->Ist.IMark.len == 0);
       imark->Ist.IMark.len = dres.len;
 
       /* Print the resulting IR, if needed. */
-      if (vex_traceflags & VEX_TRACE_FE) {
-         for (i = first_stmt_idx; i < irsb->stmts_used; i++) {
-            vex_printf("              ");
-            ppIRStmt(irsb->stmts[i]);
+      if (debug_print) {
+         for (i = first_stmt_idx; i < irsb->stmts->stmts_used; i++) {
+            ppIRStmt(irsb->stmts->stmts[i], irsb->tyenv, 3);
             vex_printf("\n");
          }
       }
@@ -432,9 +431,9 @@ IRSB* bb_to_IR (
 
       /* Individual insn disassembly must finish the IR for each
          instruction with an assignment to the guest PC. */
-      vassert(first_stmt_idx < irsb->stmts_used);
+      vassert(first_stmt_idx < irsb->stmts->stmts_used);
       /* it follows that irsb->stmts_used must be > 0 */
-      { IRStmt* st = irsb->stmts[irsb->stmts_used-1];
+      { IRStmt* st = irsb->stmts->stmts[irsb->stmts->stmts_used-1];
         vassert(st);
         vassert(st->tag == Ist_Put);
         vassert(st->Ist.Put.offset == offB_GUEST_IP);
@@ -693,8 +692,8 @@ IRSB* bb_to_IR (
             the area of guest code to invalidate should we exit with a
             self-check failure. */
 
-         tistart_tmp = newIRTemp(irsb->tyenv, guest_word_type);
-         tilen_tmp   = newIRTemp(irsb->tyenv, guest_word_type);
+         tistart_tmp = newIRTemp(irsb->tyenv, irsb->stmts, guest_word_type);
+         tilen_tmp   = newIRTemp(irsb->tyenv, irsb->stmts, guest_word_type);
 
          IRConst* base2check_IRConst
             = guest_word_type==Ity_I32 ? IRConst_U32(toUInt(base2check))
@@ -703,16 +702,16 @@ IRSB* bb_to_IR (
             = guest_word_type==Ity_I32 ? IRConst_U32(len2check)
                                        : IRConst_U64(len2check);
 
-         irsb->stmts[selfcheck_idx + i * 5 + 0]
+         irsb->stmts->stmts[selfcheck_idx + i * 5 + 0]
             = IRStmt_WrTmp(tistart_tmp, IRExpr_Const(base2check_IRConst) );
 
-         irsb->stmts[selfcheck_idx + i * 5 + 1]
+         irsb->stmts->stmts[selfcheck_idx + i * 5 + 1]
             = IRStmt_WrTmp(tilen_tmp, IRExpr_Const(len2check_IRConst) );
 
-         irsb->stmts[selfcheck_idx + i * 5 + 2]
+         irsb->stmts->stmts[selfcheck_idx + i * 5 + 2]
             = IRStmt_Put( offB_GUEST_CMSTART, IRExpr_RdTmp(tistart_tmp) );
 
-         irsb->stmts[selfcheck_idx + i * 5 + 3]
+         irsb->stmts->stmts[selfcheck_idx + i * 5 + 3]
             = IRStmt_Put( offB_GUEST_CMLEN, IRExpr_RdTmp(tilen_tmp) );
 
          /* Generate the entry point descriptors */
@@ -754,7 +753,7 @@ IRSB* bb_to_IR (
                        );
          }
 
-         irsb->stmts[selfcheck_idx + i * 5 + 4]
+         irsb->stmts->stmts[selfcheck_idx + i * 5 + 4]
             = IRStmt_Exit( 
                  IRExpr_Binop( 
                     host_word_type==Ity_I64 ? Iop_CmpNE64 : Iop_CmpNE32,
@@ -777,7 +776,7 @@ IRSB* bb_to_IR (
       Print it if necessary.*/
    vassert(irsb->next != NULL);
    if (debug_print) {
-      vex_printf("              ");
+      vex_printf("            ");
       vex_printf( "PUT(%d) = ", irsb->offsIP);
       ppIRExpr( irsb->next );
       vex_printf( "; exit-");
