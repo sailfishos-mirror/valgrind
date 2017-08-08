@@ -807,7 +807,7 @@ extern AMD64Instr* directReload_AMD64 ( AMD64Instr* i,
 
 extern const RRegUniverse* getRRegUniverse_AMD64 ( void );
 
-extern HInstrArray* iselSB_AMD64           ( const IRSB*, 
+extern HInstrSB* iselSB_AMD64              ( const IRSB*,
                                              VexArch,
                                              const VexArchInfo*,
                                              const VexAbiInfo*,

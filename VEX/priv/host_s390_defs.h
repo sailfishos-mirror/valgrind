@@ -749,7 +749,7 @@ Int   emit_S390Instr       ( Bool *, UChar *, Int, const s390_insn *, Bool,
 const RRegUniverse *getRRegUniverse_S390( void );
 void  genSpill_S390        ( HInstr **, HInstr **, HReg , Int , Bool );
 void  genReload_S390       ( HInstr **, HInstr **, HReg , Int , Bool );
-HInstrArray *iselSB_S390   ( const IRSB *, VexArch, const VexArchInfo *,
+HInstrSB *iselSB_S390      ( const IRSB *, VexArch, const VexArchInfo *,
                              const VexAbiInfo *, Int, Int, Bool, Bool, Addr);
 
 /* Return the number of bytes of code needed for an event check */

@@ -1218,7 +1218,7 @@ extern void genReload_PPC ( /*OUT*/HInstr** i1, /*OUT*/HInstr** i2,
 
 extern const RRegUniverse* getRRegUniverse_PPC ( Bool mode64 );
 
-extern HInstrArray* iselSB_PPC           ( const IRSB*,
+extern HInstrSB* iselSB_PPC              ( const IRSB*,
                                            VexArch,
                                            const VexArchInfo*,
                                            const VexAbiInfo*,

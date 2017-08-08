@@ -1073,7 +1073,7 @@ extern void genReload_ARM ( /*OUT*/HInstr** i1, /*OUT*/HInstr** i2,
 
 extern const RRegUniverse* getRRegUniverse_ARM ( void );
 
-extern HInstrArray* iselSB_ARM   ( const IRSB*, 
+extern HInstrSB* iselSB_ARM      ( const IRSB*,
                                    VexArch,
                                    const VexArchInfo*,
                                    const VexAbiInfo*,

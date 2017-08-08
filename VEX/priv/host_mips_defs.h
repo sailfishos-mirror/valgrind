@@ -703,7 +703,7 @@ extern void genReload_MIPS( /*OUT*/ HInstr ** i1, /*OUT*/ HInstr ** i2,
 
 extern const RRegUniverse* getRRegUniverse_MIPS ( Bool mode64 );
 
-extern HInstrArray *iselSB_MIPS          ( const IRSB*,
+extern HInstrSB *iselSB_MIPS             ( const IRSB*,
                                            VexArch,
                                            const VexArchInfo*,
                                            const VexAbiInfo*,

@@ -1010,7 +1010,7 @@ extern void genReload_ARM64 ( /*OUT*/HInstr** i1, /*OUT*/HInstr** i2,
 
 extern const RRegUniverse* getRRegUniverse_ARM64 ( void );
 
-extern HInstrArray* iselSB_ARM64 ( const IRSB*, 
+extern HInstrSB* iselSB_ARM64    ( const IRSB*,
                                    VexArch,
                                    const VexArchInfo*,
                                    const VexAbiInfo*,
