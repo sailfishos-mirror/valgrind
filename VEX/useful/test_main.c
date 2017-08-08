@@ -165,7 +165,7 @@ int main ( int argc, char** argv )
       assert(orig_nbytes >= 1 && orig_nbytes <= N_ORIGBUF);
       for (i = 0; i < orig_nbytes; i++) {
          assert(1 == sscanf(&linebuf[2 + 3*i], "%x", &u));
-         origbuf[18+ i] = (UChar)u;
+         origbuf[i] = (UChar)u;
       }
 
       /* FIXME: put sensible values into the .hwcaps fields */
@@ -198,7 +198,7 @@ int main ( int argc, char** argv )
       /* ----- Set up args for LibVEX_Translate ----- */
 
       vta.abiinfo_both    = vbi;
-      vta.guest_bytes     = &origbuf[18];
+      vta.guest_bytes     = &origbuf[0];
       vta.guest_bytes_addr = orig_addr;
       vta.callback_opaque = NULL;
       vta.chase_into_ok   = chase_into_not_ok;
@@ -219,13 +219,13 @@ int main ( int argc, char** argv )
       vta.arch_host      = VexArchAMD64;
       vta.archinfo_host  = vai_amd64;
 #endif
-#if 0 /* x86 -> x86 */
+#if 1 /* x86 -> x86 */
       vta.arch_guest     = VexArchX86;
       vta.archinfo_guest = vai_x86;
       vta.arch_host      = VexArchX86;
       vta.archinfo_host  = vai_x86;
 #endif
-#if 1 /* x86 -> mips32 */
+#if 0 /* x86 -> mips32 */
       vta.arch_guest     = VexArchX86;
       vta.archinfo_guest = vai_x86;
       vta.arch_host      = VexArchMIPS32;
@@ -612,7 +612,7 @@ static IRTemp findShadowTmp ( MCEnv* mce, IRTemp orig )
    tl_assert(orig < mce->n_originalTmps);
    if (mce->tmpMap[orig] == IRTemp_INVALID) {
       mce->tmpMap[orig] 
-         = newIRTemp(mce->bb->tyenv, 
+         = newIRTemp(mce->bb->tyenv, mce->bb->stmts,
                      shadowType(mce->bb->tyenv->types[orig]));
    }
    return mce->tmpMap[orig];
@@ -628,7 +628,7 @@ static void newShadowTmp ( MCEnv* mce, IRTemp orig )
 {
    tl_assert(orig < mce->n_originalTmps);
    mce->tmpMap[orig] 
-      = newIRTemp(mce->bb->tyenv, 
+      = newIRTemp(mce->bb->tyenv, mce->bb->stmts,
                   shadowType(mce->bb->tyenv->types[orig]));
 }
 
@@ -726,11 +726,11 @@ static IRExpr* definedOfType ( IRType ty ) {
 
 /* assign value to tmp */
 #define assign(_bb,_tmp,_expr)   \
-   addStmtToIRSB((_bb), IRStmt_WrTmp((_tmp),(_expr)))
+   addStmtToIRStmtVec((_bb->stmts), IRStmt_WrTmp((_tmp),(_expr)))
 
 /* add stmt to a bb */
 #define stmt(_bb,_stmt)    \
-   addStmtToIRSB((_bb), (_stmt))
+   addStmtToIRStmtVec((_bb->stmts), (_stmt))
 
 /* build various kinds of expressions */
 #define binop(_op, _arg1, _arg2) IRExpr_Binop((_op),(_arg1),(_arg2))
@@ -746,7 +746,7 @@ static IRExpr* definedOfType ( IRType ty ) {
    temporary.  This effectively converts an arbitrary expression into
    an atom. */
 static IRAtom* assignNew ( MCEnv* mce, IRType ty, IRExpr* e ) {
-   IRTemp t = newIRTemp(mce->bb->tyenv, ty);
+   IRTemp t = newIRTemp(mce->bb->tyenv, mce->bb->stmts, ty);
    assign(mce->bb, t, e);
    return mkexpr(t);
 }
@@ -2096,7 +2096,7 @@ IRAtom* expr2vbits_LDle_WRK ( MCEnv* mce, IRType ty, IRAtom* addr, UInt bias )
 
    /* We need to have a place to park the V bits we're just about to
       read. */
-   datavbits = newIRTemp(mce->bb->tyenv, ty);
+   datavbits = newIRTemp(mce->bb->tyenv, mce->bb->stmts, ty);
    di = unsafeIRDirty_1_N( datavbits, 
                            1/*regparms*/, hname, helper, 
                            mkIRExprVec_1( addrAct ));
@@ -2605,7 +2605,7 @@ static Bool checkForBogusLiterals ( /*FLAT*/ IRStmt* st )
          return isBogusAtom(st->Ist.Exit.guard);
       default: 
       unhandled:
-         ppIRStmt(st);
+         ppIRStmt(st, NULL, 0);
          VG_(tool_panic)("hasBogusLiterals");
    }
 }
@@ -2619,13 +2619,12 @@ IRSB* mc_instrument ( void* closureV,
 
    /* Bool hasBogusLiterals = False; */
 
-   Int i, j, first_stmt;
-   IRStmt* st;
    MCEnv mce;
 
    /* Set up BB */
    IRSB* bb     = emptyIRSB();
    bb->tyenv    = deepCopyIRTypeEnv(bb_in->tyenv);
+   bb->id_seq   = bb_in->id_seq;
    bb->next     = deepCopyIRExpr(bb_in->next);
    bb->jumpkind = bb_in->jumpkind;
 
@@ -2633,19 +2632,19 @@ IRSB* mc_instrument ( void* closureV,
       along. */
    mce.bb             = bb;
    mce.layout         = layout;
-   mce.n_originalTmps = bb->tyenv->types_used;
+   mce.n_originalTmps = bb->tyenv->used;
    mce.hWordTy        = hWordTy;
    mce.tmpMap         = LibVEX_Alloc(mce.n_originalTmps * sizeof(IRTemp));
-   for (i = 0; i < mce.n_originalTmps; i++)
+   for (UInt i = 0; i < mce.n_originalTmps; i++)
       mce.tmpMap[i] = IRTemp_INVALID;
+
+   tl_assert(isFlatIRSB(bb_in));
 
    /* Iterate over the stmts. */
 
-   for (i = 0; i <  bb_in->stmts_used; i++) {
-      st = bb_in->stmts[i];
+   for (UInt i = 0; i <  bb_in->stmts->stmts_used; i++) {
+      IRStmt* st = bb_in->stmts->stmts[i];
       if (!st) continue;
-
-      tl_assert(isFlatIRStmt(st));
 
       /*
       if (!hasBogusLiterals) {
@@ -2657,10 +2656,10 @@ IRSB* mc_instrument ( void* closureV,
          }
       }
       */
-      first_stmt = bb->stmts_used;
+      UInt first_stmt = bb->stmts->stmts_used;
 
       if (verboze) {
-         ppIRStmt(st);
+         ppIRStmt(st, bb->tyenv, 0);
          VG_(printf)("\n\n");
       }
 
@@ -2707,27 +2706,27 @@ IRSB* mc_instrument ( void* closureV,
 
          default:
             VG_(printf)("\n");
-            ppIRStmt(st);
+            ppIRStmt(st, bb->tyenv, 0);
             VG_(printf)("\n");
             VG_(tool_panic)("memcheck: unhandled IRStmt");
 
       } /* switch (st->tag) */
 
       if (verboze) {
-         for (j = first_stmt; j < bb->stmts_used; j++) {
+         for (UInt j = first_stmt; j < bb->stmts->stmts_used; j++) {
             VG_(printf)("   ");
-            ppIRStmt(bb->stmts[j]);
+            ppIRStmt(bb->stmts->stmts[j], bb->tyenv, 0);
             VG_(printf)("\n");
          }
          VG_(printf)("\n");
       }
 
-      addStmtToIRSB(bb, st);
+      addStmtToIRStmtVec(bb->stmts, st);
 
    }
 
    /* Now we need to complain if the jump target is undefined. */
-   first_stmt = bb->stmts_used;
+   UInt first_stmt = bb->stmts->stmts_used;
 
    if (verboze) {
       VG_(printf)("bb->next = ");
@@ -2738,9 +2737,9 @@ IRSB* mc_instrument ( void* closureV,
    complainIfUndefined( &mce, bb->next );
 
    if (verboze) {
-      for (j = first_stmt; j < bb->stmts_used; j++) {
+      for (UInt j = first_stmt; j < bb->stmts->stmts_used; j++) {
          VG_(printf)("   ");
-         ppIRStmt(bb->stmts[j]);
+         ppIRStmt(bb->stmts->stmts[j], bb->tyenv, 0);
          VG_(printf)("\n");
       }
       VG_(printf)("\n");
