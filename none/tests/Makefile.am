@@ -216,7 +216,6 @@ check_PROGRAMS = \
 	floored fork fucomip \
 	ioctl_moans \
 	libvex_test \
-	libvexmultiarch_test \
 	manythreads \
 	mmap_fcntl_bug \
 	munmap_exe map_unaligned map_unmap mq \
@@ -250,6 +249,10 @@ check_PROGRAMS = \
 	coolo_sigaction \
 	gxx304 \
 	process_vm_readv_writev
+
+# TODO-JIT:
+#	libvexmultiarch_test
+
 
 if HAVE_NESTED_FUNCTIONS
    check_PROGRAMS += nestedfns
@@ -295,11 +298,11 @@ endif
 libvex_test_CFLAGS      = $(AM_CFLAGS) @FLAG_FSANITIZE@
 libvex_test_LDADD       = ../../VEX/libvex-@VGCONF_ARCH_PRI@-@VGCONF_OS@.a \
 			   @LIB_UBSAN@
-libvexmultiarch_test_CFLAGS= $(AM_CFLAGS) @FLAG_FSANITIZE@
-libvexmultiarch_test_LDADD = \
-	../../VEX/libvexmultiarch-@VGCONF_ARCH_PRI@-@VGCONF_OS@.a \
-	../../VEX/libvex-@VGCONF_ARCH_PRI@-@VGCONF_OS@.a @LIB_UBSAN@
-libvexmultiarch_test_SOURCES = libvex_test.c
+#libvexmultiarch_test_CFLAGS= $(AM_CFLAGS) @FLAG_FSANITIZE@
+#libvexmultiarch_test_LDADD = \
+#	../../VEX/libvexmultiarch-@VGCONF_ARCH_PRI@-@VGCONF_OS@.a \
+#	../../VEX/libvex-@VGCONF_ARCH_PRI@-@VGCONF_OS@.a @LIB_UBSAN@
+#libvexmultiarch_test_SOURCES = libvex_test.c
 ppoll_alarm_LDADD	= -lpthread
 pselect_alarm_LDADD	= -lpthread
 pth_atfork1_LDADD	= -lpthread
