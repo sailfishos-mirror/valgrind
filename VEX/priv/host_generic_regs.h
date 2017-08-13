@@ -527,7 +527,7 @@ typedef
 
       /* Is this instruction actually HInstrIfThenElse? Returns pointer to
          HInstrIfThenElse if yes, NULL otherwise. */
-      HInstrIfThenElse* (*isIfThenElse) (const HInstr*),
+      HInstrIfThenElse* (*isIfThenElse)(const HInstr*);
 
       /* Return insn(s) to spill/restore a real register to a spill slot offset.
          Also a function to move between registers.
@@ -540,7 +540,7 @@ typedef
 
       /* For debug printing only. */
       void (*ppInstr)(const HInstr*, Bool);
-      void (*ppCondCode)(HCondCode),
+      void (*ppCondCode)(HCondCode);
       UInt (*ppReg)(HReg);
 
       /* 32/64bit mode */
@@ -548,11 +548,7 @@ typedef
    }
    RegAllocControl;
 
-extern HInstrSB* doRegisterAllocation_v2(
-   HInstrSB* sb_in,
-   const RegAllocControl* con
-);
-extern HInstrSB* doRegisterAllocation_v3(
+extern HInstrSB* doRegisterAllocation(
    HInstrSB* sb_in,
    const RegAllocControl* con
 );

@@ -709,8 +709,6 @@ void main_process_cmd_line_options( void )
                        VG_(clo_vex_control).iropt_verbosity, 0, 10) {}
       else if VG_BINT_CLO(arg, "--vex-iropt-level",
                        VG_(clo_vex_control).iropt_level, 0, 2) {}
-      else if VG_BINT_CLO(arg, "--vex-regalloc-version",
-                       VG_(clo_vex_control).regalloc_version, 2, 3) {}
 
       else if VG_STRINDEX_CLO(arg, "--vex-iropt-register-updates",
                                    pxStrings, ix) {

@@ -186,7 +186,6 @@ void LibVEX_default_VexControl ( /*OUT*/ VexControl* vcon )
    vcon->guest_max_insns                = 60;
    vcon->guest_chase_thresh             = 10;
    vcon->guest_chase_cond               = False;
-   vcon->regalloc_version               = 3;
 }
 
 
@@ -226,7 +225,6 @@ void LibVEX_Init (
    vassert(vcon->guest_chase_thresh < vcon->guest_max_insns);
    vassert(vcon->guest_chase_cond == True 
            || vcon->guest_chase_cond == False);
-   vassert(vcon->regalloc_version == 2 || vcon->regalloc_version == 3);
 
    /* Check that Vex has been built with sizes of basic types as
       stated in priv/libvex_basictypes.h.  Failure of any of these is
@@ -1089,16 +1087,7 @@ static void libvex_BackEnd ( const VexTranslateArgs *vta,
       .genReload = genReload, .genMove = genMove, .directReload = directReload,
       .guest_sizeB = guest_sizeB, .ppInstr = ppInstr, .ppCondCode = ppCondCode,
       .ppReg = ppReg, .mode64 = mode64};
-   switch (vex_control.regalloc_version) {
-   case 2:
-      rcode = doRegisterAllocation_v2(vcode, &con);
-      break;
-   case 3:
-      rcode = doRegisterAllocation_v3(vcode, &con);
-      break;
-   default:
-      vassert(0);
-   }
+   rcode = doRegisterAllocation(vcode, &con);
 
    vexAllocSanityCheck();
 
