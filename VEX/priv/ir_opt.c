@@ -6286,52 +6286,6 @@ static IRStmtVec* atbSubst_StmtVec(
 
 
 /*---------------------------------------------------------------*/
-/*--- The phi nodes deconstruction                            ---*/
-/*---------------------------------------------------------------*/
-
-/* This isn't part of IR optimisation however this pass is needed before IRSB
-   is handed to instruction selection phase. Deconstructs all phi nodes.
-   Consider this example:
-      t2 = phi(t1,t0)
-   which gets trivially deconstructed into statements appended to:
-      - then leg:
-         t2 = t1
-      - else leg:
-         t2 = t0
-
-   Such an IRSB no longer holds SSA property after this pass but subsequent
-   phases do no require it. */
-static void deconstruct_phi_nodes_IRStmtVec(IRStmtVec* stmts)
-{
-   for (UInt i = 0; i < stmts->stmts_used; i++) {
-      IRStmt* st = stmts->stmts[i];
-      if (st->tag != Ist_IfThenElse) {
-         continue;
-      }
-
-      IRIfThenElse* ite = st->Ist.IfThenElse.details;
-      IRStmtVec* then_leg = ite->then_leg;
-      IRStmtVec* else_leg = ite->else_leg;
-      for (UInt j = 0; j < ite->phi_nodes->phis_used; j++) {
-         const IRPhi* phi = ite->phi_nodes->phis[j];
-         addStmtToIRStmtVec(then_leg, IRStmt_WrTmp(phi->dst,
-                                                   IRExpr_RdTmp(phi->srcThen)));
-         addStmtToIRStmtVec(else_leg, IRStmt_WrTmp(phi->dst,
-                                                   IRExpr_RdTmp(phi->srcElse)));
-      }
-
-      deconstruct_phi_nodes_IRStmtVec(then_leg);
-      deconstruct_phi_nodes_IRStmtVec(else_leg);
-   }
-}
-
-void deconstruct_phi_nodes(IRSB *irsb)
-{
-   deconstruct_phi_nodes_IRStmtVec(irsb->stmts);
-}
-
-
-/*---------------------------------------------------------------*/
 /*--- MSVC specific transformation hacks                      ---*/
 /*---------------------------------------------------------------*/
 
