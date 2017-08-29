@@ -246,12 +246,14 @@ static void print_depth(UInt depth)
    }
 }
 
-#define WALK_CHUNKS(process_one_chunk, process_fall_through_leg,        \
+#define WALK_CHUNKS(process_one_chunk, process_legs_fork,               \
+                    process_fall_through_leg,                           \
                     process_out_of_line_leg, process_phi_nodes)         \
    do {                                                                 \
       while (chunk != NULL) {                                           \
          process_one_chunk;                                             \
          if (chunk->isIfThenElse) {                                     \
+            process_legs_fork;                                          \
             if (DEBUG_REGALLOC) {                                       \
                print_depth(depth);                                      \
                vex_printf("if (!");                                     \
@@ -309,10 +311,12 @@ static inline void enlarge_rreg_lrs(RRegLRState* rreg_lrs)
 
 static inline void print_state(const RegAllocChunk* chunk,
    const VRegState* vreg_state, UInt n_vregs, const RRegState* rreg_state,
-   Short ii_total_current, const RegAllocControl* con)
+   Short ii_total_current, UInt depth, const RegAllocControl* con,
+   const HChar* comment)
 {
-   vex_printf("Register Allocator state (current instruction total #%d)\n",
-              ii_total_current);
+   print_depth(depth);
+   vex_printf("%s (current instruction total #%d):\n",
+              comment, ii_total_current);
 
    for (UInt v_idx = 0; v_idx < n_vregs; v_idx++) {
       const VRegState* vreg = &vreg_state[v_idx];
@@ -320,6 +324,7 @@ static inline void print_state(const RegAllocChunk* chunk,
       if (vreg->live_after == INVALID_INSTRNO) {
          continue; /* This is a dead vreg. Never comes into live. */
       }
+      print_depth(depth);
       vex_printf("vreg_state[%3u] \t", v_idx);
 
       UInt written;
@@ -355,6 +360,7 @@ static inline void print_state(const RegAllocChunk* chunk,
    for (UInt r_idx = 0; r_idx < chunk->n_rregs; r_idx++) {
       const RRegState* rreg = &rreg_state[r_idx];
       const RRegLR*    lr   = chunk->rreg_lr_state[r_idx].lr_current;
+      print_depth(depth);
       vex_printf("rreg_state[%2u] = ", r_idx);
       UInt written = con->ppReg(con->univ->regs[r_idx]);
       for (Int w = 10 - written; w > 0; w--) {
@@ -378,10 +384,11 @@ static inline void print_state(const RegAllocChunk* chunk,
    }
 }
 
-static inline void emit_instr(RegAllocChunk* chunk, HInstr* instr,
+static inline void emit_instr(RegAllocChunk* chunk, HInstr* instr, UInt depth,
                               const RegAllocControl* con, const HChar* why)
 {
    if (DEBUG_REGALLOC) {
+      print_depth(depth);
       vex_printf("**  ");
       con->ppInstr(instr, con->mode64);
       if (why != NULL) {
@@ -400,7 +407,7 @@ static inline UInt spill_vreg(
    RegAllocChunk* chunk,
    VRegState* vreg_state, UInt n_vregs, RRegState* rreg_state,
    HReg vreg, UInt v_idx, Short ii_total_current,
-   const RegAllocControl* con)
+   UInt depth, const RegAllocControl* con)
 {
    UInt n_rregs = chunk->n_rregs;
 
@@ -421,10 +428,10 @@ static inline UInt spill_vreg(
                  con->mode64);
    vassert(spill1 != NULL || spill2 != NULL); /* cannot be both NULL */
    if (spill1 != NULL) {
-      emit_instr(chunk, spill1, con, "spill1");
+      emit_instr(chunk, spill1, depth, con, "spill1");
    }
    if (spill2 != NULL) {
-      emit_instr(chunk, spill2, con, "spill2");
+      emit_instr(chunk, spill2, depth, con, "spill2");
    }
 
    /* Update register allocator state. */
@@ -813,6 +820,7 @@ static void stage2(RegAllocChunk* chunk, VRegState* vreg_state, UInt n_vregs,
                    UInt n_rregs, UInt depth, const RegAllocControl* con)
 {
    WALK_CHUNKS(stage2_chunk(chunk, vreg_state, n_vregs, n_rregs, depth, con),
+               ;,
                stage2(chunk->IfThenElse.fallThrough, vreg_state, n_vregs,
                       n_rregs, depth + 1, con),
                stage2(chunk->IfThenElse.outOfLine, vreg_state, n_vregs,
@@ -863,6 +871,7 @@ static void stage2_debug_rregs(RegAllocChunk* chunk, UInt depth,
                                const RegAllocControl* con)
 {
    WALK_CHUNKS(stage2_debug_rregs_chunk(chunk, depth, con),
+               ;,
                stage2_debug_rregs(chunk->IfThenElse.fallThrough, depth + 1, con),
                stage2_debug_rregs(chunk->IfThenElse.outOfLine, depth + 1, con),
                ;);
@@ -1005,7 +1014,7 @@ static void stage4_chunk(RegAllocChunk* chunk,
                                     ii_chunk, con);                            \
          _r_free_idx = spill_vreg(chunk, vreg_state, n_vregs, rreg_state,      \
                                   vreg_to_spill, hregIndex(vreg_to_spill),     \
-                                  INSTRNO_TOTAL, con);                         \
+                                  INSTRNO_TOTAL, depth, con);                  \
       }                                                                        \
                                                                                \
       vassert(IS_VALID_RREGNO(_r_free_idx));                                   \
@@ -1022,15 +1031,16 @@ static void stage4_chunk(RegAllocChunk* chunk,
       HRegUsage* reg_usage = &chunk->reg_usage[ii_chunk];
 
       if (DEBUG_REGALLOC) {
+         vex_printf("\n");
          print_depth(depth);
-         vex_printf("\n====---- Instr: chunk %d, vec %d, total %d ----====\n",
+         vex_printf("====---- Instr: chunk %d, vec %d, total %d ----====\n",
                     ii_chunk, ii_vec, INSTRNO_TOTAL);
          print_depth(depth);
          vex_printf("---- ");
          con->ppInstr(chunk->instrs_in->insns[ii_vec], con->mode64);
-         print_depth(depth);
-         vex_printf("\n\nInitial state:\n");
-         print_state(chunk, vreg_state, n_vregs, rreg_state, INSTRNO_TOTAL, con);
+         vex_printf("\n\n");
+         print_state(chunk, vreg_state, n_vregs, rreg_state, INSTRNO_TOTAL,
+                     depth, con, "Initial Register Allocator state");
          vex_printf("\n");
       }
 
@@ -1202,7 +1212,7 @@ static void stage4_chunk(RegAllocChunk* chunk,
                   if (! HRegUsage__contains(reg_usage, vreg)) {
                      /* Spill the vreg. It is not used by this instruction. */
                      spill_vreg(chunk, vreg_state, n_vregs, rreg_state,
-                                vreg, v_idx, INSTRNO_TOTAL, con);
+                                vreg, v_idx, INSTRNO_TOTAL, depth, con);
                   } else {
                      /* Find or make a free rreg where to move this vreg to. */
                      UInt r_free_idx = FIND_OR_MAKE_FREE_RREG(
@@ -1212,7 +1222,7 @@ static void stage4_chunk(RegAllocChunk* chunk,
                      HInstr* move = con->genMove(con->univ->regs[r_idx],
                                       con->univ->regs[r_free_idx], con->mode64);
                      vassert(move != NULL);
-                     emit_instr(chunk, move, con, "move");
+                     emit_instr(chunk, move, depth, con, "move");
 
                      /* Update the register allocator state. */
                      vassert(vreg_state[v_idx].disp == Assigned);
@@ -1356,10 +1366,10 @@ static void stage4_chunk(RegAllocChunk* chunk,
                          vreg_state[v_idx].spill_offset, con->mode64);
                vassert(reload1 != NULL || reload2 != NULL);
                if (reload1 != NULL) {
-                  emit_instr(chunk, reload1, con, "reload1");
+                  emit_instr(chunk, reload1, depth, con, "reload1");
                }
                if (reload2 != NULL) {
-                  emit_instr(chunk, reload2, con, "reload2");
+                  emit_instr(chunk, reload2, depth, con, "reload2");
                }
             }
 
@@ -1372,12 +1382,13 @@ static void stage4_chunk(RegAllocChunk* chunk,
       }
 
       con->mapRegs(&remap, instr, con->mode64);
-      emit_instr(chunk, instr, con, NULL);
+      emit_instr(chunk, instr, depth, con, NULL);
 
       if (DEBUG_REGALLOC) {
          print_depth(depth);
-         vex_printf("After dealing with current instruction:\n");
-         print_state(chunk, vreg_state, n_vregs, rreg_state, INSTRNO_TOTAL, con);
+         print_state(chunk, vreg_state, n_vregs, rreg_state, INSTRNO_TOTAL,
+                     depth, con, "Register Allocator state after dealing with"
+                     " the current instruction");
          vex_printf("\n");
       }
 
@@ -1425,10 +1436,27 @@ static void stage4_chunk(RegAllocChunk* chunk,
 #  undef FIND_OR_MAKE_FREE_RREG
 }
 
+static void stage4_emit_HInstrIfThenElse(RegAllocChunk* chunk, UInt depth,
+                                         const RegAllocControl* con)
+{
+   vassert(chunk->isIfThenElse);
+
+   HInstrIfThenElse* hite = newHInstrIfThenElse(
+      chunk->IfThenElse.ccOOL,
+      chunk->IfThenElse.phi_nodes,
+      chunk->IfThenElse.n_phis);
+   hite->fallThrough = chunk->IfThenElse.fallThrough->instrs_out;
+   hite->outOfLine   = chunk->IfThenElse.outOfLine->instrs_out;
+
+   emit_instr(chunk, con->genHInstrITE(hite), depth, con, "HInstrIfThenElse");
+
+}
+
 static void stage4(RegAllocChunk* chunk, VRegState* vreg_state, UInt n_vregs,
                   RRegState* rreg_state, UInt depth, const RegAllocControl* con)
 {
    WALK_CHUNKS(stage4_chunk(chunk, vreg_state, n_vregs, rreg_state, depth, con),
+               stage4_emit_HInstrIfThenElse(chunk, depth, con),
                stage4(chunk->IfThenElse.fallThrough, vreg_state, n_vregs,
                       rreg_state, depth + 1, con),
                stage4(chunk->IfThenElse.outOfLine, vreg_state, n_vregs,
@@ -1504,7 +1532,7 @@ HInstrSB* doRegisterAllocation(
    /* --- Stage 2. Scan the incoming instructions. --- */
    stage2(first_chunk, vreg_state, n_vregs, n_rregs, 0, con);
    if (DEBUG_REGALLOC) {
-      vex_printf("Initial register allocator state:\n");
+      vex_printf("\n\nInitial register allocator state:\n");
       stage2_debug_vregs(vreg_state, n_vregs);
       stage2_debug_rregs(first_chunk, 0, con);
    }

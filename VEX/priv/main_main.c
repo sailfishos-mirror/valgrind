@@ -711,10 +711,11 @@ static void libvex_BackEnd ( const VexTranslateArgs *vta,
    Bool         (*isMove)       ( const HInstr*, HReg*, HReg* );
    void         (*getRegUsage)  ( HRegUsage*, const HInstr*, Bool );
    void         (*mapRegs)      ( HRegRemap*, HInstr*, Bool );
-   HInstrIfThenElse* (*isIfThenElse)(const HInstr*);
+   HInstrIfThenElse* (*isIfThenElse)( const HInstr* );
    void         (*genSpill)     ( HInstr**, HInstr**, HReg, Int, Bool );
    void         (*genReload)    ( HInstr**, HInstr**, HReg, Int, Bool );
    HInstr*      (*genMove)      ( HReg, HReg, Bool );
+   HInstr*      (*genHInstrITE) ( HInstrIfThenElse* );
    HInstr*      (*directReload) ( HInstr*, HReg, Short );
    void         (*ppInstr)      ( const HInstr*, Bool );
    void         (*ppCondCode)   ( HCondCode );
@@ -747,6 +748,7 @@ static void libvex_BackEnd ( const VexTranslateArgs *vta,
    genSpill                = NULL;
    genReload               = NULL;
    genMove                 = NULL;
+   genHInstrITE            = NULL;
    directReload            = NULL;
    ppInstr                 = NULL;
    ppCondCode              = NULL;
@@ -868,6 +870,7 @@ static void libvex_BackEnd ( const VexTranslateArgs *vta,
          genSpill     = CAST_TO_TYPEOF(genSpill) X86FN(genSpill_X86);
          genReload    = CAST_TO_TYPEOF(genReload) X86FN(genReload_X86);
          genMove      = CAST_TO_TYPEOF(genMove) X86FN(genMove_X86);
+         genHInstrITE = CAST_TO_TYPEOF(genHInstrITE) X86FN(X86Instr_IfThenElse);
          directReload = CAST_TO_TYPEOF(directReload) X86FN(directReload_X86);
          ppInstr      = CAST_TO_TYPEOF(ppInstr) X86FN(ppX86Instr);
          ppCondCode   = CAST_TO_TYPEOF(ppCondCode) X86FN(ppX86CondCode);
@@ -1084,9 +1087,10 @@ static void libvex_BackEnd ( const VexTranslateArgs *vta,
    RegAllocControl con = {
       .univ = rRegUniv, .isMove = isMove, .getRegUsage = getRegUsage,
       .mapRegs = mapRegs, .isIfThenElse = isIfThenElse, .genSpill = genSpill,
-      .genReload = genReload, .genMove = genMove, .directReload = directReload,
-      .guest_sizeB = guest_sizeB, .ppInstr = ppInstr, .ppCondCode = ppCondCode,
-      .ppReg = ppReg, .mode64 = mode64};
+      .genReload = genReload, .genMove = genMove, .genHInstrITE = genHInstrITE,
+      .directReload = directReload, .guest_sizeB = guest_sizeB,
+      .ppInstr = ppInstr, .ppCondCode = ppCondCode, .ppReg = ppReg,
+      .mode64 = mode64};
    rcode = doRegisterAllocation(vcode, &con);
 
    vexAllocSanityCheck();

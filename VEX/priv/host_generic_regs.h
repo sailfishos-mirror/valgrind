@@ -535,6 +535,7 @@ typedef
       void    (*genSpill)(HInstr**, HInstr**, HReg, Int, Bool);
       void    (*genReload)(HInstr**, HInstr**, HReg, Int, Bool);
       HInstr* (*genMove)(HReg from, HReg to, Bool);
+      HInstr* (*genHInstrITE)(HInstrIfThenElse*);
       HInstr* (*directReload)(HInstr*, HReg, Short);
       UInt    guest_sizeB;
 
