@@ -2761,17 +2761,19 @@ extern void addIRPhiToIRPhiVec(IRPhiVec* , IRPhi*);
  */
 typedef
    struct {
-      UChar* set;       // a bit set, use isIRTempDefined() for access
-      UInt   slots_used;
-      UInt   slots_size;
+      UInt* set;       // a bit set, use isIRTempDefined() for access
+      UInt  slots_used;
+      UInt  slots_size;
    }
    IRTempDefSet;
 
+#define BITS_PER_SLOT (sizeof(UInt) * 8)
+
 static inline Bool isIRTempDefined(const IRTempDefSet* defset, IRTemp tmp)
 {
-   if ((tmp / sizeof(UChar)) < defset->slots_size) {
-      UInt mask = (1 << (tmp % sizeof(UChar)));
-      return toBool(defset->set[tmp / sizeof(UChar)] & mask);
+   if ((tmp / BITS_PER_SLOT) < defset->slots_size) {
+      UInt mask = (1 << (tmp % BITS_PER_SLOT));
+      return toBool(defset->set[tmp / BITS_PER_SLOT] & mask);
    }
    return False;
 }

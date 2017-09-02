@@ -1751,13 +1751,13 @@ void ppIRTypeEnvDefd(const IRTypeEnv* tyenv, const IRTempDefSet* defset,
    UInt tmps_printed = 0;
 
    for (UInt slot = 0; slot < defset->slots_used; slot++) {
-      UChar slot_value = defset->set[slot];
-      for (UInt bit = 0; bit < sizeof(UChar); bit++) {
+      UInt slot_value = defset->set[slot];
+      for (UInt bit = 0; bit < BITS_PER_SLOT; bit++) {
          if (slot_value & (1 << bit)) {
             if (tmps_printed % 8 == 0)
                print_depth(depth);
 
-            IRTemp tmp = slot * sizeof(UChar) + bit;
+            IRTemp tmp = slot * BITS_PER_SLOT + bit;
             ppIRTemp(tmp);
             if (tyenv != NULL) {
                vex_printf(":");
@@ -2265,9 +2265,9 @@ IRTempDefSet* emptyIRTempDefSet(void)
 {
    IRTempDefSet* defset = LibVEX_Alloc_inline(sizeof(IRTempDefSet));
    defset->slots_used   = 0;
-   defset->slots_size   = 8 / sizeof(UChar);
+   defset->slots_size   = 32 / sizeof(UInt);
    vassert(defset->slots_size >= 1);
-   defset->set = LibVEX_Alloc_inline(defset->slots_size * sizeof(UChar));
+   defset->set = LibVEX_Alloc_inline(defset->slots_size * sizeof(UInt));
    return defset;
 }
 
@@ -2649,7 +2649,7 @@ IRTempDefSet* deepCopyIRTempDefSet(const IRTempDefSet* defset)
 {
    IRTempDefSet* defset2 = LibVEX_Alloc_inline(sizeof(IRTempDefSet));
    defset2->slots_used   = defset2->slots_size = defset->slots_used;
-   UChar* set2 = LibVEX_Alloc_inline(defset2->slots_used * sizeof(UChar));
+   UInt* set2 = LibVEX_Alloc_inline(defset2->slots_used * sizeof(UInt));
    for (UInt i = 0; i < defset2->slots_used; i++) {
       set2[i] = defset->set[i];
    }
@@ -3811,12 +3811,12 @@ void addIRPhiToIRPhiVec(IRPhiVec* phi_nodes, IRPhi* phi)
 
 void setIRTempDefined(IRTempDefSet* defset, IRTemp tmp)
 {
-   UInt slots_required = (tmp + sizeof(UChar)) / sizeof(UChar);
+   UInt slots_required = (tmp + BITS_PER_SLOT) / BITS_PER_SLOT;
 
-   if (slots_required >= defset->slots_size) {
-      UInt new_size  = (slots_required > 2 * defset->slots_size) ?
+   if (slots_required > defset->slots_size) {
+      UInt new_size = (slots_required > 2 * defset->slots_size) ?
                        slots_required : 2 * defset->slots_size;
-      UChar* new_set = LibVEX_Alloc_inline(new_size * sizeof(UChar));
+      UInt* new_set = LibVEX_Alloc_inline(new_size * sizeof(UInt));
       for (UInt i = 0; i < defset->slots_used; i++) {
          new_set[i] = defset->set[i];
       }
@@ -3833,8 +3833,8 @@ void setIRTempDefined(IRTempDefSet* defset, IRTemp tmp)
 
    vassert(!isIRTempDefined(defset, tmp));
 
-   UInt mask = (1 << (tmp % sizeof(UChar)));
-   defset->set[tmp / sizeof(UChar)] |= mask;
+   UInt mask = (1 << (tmp % BITS_PER_SLOT));
+   defset->set[tmp / BITS_PER_SLOT] |= mask;
 }
 
 void clearIRTempDefSet(IRTempDefSet* defset)
