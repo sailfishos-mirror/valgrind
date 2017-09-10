@@ -141,6 +141,12 @@ typedef
 
       /* If .disp == Bound, what vreg is it bound to? */
       HReg vreg;
+
+      /* If .disp == Bound, has the associated vreg been reloaded from its spill
+         slot recently and is this rreg still equal to that spill slot?
+         Avoids unnecessary spilling that vreg later, when this rreg needs
+         to be reserved. */
+      Bool eq_spill_slot;
    }
    RRegState;
 
@@ -309,6 +315,12 @@ static inline void enlarge_rreg_lrs(RRegLRState* rreg_lrs)
    rreg_lrs->lrs_size = 2 * rreg_lrs->lrs_used;
 }
 
+#define PRINT_STATE(what)                                                \
+   do {                                                                  \
+      print_state(chunk, vreg_state, n_vregs, rreg_state, INSTRNO_TOTAL, \
+                  depth, con, what);                                     \
+   } while (0)
+
 static inline void print_state(const RegAllocChunk* chunk,
    const VRegState* vreg_state, UInt n_vregs, const RRegState* rreg_state,
    Short ii_total_current, UInt depth, const RegAllocControl* con,
@@ -374,6 +386,9 @@ static inline void print_state(const RegAllocChunk* chunk,
       case Bound:
          vex_printf("bound for ");
          con->ppReg(rreg->vreg);
+         if (rreg->eq_spill_slot) {
+            vex_printf("    (equals to its spill slot)");
+         }
          vex_printf("\n");
          break;
       case Reserved:
@@ -398,6 +413,21 @@ static inline void emit_instr(RegAllocChunk* chunk, HInstr* instr, UInt depth,
    }
 
    addHInstr(chunk->instrs_out, instr);
+}
+
+/* Updates register allocator state after vreg has been spilled. */
+static inline void mark_vreg_spilled(
+   UInt v_idx, VRegState* vreg_state, UInt n_vregs,
+   RRegState* rreg_state, UInt n_rregs)
+{
+   HReg rreg = vreg_state[v_idx].rreg;
+   UInt r_idx = hregIndex(rreg);
+
+   vreg_state[v_idx].disp          = Spilled;
+   vreg_state[v_idx].rreg          = INVALID_HREG;
+   rreg_state[r_idx].disp          = Free;
+   rreg_state[r_idx].vreg          = INVALID_HREG;
+   rreg_state[r_idx].eq_spill_slot = False;
 }
 
 /* Spills a vreg assigned to some rreg.
@@ -434,12 +464,7 @@ static inline UInt spill_vreg(
       emit_instr(chunk, spill2, depth, con, "spill2");
    }
 
-   /* Update register allocator state. */
-   vreg_state[v_idx].disp = Spilled;
-   vreg_state[v_idx].rreg = INVALID_HREG;
-   rreg_state[r_idx].disp = Free;
-   rreg_state[r_idx].vreg = INVALID_HREG;
-
+   mark_vreg_spilled(v_idx, vreg_state, n_vregs, rreg_state, n_rregs);
    return r_idx;
 }
 
@@ -1039,8 +1064,7 @@ static void stage4_chunk(RegAllocChunk* chunk,
          vex_printf("---- ");
          con->ppInstr(chunk->instrs_in->insns[ii_vec], con->mode64);
          vex_printf("\n\n");
-         print_state(chunk, vreg_state, n_vregs, rreg_state, INSTRNO_TOTAL,
-                     depth, con, "Initial Register Allocator state");
+         PRINT_STATE("Initial Register Allocator state");
          vex_printf("\n");
       }
 
@@ -1084,6 +1108,8 @@ static void stage4_chunk(RegAllocChunk* chunk,
                vassert(IS_VALID_VREGNO(v_idx));
                vassert(vreg_state[v_idx].disp == Assigned);
                vassert(hregIndex(vreg_state[v_idx].rreg) == r_idx);
+            } else {
+               vassert(rreg_state[r_idx].eq_spill_slot == False);
             }
          }
 
@@ -1133,7 +1159,8 @@ static void stage4_chunk(RegAllocChunk* chunk,
 
                UInt r_idx = hregIndex(rreg);
                vassert(rreg_state[r_idx].disp == Bound);
-               rreg_state[r_idx].vreg = vregD;
+               rreg_state[r_idx].vreg          = vregD;
+               rreg_state[r_idx].eq_spill_slot = False;
 
                if (DEBUG_REGALLOC) {
                   print_depth(depth);
@@ -1152,8 +1179,9 @@ static void stage4_chunk(RegAllocChunk* chunk,
                if (vreg_state[vd_idx].dead_before <= INSTRNO_TOTAL + 1) {
                   vreg_state[vd_idx].disp = Unallocated;
                   vreg_state[vd_idx].rreg = INVALID_HREG;
-                  rreg_state[r_idx].disp = Free;
-                  rreg_state[r_idx].vreg = INVALID_HREG;
+                  rreg_state[r_idx].disp          = Free;
+                  rreg_state[r_idx].vreg          = INVALID_HREG;
+                  rreg_state[r_idx].eq_spill_slot = False;
                }
 
                /* Move on to the next instruction. We skip the post-instruction
@@ -1203,16 +1231,22 @@ static void stage4_chunk(RegAllocChunk* chunk,
             if ((rreg_lrs->lr_current->live_after <= ii_chunk)
                 && (ii_chunk < rreg_lrs->lr_current->dead_before)) {
 
-               if (rreg->disp == Bound) {
+               switch (rreg->disp) {
+               case Bound: {
                   /* Yes, there is an associated vreg. We need to deal with
                      it now somehow. */
                   HReg vreg = rreg->vreg;
                   UInt v_idx = hregIndex(vreg);
 
                   if (! HRegUsage__contains(reg_usage, vreg)) {
-                     /* Spill the vreg. It is not used by this instruction. */
-                     spill_vreg(chunk, vreg_state, n_vregs, rreg_state,
-                                vreg, v_idx, INSTRNO_TOTAL, depth, con);
+                     if (rreg->eq_spill_slot) {
+                        mark_vreg_spilled(v_idx, vreg_state, n_vregs,
+                                          rreg_state, n_rregs);
+                     } else {
+                        /* Spill the vreg. It is not used by this instruction.*/
+                        spill_vreg(chunk, vreg_state, n_vregs, rreg_state,
+                                   vreg, v_idx, INSTRNO_TOTAL, depth, con);
+                     }
                   } else {
                      /* Find or make a free rreg where to move this vreg to. */
                      UInt r_free_idx = FIND_OR_MAKE_FREE_RREG(
@@ -1229,9 +1263,17 @@ static void stage4_chunk(RegAllocChunk* chunk,
                      vreg_state[v_idx].rreg = con->univ->regs[r_free_idx];
                      rreg_state[r_free_idx].disp = Bound;
                      rreg_state[r_free_idx].vreg = vreg;
-                     rreg->disp = Free;
-                     rreg->vreg = INVALID_HREG;
+                     rreg_state[r_free_idx].eq_spill_slot = rreg->eq_spill_slot;
+                     rreg->disp          = Free;
+                     rreg->vreg          = INVALID_HREG;
+                     rreg->eq_spill_slot = False;
                   }
+                  break;
+               }
+               case Free:
+                  break;
+               default:
+                  vassert(0);
                }
 
                /* Finally claim the rreg as reserved. */
@@ -1342,15 +1384,16 @@ static void stage4_chunk(RegAllocChunk* chunk,
          UInt v_idx = hregIndex(vreg);
          vassert(IS_VALID_VREGNO(v_idx));
          HReg rreg = vreg_state[v_idx].rreg;
+         UInt r_idx;
          if (vreg_state[v_idx].disp == Assigned) {
-            UInt r_idx = hregIndex(rreg);
+            r_idx = hregIndex(rreg);
             vassert(rreg_state[r_idx].disp == Bound);
             addToHRegRemap(&remap, vreg, rreg);
          } else {
             vassert(hregIsInvalid(rreg));
 
             /* Find or make a free rreg of the correct class. */
-            UInt r_idx = FIND_OR_MAKE_FREE_RREG(
+            r_idx = FIND_OR_MAKE_FREE_RREG(
                                  v_idx, vreg_state[v_idx].reg_class, False);
             rreg = con->univ->regs[r_idx];
 
@@ -1373,11 +1416,17 @@ static void stage4_chunk(RegAllocChunk* chunk,
                }
             }
 
-            rreg_state[r_idx].disp = Bound;
-            rreg_state[r_idx].vreg = vreg;
+            rreg_state[r_idx].disp          = Bound;
+            rreg_state[r_idx].vreg          = vreg;
+            rreg_state[r_idx].eq_spill_slot = True;
             vreg_state[v_idx].disp = Assigned;
             vreg_state[v_idx].rreg = rreg;
             addToHRegRemap(&remap, vreg, rreg);
+         }
+
+         /* If this vreg is written or modified, mark it so. */
+         if (reg_usage->vMode[j] != HRmRead) {
+            rreg_state[r_idx].eq_spill_slot = False;
          }
       }
 
@@ -1386,8 +1435,7 @@ static void stage4_chunk(RegAllocChunk* chunk,
 
       if (DEBUG_REGALLOC) {
          print_depth(depth);
-         print_state(chunk, vreg_state, n_vregs, rreg_state, INSTRNO_TOTAL,
-                     depth, con, "Register Allocator state after dealing with"
+         PRINT_STATE("Register Allocator state after dealing with"
                      " the current instruction");
          vex_printf("\n");
       }
@@ -1406,8 +1454,9 @@ static void stage4_chunk(RegAllocChunk* chunk,
             if (rreg_lrs->lrs_used > 0) {
                /* Consider "dead before" the next instruction. */
                if (rreg_lrs->lr_current->dead_before <= ii_chunk + 1) {
-                  rreg_state[r_idx].disp = Free;
-                  rreg_state[r_idx].vreg = INVALID_HREG;
+                  rreg_state[r_idx].disp          = Free;
+                  rreg_state[r_idx].vreg          = INVALID_HREG;
+                  rreg_state[r_idx].eq_spill_slot = False;
                   if (rreg_lrs->lr_current_idx < rreg_lrs->lrs_used - 1) {
                      rreg_lrs->lr_current_idx += 1;
                      rreg_lrs->lr_current
@@ -1422,8 +1471,9 @@ static void stage4_chunk(RegAllocChunk* chunk,
             if (vreg_state[v_idx].dead_before <= INSTRNO_TOTAL + 1) {
                vreg_state[v_idx].disp = Unallocated;
                vreg_state[v_idx].rreg = INVALID_HREG;
-               rreg_state[r_idx].disp = Free;
-               rreg_state[r_idx].vreg = INVALID_HREG;
+               rreg_state[r_idx].disp          = Free;
+               rreg_state[r_idx].vreg          = INVALID_HREG;
+               rreg_state[r_idx].eq_spill_slot = False;
             }
             break;
          }
@@ -1515,8 +1565,9 @@ HInstrSB* doRegisterAllocation(
       every Out-Of-Line leg. */
    RRegState* rreg_state = LibVEX_Alloc_inline(n_rregs * sizeof(RRegState));
    for (UInt r_idx = 0; r_idx < n_rregs; r_idx++) {
-      rreg_state[r_idx].disp = Free;
-      rreg_state[r_idx].vreg = INVALID_HREG;
+      rreg_state[r_idx].disp          = Free;
+      rreg_state[r_idx].vreg          = INVALID_HREG;
+      rreg_state[r_idx].eq_spill_slot = False;
    }
 
    /* --- Stage 1. Determine total ordering of instructions and structure
