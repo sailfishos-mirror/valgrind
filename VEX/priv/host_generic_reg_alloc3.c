@@ -509,7 +509,7 @@ static inline HReg find_vreg_to_spill(
       - reg_usage[scan_forward_end], where scan_forward_end
            = MIN(scan_forward_max, scan_forward_start + FEW_INSTRUCTIONS).
       reg_usage uses chunk instruction numbering. */
-#  define FEW_INSTRUCTIONS 5
+#  define FEW_INSTRUCTIONS 20
    Short scan_forward_end
       = (scan_forward_max <= scan_forward_start + FEW_INSTRUCTIONS) ?
         scan_forward_max : scan_forward_start + FEW_INSTRUCTIONS;
@@ -532,10 +532,10 @@ static inline HReg find_vreg_to_spill(
                }
             }
 
-            if (ii_chunk - scan_forward_start > distance_so_far) {
-               distance_so_far = ii_chunk - scan_forward_start;
+            if (ii_chunk >= distance_so_far) {
+               distance_so_far = ii_chunk;
                vreg_found = vreg;
-               if (ii_chunk + distance_so_far == scan_forward_end) {
+               if (distance_so_far == scan_forward_end) {
                   break; /* We are at the end. Nothing could be better. */
                }
             }
