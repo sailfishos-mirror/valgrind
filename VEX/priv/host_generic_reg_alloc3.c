@@ -42,6 +42,10 @@
      Avoids the situation when registers are allocated somehow
      in the fall-through leg and need to be spilled just few instructions
      after the merge (because of a helper call, for example).
+
+   TODO-JIT: Investigate extending MOV coalesce chains accross If-Then-Else
+   legs. Perhaps phi node merging could be also considered as a sort of MOV
+   coalescing?
 */
 
 /* Set to 1 for lots of debugging output. */
@@ -115,6 +119,18 @@ typedef
       /* The "home" spill slot. The offset is relative to the beginning of
          the guest state. */
       UShort spill_offset;
+
+      /* This vreg (vregS) is coalesced to another vreg
+         if |coalescedTo| != INVALID_HREG.
+         Coalescing means that there is a MOV instruction which occurs in the
+         instruction stream right at vregS' dead_before
+         and vregD's live_after. */
+      HReg coalescedTo;    /* Which vreg it is coalesced to. */
+      HReg coalescedFirst; /* First vreg in the coalescing chain. */
+
+      /* If this vregS is coalesced to another vregD, what is the combined
+         dead_before for vregS+vregD. Used to effectively allocate registers. */
+      Short effective_dead_before;
    }
    VRegState;
 
@@ -247,6 +263,12 @@ typedef
          next chunk: not NULL                     |    x    |      -
                          NULL                     |    x    |      x
        */
+
+      /* Mark vreg indexes where coalesce chains start at.
+         Used internally by MOV coalescing algorithm, to convey information
+         across different stages. */
+      UInt* coalesce_heads;
+      UInt  nr_coalesce_heads;
    }
    RegAllocChunk;
 
@@ -260,7 +282,8 @@ static void init_rreg_lr_state(RRegLRState* rreg_lrs)
    rreg_lrs->lr_current_idx = 0;
 }
 
-static RegAllocChunk* new_chunk(HInstrVec* instrs_in, UInt n_rregs)
+static RegAllocChunk* new_chunk(HInstrVec* instrs_in, UInt n_vregs,
+                                UInt n_rregs)
 {
    RegAllocChunk* chunk  = LibVEX_Alloc_inline(sizeof(RegAllocChunk));
    chunk->n_rregs        = n_rregs;
@@ -269,14 +292,16 @@ static RegAllocChunk* new_chunk(HInstrVec* instrs_in, UInt n_rregs)
    for (UInt r_idx = 0; r_idx < n_rregs; r_idx++) {
       init_rreg_lr_state(&chunk->rreg_lr_state[r_idx]);
    }
-   chunk->instrs_in      = instrs_in;
-   chunk->ii_vec_start   = INVALID_INSTRNO;
-   chunk->ii_vec_len     = 0;
-   chunk->ii_total_start = INVALID_INSTRNO;
-   chunk->reg_usage      = NULL;
-   chunk->instrs_out     = NULL;
-   chunk->isIfThenElse   = False;
-   chunk->next           = NULL;
+   chunk->instrs_in         = instrs_in;
+   chunk->ii_vec_start      = INVALID_INSTRNO;
+   chunk->ii_vec_len        = 0;
+   chunk->ii_total_start    = INVALID_INSTRNO;
+   chunk->reg_usage         = NULL;
+   chunk->instrs_out        = NULL;
+   chunk->isIfThenElse      = False;
+   chunk->next              = NULL;
+   chunk->coalesce_heads    = LibVEX_Alloc_inline(n_vregs);
+   chunk->nr_coalesce_heads = 0;
 
    return chunk;
 }
@@ -347,15 +372,16 @@ static inline void enlarge_rreg_lrs(RRegLRState* rreg_lrs)
       print_state(chunk, state, INSTRNO_TOTAL, depth, con, what); \
    } while (0)
 
-static inline void print_state(
-   const RegAllocChunk* chunk, const RegAllocState* state,
-   Short ii_total_current, UInt depth, const RegAllocControl* con,
-   const HChar* comment)
-{
-   print_depth(depth);
-   vex_printf("%s (current instruction total #%d):\n",
-              comment, ii_total_current);
+#define RIGHT_JUSTIFY(_total, _written)                   \
+   do {                                                  \
+      for (Int w = (_total) - (_written); w > 0; w--) {  \
+         vex_printf(" ");                                \
+      }                                                  \
+   } while (0)
 
+static inline void print_vregs(const RegAllocState* state,
+  Short ii_total_current, UInt depth, const RegAllocControl* con)
+{
    for (UInt v_idx = 0; v_idx < state->n_vregs; v_idx++) {
       const VRegState* vreg = &state->vregs[v_idx];
 
@@ -380,20 +406,43 @@ static inline void print_state(
       default:
          vassert(0);
       }
+      RIGHT_JUSTIFY(25, written);
 
-      for (Int w = 30 - written; w > 0; w--) {
-         vex_printf(" ");
-      }
+      written = vex_printf("lr: [%d, %d) ",
+                           vreg->live_after, vreg->dead_before);
+      RIGHT_JUSTIFY(15, written);
+
+      written = vex_printf("effective lr: [%d, %d)",
+                           vreg->live_after, vreg->effective_dead_before);
+      RIGHT_JUSTIFY(25, written);
 
       if (vreg->live_after > ii_total_current) {
          vex_printf("[not live yet]");
       } else if (ii_total_current >= vreg->dead_before) {
-         vex_printf("[now dead]");
+         if (hregIsInvalid(vreg->coalescedTo)) {
+            vex_printf("[now dead]\n");
+         } else {
+            vex_printf("[now dead, coalesced to ");
+            con->ppReg(vreg->coalescedTo);
+            vex_printf("]\n");
+         }
       } else {
          vex_printf("[live]");
       }
       vex_printf(" [%d - %d)\n", vreg->live_after, vreg->dead_before);
    }
+}
+static inline void print_state(
+   const RegAllocChunk* chunk, const RegAllocState* state,
+   Short ii_total_current, UInt depth, const RegAllocControl* con,
+   const HChar* comment)
+{
+
+   print_depth(depth);
+   vex_printf("%s (current instruction total #%d):\n",
+              comment, ii_total_current);
+
+   print_vregs(state, ii_total_current, depth, con);
 
    for (UInt r_idx = 0; r_idx < chunk->n_rregs; r_idx++) {
       const RRegState* rreg = &state->rregs[r_idx];
@@ -401,9 +450,7 @@ static inline void print_state(
       print_depth(depth);
       vex_printf("rreg_state[%2u] = ", r_idx);
       UInt written = con->ppReg(con->univ->regs[r_idx]);
-      for (Int w = 10 - written; w > 0; w--) {
-         vex_printf(" ");
-      }
+      RIGHT_JUSTIFY(10, written);
 
       switch (rreg->disp) {
       case Free:
@@ -423,6 +470,8 @@ static inline void print_state(
          break;
       }
    }
+
+#  undef RIGHT_JUSTIFY
 }
 
 static RegAllocState* clone_state(const RegAllocState* orig)
@@ -582,7 +631,7 @@ static inline HReg find_vreg_to_spill(
    a callee-save register because it won't be used for parameter passing
    around helper function calls. */
 static inline Bool find_free_rreg(
-   const RegAllocChunk* chunk, RegAllocState* state,
+   const RegAllocChunk* chunk, const RegAllocState* state,
    Short ii_chunk_current, HRegClass target_hregclass,
    Bool reserve_phase, const RegAllocControl* con, UInt* r_idx_found)
 {
@@ -682,12 +731,12 @@ static inline void assign_vreg(RegAllocChunk* chunk, RegAllocState* state,
 /* --- Stage 1. ---
    Determine total ordering of instructions and structure of HInstrIfThenElse.
    Build similar structure of RegAllocChunk's. */
-static UInt stage1(HInstrVec* instrs_in, UInt ii_total_start, UInt n_rregs,
-                   RegAllocChunk** first_chunk, const RegAllocControl* con)
+static UInt stage1(HInstrVec* instrs_in, UInt ii_total_start, UInt n_vregs,
+          UInt n_rregs, RegAllocChunk** first_chunk, const RegAllocControl* con)
 {
    Short ii_vec_start = 0;
 
-   RegAllocChunk* chunk  = new_chunk(instrs_in, n_rregs);
+   RegAllocChunk* chunk  = new_chunk(instrs_in, n_vregs, n_rregs);
    chunk->ii_vec_start   = ii_vec_start;
    chunk->ii_total_start = ii_total_start;
    chunk->instrs_out     = newHInstrVec();
@@ -716,10 +765,12 @@ static UInt stage1(HInstrVec* instrs_in, UInt ii_total_start, UInt n_rregs,
       if (hite != NULL) {
          RegAllocChunk* chunk_fallThrough;
          UInt ii_total_fallThrough = stage1(hite->fallThrough, ii_total_start,
-                                            n_rregs, &chunk_fallThrough, con);
+                                            n_vregs, n_rregs,
+                                            &chunk_fallThrough, con);
          RegAllocChunk* chunk_outOfLine;
          UInt ii_total_outOfLine = stage1(hite->outOfLine, ii_total_start,
-                                          n_rregs, &chunk_outOfLine, con);
+                                          n_vregs, n_rregs,
+                                          &chunk_outOfLine, con);
 
          chunk->isIfThenElse           = True;
          chunk->IfThenElse.ccOOL       = hite->ccOOL;
@@ -733,7 +784,7 @@ static UInt stage1(HInstrVec* instrs_in, UInt ii_total_start, UInt n_rregs,
 
       if (ii_vec < instrs_in->insns_used - 1) {
          RegAllocChunk* previous = chunk;
-         chunk                   = new_chunk(instrs_in, n_rregs);
+         chunk                   = new_chunk(instrs_in, n_vregs, n_rregs);
          chunk->ii_vec_start     = ii_vec_start;
          chunk->ii_total_start   = toShort(ii_total_start);
          chunk->instrs_out       = (*first_chunk)->instrs_out;
@@ -743,7 +794,6 @@ static UInt stage1(HInstrVec* instrs_in, UInt ii_total_start, UInt n_rregs,
 
    return ii_total_start;
 }
-
 
 /* --- Stage 2. ---
    Scan the incoming instructions.
@@ -784,7 +834,12 @@ static void stage2_chunk(RegAllocChunk* chunk, RegAllocState* state,
         ii_vec++, ii_chunk++) {
       const HInstr* instr = chunk->instrs_in->insns[ii_vec];
 
+
       con->getRegUsage(&chunk->reg_usage[ii_chunk], instr, con->mode64);
+      chunk->reg_usage[ii_chunk].isVregVregMove
+         = chunk->reg_usage[ii_chunk].isRegRegMove
+            && hregIsVirtual(chunk->reg_usage[ii_chunk].regMoveSrc)
+            && hregIsVirtual(chunk->reg_usage[ii_chunk].regMoveDst);
 
       if (0) {
          vex_printf("\n");
@@ -846,6 +901,9 @@ static void stage2_chunk(RegAllocChunk* chunk, RegAllocState* state,
 
          if (state->vregs[v_idx].dead_before < INSTRNO_TOTAL + 1) {
             state->vregs[v_idx].dead_before = INSTRNO_TOTAL + 1;
+         }
+         if (state->vregs[v_idx].effective_dead_before < INSTRNO_TOTAL + 1) {
+            state->vregs[v_idx].effective_dead_before = INSTRNO_TOTAL + 1;
          }
       }
 
@@ -1002,14 +1060,87 @@ static void stage2_debug_rregs(RegAllocChunk* chunk, UInt depth,
                ;);
 }
 
+
+/* Preparation for MOV coalescing. Establish MOV coalescing chains. */
+static void stage3_chunk(RegAllocChunk* chunk, RegAllocState* state,
+                Bool* coalesce_happened, UInt depth, const RegAllocControl* con)
+{
+   /* Optimise register coalescing:
+         MOV  v <-> v   coalescing (done here).
+         MOV  v <-> r   coalescing (TODO: not yet, not here). */
+   /* If doing a reg-reg move between two vregs, and the src's live range ends
+     here and the dst's live range starts here, coalesce the src vreg
+     to the dst vreg. */
+   Short ii_chunk = 0;
+   for (Short ii_vec = chunk->ii_vec_start;
+        ii_vec < chunk->ii_vec_start + chunk->ii_vec_len;
+        ii_vec++, ii_chunk++) {
+      if (chunk->reg_usage[ii_chunk].isVregVregMove) {
+         HReg vregS = chunk->reg_usage[ii_chunk].regMoveSrc;
+         HReg vregD = chunk->reg_usage[ii_chunk].regMoveDst;
+
+         /* Check that |isVregVregMove| is not telling us a bunch of lies ... */
+         vassert(hregClass(vregS) == hregClass(vregD));
+         UInt vs_idx = hregIndex(vregS);
+         UInt vd_idx = hregIndex(vregD);
+         vassert(IS_VALID_VREGNO(vs_idx));
+         vassert(IS_VALID_VREGNO(vd_idx));
+         vassert(! sameHReg(vregS, vregD));
+         VRegState* vs_st = &state->vregs[vs_idx];
+         VRegState* vd_st = &state->vregs[vd_idx];
+
+         if ((vs_st->dead_before == INSTRNO_TOTAL + 1)
+             && (vd_st->live_after == INSTRNO_TOTAL)) {
+            /* Live ranges are adjacent. */
+
+            vs_st->coalescedTo = vregD;
+            if (hregIsInvalid(vs_st->coalescedFirst)) {
+               vd_st->coalescedFirst = vregS;
+               chunk->coalesce_heads[chunk->nr_coalesce_heads] = vs_idx;
+               chunk->nr_coalesce_heads += 1;
+            } else {
+               vd_st->coalescedFirst = vs_st->coalescedFirst;
+            }
+
+            state->vregs[hregIndex(vd_st->coalescedFirst)].effective_dead_before
+               = vd_st->dead_before;
+
+            if (DEBUG_REGALLOC) {
+               print_depth(depth);
+               vex_printf("vreg coalescing: ");
+               con->ppReg(vregS);
+               vex_printf(" -> ");
+               con->ppReg(vregD);
+               vex_printf("\n");
+            }
+
+            *coalesce_happened = True;
+         }
+      }
+   }
+}
+
+static void stage3(RegAllocChunk* chunk, RegAllocState* state,
+                Bool* coalesce_happened, UInt depth, const RegAllocControl* con)
+{
+   WALK_CHUNKS(stage3_chunk(chunk, state, coalesce_happened, depth, con),
+               ;,
+               stage3(chunk->IfThenElse.fallThrough, state, coalesce_happened,
+                      depth + 1, con),
+               stage3(chunk->IfThenElse.outOfLine, state, coalesce_happened,
+                      depth + 1, con),
+               ;);
+}
+
+
 /* Allocates spill slots. Because VRegState is initiall global, also spill slots
    are initially global. This might have an adverse effect that spill slots will
    eventuall run out if there are too many nested If-Then-Else legs. In that
    case, VRegState must not be initially global but rather local to every leg;
    and vregs will need to eventually have extended their live ranges after legs
    merge. */
-static void stage3(VRegState* vreg_state, UInt n_vregs,
-                   const RegAllocControl* con)
+static void stage4_main(VRegState* vreg_state, UInt n_vregs,
+                        const RegAllocControl* con)
 {
 #  define N_SPILL64S (LibVEX_N_SPILL_BYTES / 8)
    STATIC_ASSERT((N_SPILL64S % 2) == 0);
@@ -1048,6 +1179,11 @@ static void stage3(VRegState* vreg_state, UInt n_vregs,
          vassert(vreg_state[v_idx].reg_class == HRcINVALID);
          continue;
       }
+      if (! hregIsInvalid(vreg_state[v_idx].coalescedFirst)) {
+         /* Coalesced vregs should share the same spill slot with the first vreg
+            in the coalescing chain. But we don't have that information, yet. */
+         continue;
+      }
 
       /* The spill slots are 64 bits in size.  As per the comment on definition
          of HRegClass in host_generic_regs.h, that means, to spill a vreg of
@@ -1070,8 +1206,10 @@ static void stage3(VRegState* vreg_state, UInt n_vregs,
             if (ss_no >= N_SPILL64S - 1) {
                vpanic("N_SPILL64S is too low in VEX. Increase and recompile.");
             }
-            ss_busy_until_before[ss_no + 0] = vreg_state[v_idx].dead_before;
-            ss_busy_until_before[ss_no + 1] = vreg_state[v_idx].dead_before;
+            ss_busy_until_before[ss_no + 0]
+               = vreg_state[v_idx].effective_dead_before;
+            ss_busy_until_before[ss_no + 1]
+               = vreg_state[v_idx].effective_dead_before;
             break;
          default:
             /* The ordinary case -- just find a single lowest-numbered spill
@@ -1084,7 +1222,8 @@ static void stage3(VRegState* vreg_state, UInt n_vregs,
             if (ss_no == N_SPILL64S) {
                vpanic("N_SPILL64S is too low in VEX. Increase and recompile.");
             }
-            ss_busy_until_before[ss_no] = vreg_state[v_idx].dead_before;
+            ss_busy_until_before[ss_no]
+               = vreg_state[v_idx].effective_dead_before;
             break;
       }
 
@@ -1105,18 +1244,42 @@ static void stage3(VRegState* vreg_state, UInt n_vregs,
       }
    }
 
-   if (0) {
-      vex_printf("\n\n");
-      for (UInt v_idx = 0; v_idx < n_vregs; v_idx++)
-         vex_printf("vreg %3u    --> spill offset %u\n",
-                    v_idx, vreg_state[v_idx].spill_offset);
-   }
-
 #  undef N_SPILL64S
 }
 
+static void stage4_coalesced_chunk(RegAllocChunk* chunk, RegAllocState* state,
+                                   UInt depth, const RegAllocControl* con)
+{
+   /* Fill in the spill offsets and effective_dead_before for coalesced vregs.*/
+   for (UInt i = 0; i < chunk->nr_coalesce_heads; i++) {
+      UInt vs_idx = chunk->coalesce_heads[i];
+      Short effective_dead_before = state->vregs[vs_idx].effective_dead_before;
+      UShort spill_offset         = state->vregs[vs_idx].spill_offset;
 
-static void stage4_chunk(RegAllocChunk* chunk, RegAllocState* state,
+      HReg vregD = state->vregs[vs_idx].coalescedTo;
+      while (! hregIsInvalid(vregD)) {
+         UInt vd_idx = hregIndex(vregD);
+         state->vregs[vd_idx].effective_dead_before = effective_dead_before;
+         state->vregs[vd_idx].spill_offset          = spill_offset;
+         vregD = state->vregs[vd_idx].coalescedTo;
+      }
+   }
+}
+
+static void stage4_coalesced(RegAllocChunk* chunk, RegAllocState* state,
+                             UInt depth, const RegAllocControl* con)
+{
+   WALK_CHUNKS(stage4_coalesced_chunk(chunk, state, depth, con),
+               ;,
+               stage4_coalesced(chunk->IfThenElse.fallThrough, state,
+                                depth + 1, con),
+               stage4_coalesced(chunk->IfThenElse.outOfLine, state,
+                                depth + 1, con),
+               ;);
+}
+
+
+static void stage5_chunk(RegAllocChunk* chunk, RegAllocState* state,
                          UInt depth, const RegAllocControl* con)
 {
 /* Finds an rreg of the correct class.
@@ -1124,7 +1287,7 @@ static void stage4_chunk(RegAllocChunk* chunk, RegAllocState* state,
    instruction and makes free the corresponding rreg. */
 #  define FIND_OR_MAKE_FREE_RREG(_v_idx, _reg_class, _reserve_phase)           \
    ({                                                                          \
-      UInt _r_free_idx = -1;                                                   \
+      UInt _r_free_idx;                                                        \
       Bool free_rreg_found = find_free_rreg(chunk, state,                      \
                                      ii_chunk, (_reg_class), (_reserve_phase), \
                                      con, &_r_free_idx);                       \
@@ -1218,66 +1381,83 @@ static void stage4_chunk(RegAllocChunk* chunk, RegAllocState* state,
                vassert(ii_chunk < rreg_lrs->lr_current->dead_before);
             }
          }
+
+         /* Sanity check: if vregS has been marked as coalesced to vregD,
+            then the effective live range of vregS must also cover live range
+            of vregD. */
+         /* The following sanity check is quite expensive. Some basic blocks
+            contain very lengthy coalescing chains... */
+         if (SANITY_CHECKS_EVERY_INSTR) {
+            for (UInt vs_idx = 0; vs_idx < state->n_vregs; vs_idx++) {
+               const VRegState* vS_st = &state->vregs[vs_idx];
+               HReg vregD = vS_st->coalescedTo;
+               while (! hregIsInvalid(vregD)) {
+                  const VRegState* vD_st = &state->vregs[hregIndex(vregD)];
+                  vassert(vS_st->live_after <= vD_st->live_after);
+                  vassert(vS_st->effective_dead_before >= vD_st->dead_before);
+                  vregD = vD_st->coalescedTo;
+               }
+            }
+         }
       }
 
 
-      /* --- MOV coalescing --- */
+      /* --- MOV coalescing (finishing) --- */
       /* Optimise register coalescing:
-            MOV  v <-> v   coalescing (done here).
+            MOV  v <-> v   coalescing (finished here).
             MOV  v <-> r   coalescing (TODO: not yet). */
-      /* If doing a reg-reg move between two vregs, and the src's live
-         range ends here and the dst's live range starts here, bind the dst
-         to the src's rreg, and that's all. */
-      HReg vregS = INVALID_HREG;
-      HReg vregD = INVALID_HREG;
-      if (con->isMove(instr, &vregS, &vregD)) {
-         if (hregIsVirtual(vregS) && hregIsVirtual(vregD)) {
-            /* Check that |isMove| is not telling us a bunch of lies ... */
-            vassert(hregClass(vregS) == hregClass(vregD));
-            UInt vs_idx = hregIndex(vregS);
-            UInt vd_idx = hregIndex(vregD);
-            vassert(IS_VALID_VREGNO(vs_idx));
-            vassert(IS_VALID_VREGNO(vd_idx));
+      if (chunk->reg_usage[ii_chunk].isVregVregMove) {
+         HReg vregS = chunk->reg_usage[ii_chunk].regMoveSrc;
+         HReg vregD = chunk->reg_usage[ii_chunk].regMoveDst;
+         UInt vs_idx = hregIndex(vregS);
+         UInt vd_idx = hregIndex(vregD);
 
-            if ((state->vregs[vs_idx].dead_before == INSTRNO_TOTAL + 1)
-                && (state->vregs[vd_idx].live_after == INSTRNO_TOTAL)
-                && (state->vregs[vs_idx].disp == Assigned)) {
+         if (sameHReg(state->vregs[vs_idx].coalescedTo, vregD)) {
+            /* Finally do the coalescing. */
 
-               /* Live ranges are adjacent and source vreg is bound.
-                  Finally we can do the coalescing.  */
-               HReg rreg = state->vregs[vs_idx].rreg;
-               state->vregs[vd_idx].disp = Assigned;
+            HReg rreg = state->vregs[vs_idx].rreg;
+            switch (state->vregs[vs_idx].disp) {
+            case Assigned:
                state->vregs[vd_idx].rreg = rreg;
-               FREE_VREG(&state->vregs[vs_idx]);
-
                UInt r_idx = hregIndex(rreg);
                vassert(state->rregs[r_idx].disp == Bound);
-               state->rregs[r_idx].vreg          = vregD;
-               state->rregs[r_idx].eq_spill_slot = False;
+               state->rregs[r_idx].vreg = vregD;
+               break;
+            case Spilled:
+               vassert(hregIsInvalid(state->vregs[vs_idx].rreg));
+               break;
+            default:
+               vassert(0);
+            }
 
-               if (DEBUG_REGALLOC) {
-                  print_depth(depth);
-                  vex_printf("coalesced: ");
-                  con->ppReg(vregS);
-                  vex_printf(" -> ");
-                  con->ppReg(vregD);
-                  vex_printf("\n\n");
-               }
+            state->vregs[vd_idx].disp = state->vregs[vs_idx].disp;
+            FREE_VREG(&state->vregs[vs_idx]);
 
-               /* In rare cases it can happen that vregD's live range ends
-                  here. Check and eventually free the vreg and rreg.
-                  This effectively means that either the translated program
-                  contained dead code (although VEX iropt passes are pretty good
-                  at eliminating it) or the VEX backend generated dead code. */
-               if (state->vregs[vd_idx].dead_before <= INSTRNO_TOTAL + 1) {
-                  FREE_VREG(&state->vregs[vd_idx]);
+            if (DEBUG_REGALLOC) {
+               print_depth(depth);
+               vex_printf("coalesced: ");
+               con->ppReg(vregS);
+               vex_printf(" -> ");
+               con->ppReg(vregD);
+               vex_printf("\n\n");
+            }
+
+            /* In rare cases it can happen that vregD's live range ends here.
+               Check and eventually free the vreg and rreg.
+               This effectively means that either the translated program
+               contained dead code (but VEX iropt passes are pretty good
+               at eliminating it) or the VEX backend generated dead code. */
+            if (state->vregs[vd_idx].dead_before <= INSTRNO_TOTAL + 1) {
+               if (state->vregs[vd_idx].disp == Assigned) {
+                  UInt r_idx = hregIndex(rreg);
                   FREE_RREG(&state->rregs[r_idx]);
                }
-
-               /* Move on to the next instruction. We skip the post-instruction
-                  stuff because all required house-keeping was done here. */
-               continue;
+               FREE_VREG(&state->vregs[vd_idx]);
             }
+
+            /* Move on to the next instruction. We skip the post-instruction
+               stuff because all required house-keeping was done here. */
+            continue;
          }
       }
 
@@ -1547,7 +1727,7 @@ static void stage4_chunk(RegAllocChunk* chunk, RegAllocState* state,
 #  undef FIND_OR_MAKE_FREE_RREG
 }
 
-static void stage4_emit_HInstrIfThenElse(RegAllocChunk* chunk, UInt depth,
+static void stage5_emit_HInstrIfThenElse(RegAllocChunk* chunk, UInt depth,
                                          const RegAllocControl* con)
 {
    vassert(chunk->isIfThenElse);
@@ -1759,7 +1939,7 @@ static void merge_vreg_states(RegAllocChunk* chunk,
 
 /* Merges |cloned| state from out-of-line leg back into the main |state|,
    modified by fall-through leg since the legs fork. */
-static void stage4_merge_states(RegAllocChunk* chunk,
+static void stage5_merge_states(RegAllocChunk* chunk,
    RegAllocState* state, RegAllocState* cloned,
    UInt depth, const RegAllocControl* con)
 {
@@ -1849,15 +2029,15 @@ static void stage4_merge_states(RegAllocChunk* chunk,
    }
 }
 
-static void stage4(RegAllocChunk* chunk, RegAllocState* state,
+static void stage5(RegAllocChunk* chunk, RegAllocState* state,
                    UInt depth, const RegAllocControl* con)
 {
-   WALK_CHUNKS(stage4_chunk(chunk, state, depth, con),
-               stage4_emit_HInstrIfThenElse(chunk, depth, con);
+   WALK_CHUNKS(stage5_chunk(chunk, state, depth, con),
+               stage5_emit_HInstrIfThenElse(chunk, depth, con);
                RegAllocState* cloned_state = clone_state(state),
-               stage4(chunk->IfThenElse.fallThrough, state, depth + 1, con),
-               stage4(chunk->IfThenElse.outOfLine, cloned_state, depth + 1, con),
-               stage4_merge_states(chunk, state, cloned_state, depth, con));
+               stage5(chunk->IfThenElse.fallThrough, state, depth + 1, con),
+               stage5(chunk->IfThenElse.outOfLine, cloned_state, depth + 1, con),
+               stage5_merge_states(chunk, state, cloned_state, depth, con));
 }
 
 
@@ -1900,12 +2080,15 @@ HInstrSB* doRegisterAllocation(
    /* --- Stage 0. --- */
    /* Initialize the vreg state. It is initially global. --- */
    for (UInt v_idx = 0; v_idx < state->n_vregs; v_idx++) {
-      state->vregs[v_idx].live_after   = INVALID_INSTRNO;
-      state->vregs[v_idx].dead_before  = INVALID_INSTRNO;
-      state->vregs[v_idx].reg_class    = HRcINVALID;
-      state->vregs[v_idx].disp         = Unallocated;
-      state->vregs[v_idx].rreg         = INVALID_HREG;
-      state->vregs[v_idx].spill_offset = 0;
+      state->vregs[v_idx].live_after            = INVALID_INSTRNO;
+      state->vregs[v_idx].dead_before           = INVALID_INSTRNO;
+      state->vregs[v_idx].reg_class             = HRcINVALID;
+      state->vregs[v_idx].disp                  = Unallocated;
+      state->vregs[v_idx].rreg                  = INVALID_HREG;
+      state->vregs[v_idx].spill_offset          = 0;
+      state->vregs[v_idx].coalescedTo           = INVALID_HREG;
+      state->vregs[v_idx].coalescedFirst        = INVALID_HREG;
+      state->vregs[v_idx].effective_dead_before = INVALID_INSTRNO;
    }
 
    /* Initialize redundant rreg -> vreg state. A snaphost is taken for
@@ -1920,7 +2103,7 @@ HInstrSB* doRegisterAllocation(
    /* --- Stage 1. Determine total ordering of instructions and structure
       of HInstrIfThenElse. --- */
    RegAllocChunk* first_chunk;
-   UInt ii_total_last = stage1(sb_in->insns, 0, state->n_rregs,
+   UInt ii_total_last = stage1(sb_in->insns, 0, state->n_vregs, state->n_rregs,
                                &first_chunk, con);
 
    /* The live range numbers are signed shorts, and so limiting the number
@@ -1936,11 +2119,30 @@ HInstrSB* doRegisterAllocation(
       stage2_debug_rregs(first_chunk, 0, con);
    }
 
-   /* --- Stage 3. Allocate spill slots. --- */
-   stage3(state->vregs, state->n_vregs, con);
+   /* --- Stage 3. MOV coalescing (preparation). --- */
+   Bool coalesce_happened = False;
+   stage3(first_chunk, state, &coalesce_happened, 0, con);
 
-   /* --- Stage 4. Process the instructions and allocate registers. --- */
-   stage4(first_chunk, state, 0, con);
+   /* --- Stage 4. Allocate spill slots. --- */
+   stage4_main(state->vregs, state->n_vregs, con);
+   stage4_coalesced(first_chunk, state, 0, con);
+   if (DEBUG_REGALLOC && coalesce_happened) {
+      vex_printf("\nAfter vreg<->vreg MOV coalescing:\n");
+      print_vregs(state, 0, 0, con);
+   }
+
+   if (0) {
+      vex_printf("\n\n");
+      for (UInt v_idx = 0; v_idx < state->n_vregs; v_idx++) {
+         if (state->vregs[v_idx].live_after != INVALID_INSTRNO) {
+            vex_printf("vreg %3u    --> spill offset %u\n",
+                       v_idx, state->vregs[v_idx].spill_offset);
+         }
+      }
+   }
+
+   /* --- Stage 5. Process the instructions and allocate registers. --- */
+   stage5(first_chunk, state, 0, con);
 
    /* The output SB of instructions. */
    HInstrSB* sb_out = LibVEX_Alloc_inline(sizeof(HInstrSB));

@@ -742,7 +742,6 @@ extern void ppX86CondCode(X86CondCode);
    of the underlying instruction set. */
 extern void         getRegUsage_X86Instr ( HRegUsage*, const X86Instr*, Bool );
 extern void         mapRegs_X86Instr     ( HRegRemap*, X86Instr*, Bool );
-extern Bool         isMove_X86Instr      ( const X86Instr*, HReg*, HReg* );
 extern HInstrIfThenElse* isIfThenElse_X86Instr(X86Instr*);
 extern UInt         emit_X86Instr   ( /*MB_MOD*/Bool* is_profInc,
                                       UChar* buf, UInt nbuf,
