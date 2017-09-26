@@ -3960,7 +3960,7 @@ static void iselStmtVec(ISelEnv* env, IRStmtVec* stmts)
       iselStmtVec(env, likely_leg);
       if (vex_traceflags & VEX_TRACE_VCODE) {
          print_IRStmt_prefix(env->depth - 1);
-         vex_printf("} else {\n");
+         vex_printf("} else OOL {\n");
       }
       env->code = hite->outOfLine;
       iselStmtVec(env, unlikely_leg);

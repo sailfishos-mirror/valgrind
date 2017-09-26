@@ -1608,8 +1608,8 @@ void ppIRTempDefSet(const IRTempDefSet* defset, UInt depth)
 void ppIRIfThenElse_Hint(IRIfThenElse_Hint hint)
 {
    switch (hint) {
-   case IfThenElse_ThenLikely: vex_printf("IfThenElse_ThenLikely"); break;
-   case IfThenElse_ElseLikely: vex_printf("IfThenElse_ElseLikely"); break;
+   case IfThenElse_ThenLikely: vex_printf("ThenLikely"); break;
+   case IfThenElse_ElseLikely: vex_printf("ElseLikely"); break;
    default: vpanic("ppIRIfThenElse_Hint");
    }
 }
@@ -1625,17 +1625,37 @@ void ppIRIfThenElseCondHint(const IRIfThenElse* ite)
 
 void ppIRIfThenElse(const IRIfThenElse* ite, const IRTypeEnv* tyenv, UInt depth)
 {
-   ppIRIfThenElseCondHint(ite);
-   vex_printf(" then {\n");
+   // A likely story!
+   const HChar* tLIKELY   = "LIKELY";
+   const HChar* tUNLIKELY = "UNLIKELY";
+   const HChar* thenHint  = "???";
+   const HChar* elseHint  = "???";
+   switch (ite->hint) {
+      case IfThenElse_ThenLikely:
+         thenHint = tLIKELY; elseHint = tUNLIKELY; break;
+      case IfThenElse_ElseLikely:
+         thenHint = tUNLIKELY; elseHint = tLIKELY; break;
+      default:
+         break; // Something is b0rked!
+   }
+
+   vex_printf("if (");
+   ppIRExpr(ite->cond);
+   vex_printf(") then %s {\n", thenHint);
    ppIRStmtVec(ite->then_leg, tyenv, depth + 1);
    print_depth(depth);
-   vex_printf("} else {\n");
+   vex_printf("} else %s {\n", elseHint);
    ppIRStmtVec(ite->else_leg, tyenv, depth + 1);
    print_depth(depth);
-   vex_printf("}\n");
+   vex_printf("}");
+   if (ite->phi_nodes->phis_used > 0) {
+      vex_printf("\n"); // because there are phi nodes, so we need a new line
+   } // else there are no phi nodes; this is the last line, so skip the \n
    ppIRPhiVec(ite->phi_nodes, depth);
 }
 
+// Print an IRStmt, but not the final \n.  That is a bit complex
+// for the multi-line IfThenElse case.
 void ppIRStmt(const IRStmt* s, const IRTypeEnv* tyenv, UInt depth)
 {
    print_depth(depth);
@@ -1782,7 +1802,8 @@ void ppIRTypeEnvDefd(const IRTypeEnv* tyenv, const IRTempDefSet* defset,
 void ppIRStmtVec(const IRStmtVec* stmts, const IRTypeEnv* tyenv, UInt depth)
 {
    ppIRTypeEnvDefd(tyenv, stmts->defset, depth);
-   vex_printf("\n");
+   if (depth == 0)
+      vex_printf("\n");
    for (UInt i = 0; i < stmts->stmts_used; i++) {
       ppIRStmt(stmts->stmts[i], tyenv, depth);
       vex_printf("\n");

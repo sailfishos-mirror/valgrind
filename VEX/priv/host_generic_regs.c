@@ -374,9 +374,9 @@ static void ppHInstrVec(const HInstrVec* code,
       const HInstrIfThenElse* hite = isIfThenElse(instr);
       if (UNLIKELY(hite != NULL)) {
          print_depth(depth);
-         vex_printf("      if (!");
+         vex_printf("      goto OOL on cc \"");
          ppCondCode(hite->ccOOL);
-         vex_printf(") then fall-through {\n");
+         vex_printf("\", otherwise fall-through {\n");
          ppHInstrVec(hite->fallThrough, isIfThenElse, ppInstr, ppCondCode,
                      mode64, depth + 1, insn_num);
          print_depth(depth);
