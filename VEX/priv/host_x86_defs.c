@@ -654,6 +654,21 @@ X86Instr* X86Instr_Call ( X86CondCode cond, Addr32 target, Int regparms,
    vassert(is_sane_RetLoc(rloc));
    return i;
 }
+X86Instr* X86Instr_Jmp ( UInt hereOffs, UInt dstOffs ) {
+   X86Instr* i         = LibVEX_Alloc_inline(sizeof(X86Instr));
+   i->tag              = Xin_Jmp;
+   i->Xin.Jmp.hereOffs = hereOffs;
+   i->Xin.Jmp.dstOffs  = dstOffs;
+   return i;
+}
+X86Instr* X86Instr_JmpCond ( X86CondCode cond,
+                             UInt dst_qentno /* FOR DEBUG PRINTING ONLY */ ) {
+   X86Instr* i               = LibVEX_Alloc_inline(sizeof(X86Instr));
+   i->tag                    = Xin_JmpCond;
+   i->Xin.JmpCond.cond       = cond;
+   i->Xin.JmpCond.dst_qentno = dst_qentno;
+   return i;
+}
 X86Instr* X86Instr_XDirect ( Addr32 dstGA, X86AMode* amEIP,
                              X86CondCode cond, Bool toFastEP ) {
    X86Instr* i             = LibVEX_Alloc_inline(sizeof(X86Instr));
@@ -1001,7 +1016,17 @@ void ppX86Instr ( const X86Instr* i, Bool mode64 ) {
                     i->Xin.Call.regparms);
          ppRetLoc(i->Xin.Call.rloc);
          vex_printf("] 0x%x", i->Xin.Call.target);
-         break;
+         return;
+      case Xin_Jmp:
+         vex_printf("jmp from [%03u] to [%03u] (delta = %d)",
+                    i->Xin.Jmp.hereOffs, i->Xin.Jmp.dstOffs,
+                    (Int)(i->Xin.Jmp.dstOffs) - (Int)(i->Xin.Jmp.hereOffs));
+         return;
+      case Xin_JmpCond:
+         vex_printf("j%s to queue[%u] (delta currently unknown)",
+                    showX86CondCode(i->Xin.JmpCond.cond),
+                    i->Xin.JmpCond.dst_qentno);
+         return;
       case Xin_XDirect:
          vex_printf("(xDirect) ");
          vex_printf("if (%%eflags.%s) { ",
@@ -1225,7 +1250,7 @@ void ppX86Instr ( const X86Instr* i, Bool mode64 ) {
                     "adcl $0,NotKnownYet+4");
          return;
       case Xin_IfThenElse:
-         vex_printf("if (!%s) then {...",
+         vex_printf("if (ccOOL=%s) then IL {...",
                     showX86CondCode(i->Xin.IfThenElse.hite->ccOOL));
          return;
       default:
@@ -2162,13 +2187,9 @@ static UChar* push_word_from_tags ( UChar* p, UShort tags )
    instruction was a profiler inc, set *is_profInc to True, else
    leave it unchanged. */
 
-Int emit_X86Instr ( /*MB_MOD*/Bool* is_profInc,
-                    UChar* buf, Int nbuf, const X86Instr* i, 
-                    Bool mode64, VexEndness endness_host,
-                    const void* disp_cp_chain_me_to_slowEP,
-                    const void* disp_cp_chain_me_to_fastEP,
-                    const void* disp_cp_xindir,
-                    const void* disp_cp_xassisted )
+UInt emit_X86Instr ( /*MB_MOD*/Bool* is_profInc,
+                     UChar* buf, UInt nbuf, const X86Instr* i,
+                     const EmitConstants* emitConsts )
 {
    UInt irno, opc, opc_rr, subopc_imm, opc_imma, opc_cl, opc_imm, subopc;
 
@@ -2176,7 +2197,7 @@ Int emit_X86Instr ( /*MB_MOD*/Bool* is_profInc,
    UChar* p = &buf[0];
    UChar* ptmp;
    vassert(nbuf >= 32);
-   vassert(mode64 == False);
+   vassert(emitConsts->mode64 == False);
 
    /* vex_printf("asm  ");ppX86Instr(i, mode64); vex_printf("\n"); */
 
@@ -2484,14 +2505,56 @@ Int emit_X86Instr ( /*MB_MOD*/Bool* is_profInc,
       *p++ = toUChar(0xD0 + irno);
       goto done;
 
+   case Xin_Jmp: {
+      Long deltaLL
+         = ((Long)(i->Xin.Jmp.hereOffs)) - ((Long)(i->Xin.Jmp.dstOffs));
+      /* Stay sane .. */
+      vassert(-1000000LL <= deltaLL && deltaLL <= 1000000LL);
+      Int delta = (Int)deltaLL;
+      /* The offset that we must encode is actually relative to the start of
+         the next instruction.  Also, there are short and long encodings of
+         this instruction.  Try to use the short one if possible. */
+      if (delta >= -0x78 && delta <= 0x78) {
+         delta += 2;
+         *p++ = toUChar(0xEB);
+         *p++ = toUChar(delta & 0xFF);
+         delta >>= 8;
+         vassert(delta == 0 || delta == -1);
+      } else {
+         delta += 5;
+         *p++ = toUChar(0xE9);
+         p = emit32(p, (UInt)delta);
+      }
+      goto done;
+   }
+
+   case Xin_JmpCond: {
+      /* We don't know the destination yet, so just emit this so that it
+         loops back to itself.  The main (host-independent) assembler logic
+         will later patch it when the destination is known.  Until then,
+         emitting an instruction that jumps to itself seems like a good
+         idea, since if we mistakenly forget to patch it, the generated code
+         will spin at this point, and when we attach a debugger, it will be
+         obvious what has happened. */
+      *p++ = toUChar(0x0F);
+      *p++ = toUChar(0x80 + (UInt)i->Xin.JmpCond.cond);
+      // FFFFFFFA == -6, which, relative to the next insn, points to
+      // the start of this one.
+      *p++ = toUChar(0xFA);
+      *p++ = toUChar(0xFF);
+      *p++ = toUChar(0xFF);
+      *p++ = toUChar(0xFF);
+      goto done;
+   }
+
    case Xin_XDirect: {
       /* NB: what goes on here has to be very closely coordinated with the
          chainXDirect_X86 and unchainXDirect_X86 below. */
       /* We're generating chain-me requests here, so we need to be
          sure this is actually allowed -- no-redir translations can't
          use chain-me's.  Hence: */
-      vassert(disp_cp_chain_me_to_slowEP != NULL);
-      vassert(disp_cp_chain_me_to_fastEP != NULL);
+      vassert(emitConsts->disp_cp_chain_me_to_slowEP != NULL);
+      vassert(emitConsts->disp_cp_chain_me_to_fastEP != NULL);
 
       /* Use ptmp for backpatching conditional jumps. */
       ptmp = NULL;
@@ -2519,8 +2582,9 @@ Int emit_X86Instr ( /*MB_MOD*/Bool* is_profInc,
       /* movl $disp_cp_chain_me_to_{slow,fast}EP,%edx; */
       *p++ = 0xBA;
       const void* disp_cp_chain_me
-               = i->Xin.XDirect.toFastEP ? disp_cp_chain_me_to_fastEP 
-                                         : disp_cp_chain_me_to_slowEP;
+               = i->Xin.XDirect.toFastEP
+                    ? emitConsts->disp_cp_chain_me_to_fastEP
+                    : emitConsts->disp_cp_chain_me_to_slowEP;
       p = emit32(p, (UInt)(Addr)disp_cp_chain_me);
       /* call *%edx */
       *p++ = 0xFF;
@@ -2543,7 +2607,7 @@ Int emit_X86Instr ( /*MB_MOD*/Bool* is_profInc,
          translations without going through the scheduler.  That means
          no XDirects or XIndirs out from no-redir translations.
          Hence: */
-      vassert(disp_cp_xindir != NULL);
+      vassert(emitConsts->disp_cp_xindir != NULL);
 
       /* Use ptmp for backpatching conditional jumps. */
       ptmp = NULL;
@@ -2563,7 +2627,7 @@ Int emit_X86Instr ( /*MB_MOD*/Bool* is_profInc,
 
       /* movl $disp_indir, %edx */
       *p++ = 0xBA;
-      p = emit32(p, (UInt)(Addr)disp_cp_xindir);
+      p = emit32(p, (UInt)(Addr)emitConsts->disp_cp_xindir);
       /* jmp *%edx */
       *p++ = 0xFF;
       *p++ = 0xE2;
@@ -2627,7 +2691,7 @@ Int emit_X86Instr ( /*MB_MOD*/Bool* is_profInc,
 
       /* movl $disp_indir, %edx */
       *p++ = 0xBA;
-      p = emit32(p, (UInt)(Addr)disp_cp_xassisted);
+      p = emit32(p, (UInt)(Addr)emitConsts->disp_cp_xassisted);
       /* jmp *%edx */
       *p++ = 0xFF;
       *p++ = 0xE2;
@@ -3366,7 +3430,7 @@ Int emit_X86Instr ( /*MB_MOD*/Bool* is_profInc,
    }
 
   bad:
-   ppX86Instr(i, mode64);
+   ppX86Instr(i, emitConsts->mode64);
    vpanic("emit_X86Instr");
    /*NOTREACHED*/
    
@@ -3512,6 +3576,45 @@ VexInvalRange patchProfInc_X86 ( VexEndness endness_host,
    p[12] = imm32 & 0xFF;
    VexInvalRange vir = { (HWord)place_to_patch, 14 };
    return vir;
+}
+
+
+/* Create relocation info needed to patch a branch offset for instruction I
+   whose first instruction is at WHERE in the assembly buffer. */
+Relocation collectRelocInfo_X86 ( AssemblyBufferOffset where,
+                                  X86Instr* i )
+{
+   /* Xin_JmpCond produces a conditional branch, of the form
+         0F 8x <32-bit-offset>
+      where 'x' encodes the condition code.
+
+      When we come to patch it so as to jump to a particular destination, we
+      must be aware that:
+
+      (1) the field we want to patch starts 2 bytes into the instruction.
+          Hence ".where = where + 2"
+
+      (2) the processor expects the 32-bit-offset value to be relative to
+          the start of the *next* instruction.  The patcher will patch
+          the location we specified ("where + 2", but that is 4 bytes
+          before the start of the next instruction.  Hence we set the bias
+          to -4, so that it reduces the computed offset by 4, which makes
+          it relative to the start of the next instruction.
+   */
+   switch (i->tag) {
+      case Xin_JmpCond:  {
+         Relocation rel = { .where    = where + 2,
+                            .bitNoMin = 0,
+                            .bitNoMax = 31,
+                            .bias     = -4,
+                            .rshift   = 0 };
+         return rel;
+      }
+      default:
+         // We don't expect to be asked to compute relocation information
+         // for any other kind of instruction.
+         vpanic("collectRelocInfo_X86");
+   }
 }
 
 

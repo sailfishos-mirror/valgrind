@@ -355,6 +355,8 @@ typedef
       Xin_Sh3232,    /* shldl or shrdl */
       Xin_Push,      /* push (32-bit?) value on stack */
       Xin_Call,      /* call to address in register */
+      Xin_Jmp,       /* unconditional branch */
+      Xin_JmpCond,   /* conditional branch */
       Xin_XDirect,   /* direct transfer to GA */
       Xin_XIndir,    /* indirect transfer to GA */
       Xin_XAssisted, /* assisted transfer to GA */
@@ -456,6 +458,21 @@ typedef
             Int         regparms; /* 0 .. 3 */
             RetLoc      rloc;     /* where the return value will be */
          } Call;
+         /* Unconditional branch, using the offset (dstOffs - hereOffs).
+            This could be done with just one offset, but storing two values
+            makes it easier to understand assembly debug printing. */
+         struct {
+            UInt hereOffs;
+            UInt dstOffs;
+         } Jmp;
+         /* Conditional branch.  At the time this is generated, we don't
+            know the offset and so this merely denotes a conditional branch
+            with a 32-bit unknown offset.  For debug printing ONLY, we also
+            record the assembler queue entry number. */
+         struct {
+            X86CondCode cond;
+            UInt        dst_qentno; // FOR DEBUG PRINTING ONLY
+         } JmpCond;
          /* Update the guest EIP value, then exit requesting to chain
             to it.  May be conditional.  Urr, use of Addr32 implicitly
             assumes that wordsize(guest) == wordsize(host). */
@@ -673,6 +690,9 @@ extern X86Instr* X86Instr_Div       ( Bool syned, X86RM* );
 extern X86Instr* X86Instr_Sh3232    ( X86ShiftOp, UInt amt, HReg src, HReg dst );
 extern X86Instr* X86Instr_Push      ( X86RMI* );
 extern X86Instr* X86Instr_Call      ( X86CondCode, Addr32, Int, RetLoc );
+extern X86Instr* X86Instr_Jmp       ( UInt hereOffs, UInt dstOffs );
+extern X86Instr* X86Instr_JmpCond   ( X86CondCode,
+                                      UInt/*FOR DEBUG PRINTING ONLY*/);
 extern X86Instr* X86Instr_XDirect   ( Addr32 dstGA, X86AMode* amEIP,
                                       X86CondCode cond, Bool toFastEP );
 extern X86Instr* X86Instr_XIndir    ( HReg dstGA, X86AMode* amEIP,
@@ -724,14 +744,10 @@ extern void         getRegUsage_X86Instr ( HRegUsage*, const X86Instr*, Bool );
 extern void         mapRegs_X86Instr     ( HRegRemap*, X86Instr*, Bool );
 extern Bool         isMove_X86Instr      ( const X86Instr*, HReg*, HReg* );
 extern HInstrIfThenElse* isIfThenElse_X86Instr(X86Instr*);
-extern Int          emit_X86Instr   ( /*MB_MOD*/Bool* is_profInc,
-                                      UChar* buf, Int nbuf, const X86Instr* i, 
-                                      Bool mode64,
-                                      VexEndness endness_host,
-                                      const void* disp_cp_chain_me_to_slowEP,
-                                      const void* disp_cp_chain_me_to_fastEP,
-                                      const void* disp_cp_xindir,
-                                      const void* disp_cp_xassisted );
+extern UInt         emit_X86Instr   ( /*MB_MOD*/Bool* is_profInc,
+                                      UChar* buf, UInt nbuf,
+                                      const X86Instr* i,
+                                      const EmitConstants* emitConsts );
 
 extern void genSpill_X86  ( /*OUT*/HInstr** i1, /*OUT*/HInstr** i2,
                             HReg rreg, Int offset, Bool );
@@ -775,6 +791,10 @@ extern VexInvalRange patchProfInc_X86 ( VexEndness endness_host,
                                         void*  place_to_patch,
                                         const ULong* location_of_counter );
 
+/* Create relocation info needed to patch a branch offset for instruction I
+   whose first instruction is at WHERE in the assembly buffer. */
+extern Relocation collectRelocInfo_X86 ( AssemblyBufferOffset where,
+                                         X86Instr* i );
 
 #endif /* ndef __VEX_HOST_X86_DEFS_H */
 

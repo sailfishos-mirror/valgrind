@@ -555,6 +555,78 @@ extern HInstrSB* doRegisterAllocation(
 );
 
 
+/*---------------------------------------------------------*/
+/*--- The assembler                                     ---*/
+/*---------------------------------------------------------*/
+
+/* A struct that carries constants to the emit_*Instr functions. */
+typedef
+   struct {
+      // Are we emitting 64-bit code?  Is only relevant on hosts that share
+      // the same backend for 32- and 64-bit variants: PPC and MIPS.
+      const Bool mode64;
+      // What's the endianness of the host?
+      const VexEndness endness_host;
+      // Host addresses for various block-exit paths
+      const void* disp_cp_chain_me_to_slowEP;
+      const void* disp_cp_chain_me_to_fastEP;
+      const void* disp_cp_xindir;
+      const void* disp_cp_xassisted;
+   }
+   EmitConstants;
+
+
+// An offset in the assembly buffer.  Wrapped up in a struct so we don't
+// confuse it with any other kind of number.
+//typedef  struct { UInt u; }  AssemblyBufferOffset;
+typedef  UInt  AssemblyBufferOffset;  // for now
+
+
+// Information about a relocation that we will need to do.
+//
+// What this describes is as follows.  Let |where| be an offset in the
+// assembly buffer.  Let |dst| be some other offset in the assembly buffer.
+//
+// What this describes is a modification of a 32 bit integer located at
+// |where[0..3]|, interpreted in the host's endianness.  The 32 bit value at
+// that location has bits [bitNoMax .. bitNoMin] inclusive replaced by the
+// least significant bits of the following expression
+//
+//   E = (dst - where + sign_extend(bias)) >>signed rshift
+//
+// and all other bits of that 32 bit value are left unchanged.  Observe that
+// this description assumes E is signed.  If the bits that we copy out of E
+// and into the 32 bit word do not sign extend back to E, then the offset is
+// too large to be represented and the relocation cannot be performed.
+//
+// The use of |bitNo{Max,Min}| facilitates writing an arbitrary bitfield in
+// the middle of (eg) an ARM branch instruction.  For amd64-style 32-bit
+// branch offsets we expect the values to be 0 and 31 respectively.
+//
+// The use of |rshift| facilitates architectures (eg ARM) that use fixed
+// length instructions, and hence require the offset to be stated in number
+// of instructions instead of (eg on amd64) number of bytes.
+//
+// The use of |bias| is necessary because on some targets (eg amd64) the
+// processor expects the branch offset to be stated relative to the first
+// byte of the instruction, but |where| points somewhere further along the
+// instruction.  Hence we have to add a small negative bias to "back up"
+// |where| to the start of the instruction.
+//
+// Now, we don't actually store |dst|, because we know it "from context" at
+// the time we want to perform the relocation: it is the current offset in
+// the assembly buffer, for the entire assembly process.
+typedef
+   struct {
+      AssemblyBufferOffset where; // where the relocation should be applied
+      UChar                bitNoMin; // 0 .. 31 inclusive
+      UChar                bitNoMax; // bitNoMin .. 31 inclusive
+      Int                  bias;   // arbitrary, but in practice very small
+      UChar                rshift; // 0, 1 or 2 only
+   }
+   Relocation;
+
+
 #endif /* ndef __VEX_HOST_GENERIC_REGS_H */
 
 /*---------------------------------------------------------------*/
