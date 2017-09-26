@@ -678,7 +678,7 @@ IRSB* LibVEX_FrontEnd ( /*MOD*/ VexTranslateArgs* vta,
                        True/*must be flat*/, guest_word_type );
 
    /* Do a post-instrumentation cleanup pass. */
-   if (1 || vta->instrument1 || vta->instrument2) {
+   if (vta->instrument1 || vta->instrument2) {
       do_deadcode_BB( irsb );
       irsb = cprop_BB( irsb );
       do_deadcode_BB( irsb );
