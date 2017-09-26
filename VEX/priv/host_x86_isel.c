@@ -3926,10 +3926,16 @@ static void iselStmtVec(ISelEnv* env, IRStmtVec* stmts)
       HPhiNode* phi_nodes = convertPhiNodes(env, ite->phi_nodes,
                                             ite->hint, &n_phis);
 
-      X86CondCode cc         = iselCondCode(env, ite->cond);
-      /* Note: do not insert any instructions which alter |cc| before it
+      X86CondCode cc = iselCondCode(env, ite->cond);
+      /* cc is the condition code that will be true when we want to execute
+         the |then| branch.  That will be correct if the |then| branch is
+         the out-of-line (unlikely) one.  But if the |else| branch is the
+         OOL one then we need to invert the condition code. */
+      X86CondCode ccOOL
+         = (ite->hint == IfThenElse_ThenLikely) ? (cc ^ 1) : cc;
+      /* Note: do not insert any instructions which alter |ccOOL| before it
          is consumed by the corresponding branch. */
-      HInstrIfThenElse* hite = newHInstrIfThenElse(cc, phi_nodes, n_phis);
+      HInstrIfThenElse* hite = newHInstrIfThenElse(ccOOL, phi_nodes, n_phis);
       X86Instr* instr        = X86Instr_IfThenElse(hite);
       addInstr(env, instr);
 
