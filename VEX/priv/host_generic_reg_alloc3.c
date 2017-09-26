@@ -609,8 +609,6 @@ static Bool find_free_rreg(
 static UInt stage1(HInstrVec* instrs_in, UInt ii_total_start, UInt n_rregs,
                    RegAllocChunk** first_chunk, const RegAllocControl* con)
 {
-   vassert(instrs_in->insns_used > 0);
-
    Short ii_vec_start = 0;
 
    RegAllocChunk* chunk  = new_chunk(instrs_in, n_rregs);
