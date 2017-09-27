@@ -1075,15 +1075,24 @@ static UInt num_nodes_visited;
 #define NODE_LIMIT 30
 
 
+/* An element of a map from IRTemp to IRExpr*, that is, an array indexed
+   by IRTemp. Keys are IRTemp indices. Values are SubstMapElem's. */
+typedef
+   struct {
+      IRExpr* expr;    /* the expression itself */
+      Bool    written; /* has a corresponding WrTmp been already written out? */
+   }
+   SubstMapElem;
+
 /* The env in this section is a structure which holds:
-   - A map from IRTemp to IRExpr*, that is, an array indexed by IRTemp.
-     Keys are IRTemp.indices. Values are IRExpr*s.
+   - A map from IRTemp to SubstMapElem (see above).
+     Keys are IRTemp.indices. Values are SubstMapElem's.
    - IR Type Environment
    - Current IRStmtVec* which is being constructed.
    - A pointer to the parent env (or NULL). */
 typedef
    struct _SubstEnv {
-      IRExpr**          map;
+      SubstMapElem*     map;
       IRTypeEnv*        tyenv;
       IRStmtVec*        stmts;
       struct _SubstEnv* parent;
@@ -1107,9 +1116,16 @@ static SubstEnv* newSubstEnv(IRTypeEnv* tyenv, IRStmtVec* stmts_in,
    env->parent   = parent_env;
 
    UInt  n_tmps = tyenv->used;
-   env->map     = LibVEX_Alloc_inline(n_tmps * sizeof(IRExpr*));
-   for (UInt i = 0; i < n_tmps; i++)
-      env->map[i] = (parent_env == NULL) ? NULL : parent_env->map[i];
+   env->map     = LibVEX_Alloc_inline(n_tmps * sizeof(SubstMapElem));
+   for (UInt i = 0; i < n_tmps; i++) {
+      if (parent_env == NULL) {
+         env->map[i].expr    = NULL;
+         env->map[i].written = False;
+      } else {
+         env->map[i].expr    = parent_env->map[i].expr;
+         env->map[i].written = parent_env->map[i].written;
+      }
+   }
    return env;
 }
 
@@ -1153,8 +1169,8 @@ static Bool sameIRExprs_aux2(const SubstEnv* env, const IRExpr* e1,
          IRTemp tmp2 = e2->Iex.RdTmp.tmp;
 
          if (tmp1 == tmp2) return True;
-         const IRExpr* subst1 = env->map[tmp1];
-         const IRExpr* subst2 = env->map[tmp2];
+         const IRExpr* subst1 = env->map[tmp1].expr;
+         const IRExpr* subst2 = env->map[tmp2].expr;
          if (subst1 != NULL && subst2 != NULL) {
             Bool same = sameIRExprs_aux(env, subst1, subst2);
 #if STATS_IROPT
@@ -1447,7 +1463,7 @@ static IRExpr* chase(SubstEnv* env, IRExpr* e)
       (directly or indirectly) to itself. */
    while (e->tag == Iex_RdTmp) {
       if (0) { vex_printf("chase "); ppIRExpr(e); vex_printf("\n"); }
-      e = env->map[e->Iex.RdTmp.tmp];
+      e = env->map[e->Iex.RdTmp.tmp].expr;
       if (e == NULL) break;
    }
    return e;
@@ -2526,7 +2542,7 @@ static IRExpr* subst_Expr(SubstEnv* env, IRExpr* ex)
 {
    switch (ex->tag) {
       case Iex_RdTmp: {
-         IRExpr* rhs = env->map[ex->Iex.RdTmp.tmp];
+         IRExpr* rhs = env->map[ex->Iex.RdTmp.tmp].expr;
          if (rhs != NULL) {
             if (rhs->tag == Iex_RdTmp)
                return rhs;
@@ -2644,13 +2660,19 @@ static void subst_and_fold_PhiNodes(SubstEnv* env, IRStmtVec* stmts,
    for (UInt i = 0; i < phi_nodes->phis_used; i++) {
       IRPhi* phi = phi_nodes->phis[i];
       IRTemp* tmp = (srcThen) ? &phi->srcThen : &phi->srcElse;
-      IRExpr* expr = env->map[*tmp];
+      IRExpr* expr = env->map[*tmp].expr;
       vassert(expr != NULL);
 
       if (expr->tag == Iex_RdTmp) {
+         // *tmp is bound to expr->Iex.RdTmp.tmp in the env, so update the
+         // phi-node reference directly.
          *tmp = expr->Iex.RdTmp.tmp;
       } else {
-         addStmtToIRStmtVec(stmts, IRStmt_WrTmp(*tmp, expr));
+         // *tmp is bound to some other arbitrary expression in the env.
+         // But check first; maybe it is already in |stmts|.
+         if (!env->map[*tmp].written) {
+            addStmtToIRStmtVec(stmts, IRStmt_WrTmp(*tmp, expr));
+         }
       }
    }
 }
@@ -2953,8 +2975,8 @@ static IRStmtVec* subst_and_fold_Stmts(SubstEnv* env, IRStmtVec* in)
             propagation and to allow sameIRExpr look through
             IRTemps. */
          case Ist_WrTmp:
-            vassert(env->map[st2->Ist.WrTmp.tmp] == NULL);
-            env->map[st2->Ist.WrTmp.tmp] = st2->Ist.WrTmp.data;
+            vassert(env->map[st2->Ist.WrTmp.tmp].expr == NULL);
+            env->map[st2->Ist.WrTmp.tmp].expr = st2->Ist.WrTmp.data;
 
             /* 't1 = t2' -- don't add to BB; will be optimized out */
             if (st2->Ist.WrTmp.data->tag == Iex_RdTmp)
@@ -2969,6 +2991,7 @@ static IRStmtVec* subst_and_fold_Stmts(SubstEnv* env, IRStmtVec* in)
                continue;
             }
             /* else add it to the output, as normal */
+            env->map[st2->Ist.WrTmp.tmp].written = True;
             break;
 
          case Ist_LoadG: {
