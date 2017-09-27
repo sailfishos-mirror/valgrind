@@ -1537,7 +1537,26 @@ static void merge_vreg_states(RegAllocChunk* chunk,
 
    switch (v1_src_state->disp) {
    case Unallocated:
-      vassert(v2_src_state->disp == Unallocated);
+      switch (v2_src_state->disp) {
+      case Unallocated:
+         /* Good. Nothing to do. */
+         break;
+      case Assigned:
+      case Spilled:
+         /* Should be dead by now. */
+         vassert(v2_src_state->dead_before <= chunk->next->ii_total_start);
+
+         HReg rreg2 = v2_src_state->rreg;
+         UInt r_idx = hregIndex(rreg2);
+         v2_src_state->disp = Unallocated;
+         v2_src_state->rreg = INVALID_HREG;
+         state2->rregs[r_idx].disp          = Free;
+         state2->rregs[r_idx].vreg          = INVALID_HREG;
+         state2->rregs[r_idx].eq_spill_slot = False;
+         break;
+      default:
+         vassert(0);
+      }
       break;
 
    case Assigned:
