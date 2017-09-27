@@ -53,7 +53,7 @@
 
    Consider the following HInstrSB structure:
       insn1
-      if (!cond) then fall-through {
+      goto OOL on cc "z", otherwise fall-through {
          insn2
          insn3
       } else out-of-line {
@@ -272,9 +272,9 @@ static void print_depth(UInt depth)
             process_legs_fork;                                         \
             if (DEBUG_REGALLOC) {                                      \
                print_depth(depth);                                     \
-               vex_printf("if (!");                                    \
+               vex_printf("goto OOL on cc \"");                        \
                con->ppCondCode(chunk->IfThenElse.ccOOL);               \
-               vex_printf(") then fall-through {\n");                  \
+               vex_printf("\", otherwise fall-through {\n");           \
             }                                                          \
             process_fall_through_leg;                                  \
             if (DEBUG_REGALLOC) {                                      \
