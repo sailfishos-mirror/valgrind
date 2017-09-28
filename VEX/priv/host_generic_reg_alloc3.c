@@ -1541,7 +1541,7 @@ static void merge_vreg_states(RegAllocChunk* chunk,
       case Unallocated:
          /* Good. Nothing to do. */
          break;
-      case Assigned:
+      case Assigned: /* fall through */
       case Spilled:
          /* Should be dead by now. */
          vassert(v2_src_state->dead_before <= chunk->next->ii_total_start);
@@ -1603,6 +1603,7 @@ static void merge_vreg_states(RegAllocChunk* chunk,
       case Unallocated:
          vpanic("Logic error during register allocator state merge "
                 " (Spilled/Unallocated).");
+         break;
       case Assigned:
          /* Generate spill. */
          vpanic("Spill not implemented, yet.");
@@ -1615,9 +1616,11 @@ static void merge_vreg_states(RegAllocChunk* chunk,
                spill to v1_dst_state->spill_slot. */
             vpanic("Spilled/Spilled reload not implemented, yet.");
          }
+         break;
       default:
          vassert(0);
       }
+      break;
 
    default:
       vassert(0);
