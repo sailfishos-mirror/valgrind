@@ -183,6 +183,19 @@ typedef
 #define IS_VALID_VREGNO(v) ((v) >= 0 && (v) < state->n_vregs)
 #define IS_VALID_RREGNO(r) ((r) >= 0 && (r) < state->n_rregs)
 
+#define FREE_VREG(v)             \
+   do {                          \
+      (v)->disp = Unallocated;   \
+      (v)->rreg = INVALID_HREG;  \
+   } while (0)
+
+#define FREE_RREG(r)                      \
+   do {                                   \
+      (r)->disp          = Free;          \
+      (r)->vreg          = INVALID_HREG;  \
+      (r)->eq_spill_slot = False;         \
+   } while (0)
+
 /* Represents register allocator state corresponding to one contiguous chunk
    of instructions. The chunk either continues with If-Then-Else legs or
    simply ends. */
@@ -450,11 +463,9 @@ static inline void mark_vreg_spilled(UInt v_idx, RegAllocState* state)
    HReg rreg = state->vregs[v_idx].rreg;
    UInt r_idx = hregIndex(rreg);
 
-   state->vregs[v_idx].disp          = Spilled;
-   state->vregs[v_idx].rreg          = INVALID_HREG;
-   state->rregs[r_idx].disp          = Free;
-   state->rregs[r_idx].vreg          = INVALID_HREG;
-   state->rregs[r_idx].eq_spill_slot = False;
+   state->vregs[v_idx].disp = Spilled;
+   state->vregs[v_idx].rreg = INVALID_HREG;
+   FREE_RREG(&state->rregs[r_idx]);
 }
 
 /* Spills a vreg assigned to some rreg.
@@ -1173,8 +1184,7 @@ static void stage4_chunk(RegAllocChunk* chunk, RegAllocState* state,
                HReg rreg = state->vregs[vs_idx].rreg;
                state->vregs[vd_idx].disp = Assigned;
                state->vregs[vd_idx].rreg = rreg;
-               state->vregs[vs_idx].disp = Unallocated;
-               state->vregs[vs_idx].rreg = INVALID_HREG;
+               FREE_VREG(&state->vregs[vs_idx]);
 
                UInt r_idx = hregIndex(rreg);
                vassert(state->rregs[r_idx].disp == Bound);
@@ -1196,11 +1206,8 @@ static void stage4_chunk(RegAllocChunk* chunk, RegAllocState* state,
                   contained dead code (although VEX iropt passes are pretty good
                   at eliminating it) or the VEX backend generated dead code. */
                if (state->vregs[vd_idx].dead_before <= INSTRNO_TOTAL + 1) {
-                  state->vregs[vd_idx].disp = Unallocated;
-                  state->vregs[vd_idx].rreg = INVALID_HREG;
-                  state->rregs[r_idx].disp          = Free;
-                  state->rregs[r_idx].vreg          = INVALID_HREG;
-                  state->rregs[r_idx].eq_spill_slot = False;
+                  FREE_VREG(&state->vregs[vd_idx]);
+                  FREE_RREG(&state->rregs[r_idx]);
                }
 
                /* Move on to the next instruction. We skip the post-instruction
@@ -1279,12 +1286,10 @@ static void stage4_chunk(RegAllocChunk* chunk, RegAllocState* state,
                      /* Update the register allocator state. */
                      vassert(state->vregs[v_idx].disp == Assigned);
                      state->vregs[v_idx].rreg = con->univ->regs[r_free_idx];
-                     state->rregs[r_free_idx].disp = Bound;
-                     state->rregs[r_free_idx].vreg = vreg;
+                     state->rregs[r_free_idx].disp          = Bound;
+                     state->rregs[r_free_idx].vreg          = vreg;
                      state->rregs[r_free_idx].eq_spill_slot = rreg->eq_spill_slot;
-                     rreg->disp          = Free;
-                     rreg->vreg          = INVALID_HREG;
-                     rreg->eq_spill_slot = False;
+                     FREE_RREG(rreg);
                   }
                   break;
                }
@@ -1472,9 +1477,7 @@ static void stage4_chunk(RegAllocChunk* chunk, RegAllocState* state,
             if (rreg_lrs->lrs_used > 0) {
                /* Consider "dead before" the next instruction. */
                if (rreg_lrs->lr_current->dead_before <= ii_chunk + 1) {
-                  state->rregs[r_idx].disp          = Free;
-                  state->rregs[r_idx].vreg          = INVALID_HREG;
-                  state->rregs[r_idx].eq_spill_slot = False;
+                  FREE_RREG(&state->rregs[r_idx]);
                   if (rreg_lrs->lr_current_idx < rreg_lrs->lrs_used - 1) {
                      rreg_lrs->lr_current_idx += 1;
                      rreg_lrs->lr_current
@@ -1487,11 +1490,8 @@ static void stage4_chunk(RegAllocChunk* chunk, RegAllocState* state,
             UInt v_idx = hregIndex(rreg->vreg);
             /* Consider "dead before" the next instruction. */
             if (state->vregs[v_idx].dead_before <= INSTRNO_TOTAL + 1) {
-               state->vregs[v_idx].disp = Unallocated;
-               state->vregs[v_idx].rreg = INVALID_HREG;
-               state->rregs[r_idx].disp          = Free;
-               state->rregs[r_idx].vreg          = INVALID_HREG;
-               state->rregs[r_idx].eq_spill_slot = False;
+               FREE_VREG(&state->vregs[v_idx]);
+               FREE_RREG(&state->rregs[r_idx]);
             }
             break;
          }
@@ -1547,12 +1547,8 @@ static void merge_vreg_states(RegAllocChunk* chunk,
          vassert(v2_src_state->dead_before <= chunk->next->ii_total_start);
 
          HReg rreg2 = v2_src_state->rreg;
-         UInt r_idx = hregIndex(rreg2);
-         v2_src_state->disp = Unallocated;
-         v2_src_state->rreg = INVALID_HREG;
-         state2->rregs[r_idx].disp          = Free;
-         state2->rregs[r_idx].vreg          = INVALID_HREG;
-         state2->rregs[r_idx].eq_spill_slot = False;
+         FREE_VREG(v2_src_state);
+         FREE_RREG(&state2->rregs[hregIndex(rreg2)]);
          break;
       default:
          vassert(0);
@@ -1577,10 +1573,8 @@ static void merge_vreg_states(RegAllocChunk* chunk,
             emit_instr(outOfLine, move, depth + 1, con, "move");
          }
 
-         v1_src_state->disp = Unallocated;
-         v1_src_state->rreg = INVALID_HREG;
-         v2_src_state->disp = Unallocated;
-         v2_src_state->rreg = INVALID_HREG;
+         FREE_VREG(v1_src_state);
+         FREE_VREG(v2_src_state);
          v1_dst_state->disp = Assigned;
          v1_dst_state->rreg = rreg1;
          v2_dst_state->disp = Assigned;
