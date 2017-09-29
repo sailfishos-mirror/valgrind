@@ -2677,13 +2677,16 @@ static void subst_and_fold_PhiNodes(SubstEnv* env, IRStmtVec* stmts,
    }
 }
 
-static IRStmtVec* subst_and_fold_Stmts(SubstEnv* env, IRStmtVec* in);
+static IRStmtVec* subst_and_fold_StmtVec(SubstEnv* env, IRStmtVec* in);
+static void subst_and_fold_Stmts(SubstEnv* env, IRStmtVec* in,
+                                 UInt fixups[], UInt *n_fixups);
 
 /* Apply the subst to stmt, then fold the result as much as possible.
    Much simplified due to stmt being previously flattened.  As a
    result of this, the stmt may wind up being turned into a no-op.  
 */
-static IRStmt* subst_and_fold_Stmt(SubstEnv* env, IRStmt* st)
+static IRStmt* subst_and_fold_Stmt(SubstEnv* env, IRStmt* st, IRStmtVec* parent,
+                                   UInt fixups[], UInt *n_fixups)
 {
 #  if 0
    vex_printf("\nsubst and fold stmt\n");
@@ -2892,37 +2895,52 @@ static IRStmt* subst_and_fold_Stmt(SubstEnv* env, IRStmt* st)
          vassert(isIRAtom(ite->cond));
          IRExpr *fcond = fold_Expr(env, subst_Expr(env, ite->cond));
          if (fcond->tag == Iex_Const) {
+            IRStmtVec* remaining_leg;
             /* Interesting. The condition on this "if-then-else" has folded down
                to a constant. */
             vassert(fcond->Iex.Const.con->tag == Ico_U1);
             if (fcond->Iex.Const.con->Ico.U1 == True) {
-               /* TODO-JIT: "else" leg is never going to happen, so dump it. */
                if (vex_control.iropt_verbosity > 0)
                   vex_printf("vex iropt: IRStmt_IfThenElse became "
                              "unconditional\n");
+               /* "else" leg is never going to happen, so dump it. */
+               remaining_leg = ite->then_leg;
             } else {
                vassert(fcond->Iex.Const.con->Ico.U1 == False);
-               /* TODO-JIT: "then" leg is never going to happen, so dump it. */
                if (vex_control.iropt_verbosity > 0)
                   vex_printf("vex iropt: IRStmt_IfThenElse became "
                              "unconditional\n");
+               /* "then" leg is never going to happen, so dump it. */
+               remaining_leg = ite->else_leg;
             }
-            /* TODO-JIT: Pull the only remaining leg into the current IRStmtVec.
-               Here is what needs to be done:
-               1. Rewrite ID of all IRTemp's (in tyenv->ids) defined in the
-                  pulled leg. These are tracked in leg's defset.
-               2. Insert all statements from the leg in the env->stmts_out
-                  at the current position. */
-            vpanic("IfThenElse leg lifting unimplemented");
+
+            /* Now pull the only remaining leg into the current IRStmtVec. */
+            /* 1. Pull all IRTemp's defined in the remaining leg into parent's
+                  defset. */
+            const IRTempDefSet* defset = remaining_leg->defset;
+            for (UInt slot = 0; slot < defset->slots_used; slot++) {
+               UInt slot_value = defset->set[slot];
+               for (UInt bit = 0; bit < BITS_PER_SLOT; bit++) {
+                  if (slot_value & (1 << bit)) {
+                     IRTemp tmp = slot * BITS_PER_SLOT + bit;
+                     setIRTempDefined(parent->defset, tmp);
+                  }
+               }
+            }
+
+            /* 2. Process now all statements from the remaining leg as if they
+                  were at the current position in the input IRStmtVec. */
+            subst_and_fold_Stmts(env, remaining_leg, fixups, n_fixups);
+            return IRStmt_NoOp(); // return no-op; it will be removed anyway
          }
 
          SubstEnv* then_env = newSubstEnv(env->tyenv, ite->then_leg, env);
-         IRStmtVec* then_stmts = subst_and_fold_Stmts(then_env, ite->then_leg);
+         IRStmtVec* then_stmts = subst_and_fold_StmtVec(then_env, ite->then_leg);
          subst_and_fold_PhiNodes(then_env, then_stmts, True /* srcThen */,
                                  ite->phi_nodes);
 
          SubstEnv* else_env = newSubstEnv(env->tyenv, ite->else_leg, env);
-         IRStmtVec* else_stmts = subst_and_fold_Stmts(else_env, ite->else_leg);
+         IRStmtVec* else_stmts = subst_and_fold_StmtVec(else_env, ite->else_leg);
          subst_and_fold_PhiNodes(else_env, else_stmts, False /* srcThen */,
                                  ite->phi_nodes);
 
@@ -2936,15 +2954,10 @@ static IRStmt* subst_and_fold_Stmt(SubstEnv* env, IRStmt* st)
    }
 }
 
-/* Is to be called with already created SubstEnv as per newSubstEnv(). */
-static IRStmtVec* subst_and_fold_Stmts(SubstEnv* env, IRStmtVec* in)
+#define N_FIXUPS 16
+static void subst_and_fold_Stmts(SubstEnv* env, IRStmtVec* in,
+                                 UInt fixups[], UInt *n_fixups)
 {
-   /* Keep track of IRStmt_LoadGs that we need to revisit after
-      processing all the other statements. */
-   const Int N_FIXUPS = 16;
-   Int fixups[N_FIXUPS]; /* indices in the stmt array of 'out' */
-   Int n_fixups = 0;
-
    IRStmtVec* out = env->stmts;
 
    /* For each original SSA-form stmt ... */
@@ -2960,7 +2973,7 @@ static IRStmtVec* subst_and_fold_Stmts(SubstEnv* env, IRStmtVec* in)
       /* perhaps st2 is already a no-op? */
       if (st2->tag == Ist_NoOp) continue;
 
-      st2 = subst_and_fold_Stmt(env, st2);
+      st2 = subst_and_fold_Stmt(env, st2, in, fixups, n_fixups);
 
       /* Deal with some post-folding special cases. */
       switch (st2->tag) {
@@ -3009,9 +3022,9 @@ static IRStmtVec* subst_and_fold_Stmts(SubstEnv* env, IRStmtVec* in)
                   into a load-convert pair.  The fixups[] entry
                   refers to the inserted NoOp, and we expect to find
                   the relevant LoadG immediately after it. */
-               vassert(n_fixups >= 0 && n_fixups <= N_FIXUPS);
-               if (n_fixups < N_FIXUPS) {
-                  fixups[n_fixups++] = out->stmts_used;
+               vassert(*n_fixups >= 0 && *n_fixups <= N_FIXUPS);
+               if (*n_fixups < N_FIXUPS) {
+                  fixups[*n_fixups++] = out->stmts_used;
                   addStmtToIRStmtVec(out, IRStmt_NoOp());
                }
             }
@@ -3026,6 +3039,18 @@ static IRStmtVec* subst_and_fold_Stmts(SubstEnv* env, IRStmtVec* in)
       /* Not interesting, copy st2 into the output vector. */
       addStmtToIRStmtVec(out, st2);
    }
+}
+
+/* Is to be called with already created SubstEnv as per newSubstEnv(). */
+static IRStmtVec* subst_and_fold_StmtVec(SubstEnv* env, IRStmtVec* in)
+{
+   /* Keep track of IRStmt_LoadGs that we need to revisit after
+      processing all the other statements. */
+   UInt fixups[N_FIXUPS]; /* indices in the stmt array of 'out' */
+   UInt n_fixups = 0;
+
+   IRStmtVec* out = env->stmts;
+   subst_and_fold_Stmts(env, in, fixups, &n_fixups);
 
    /* Process any leftover unconditional LoadGs that we noticed
       in the main pass. */
@@ -3074,13 +3099,14 @@ static IRStmtVec* subst_and_fold_Stmts(SubstEnv* env, IRStmtVec* in)
 
    return out;
 }
+#undef N_FIXUPS
 
 IRSB* cprop_BB ( IRSB* in )
 {
    SubstEnv* env = newSubstEnv(in->tyenv, in->stmts, NULL);
    IRSB* out     = emptyIRSB();
    out->tyenv    = deepCopyIRTypeEnv(in->tyenv);
-   out->stmts    = subst_and_fold_Stmts(env, in->stmts);
+   out->stmts    = subst_and_fold_StmtVec(env, in->stmts);
    out->id_seq   = in->id_seq;
    out->next     = subst_Expr( env, in->next );
    out->jumpkind = in->jumpkind;
