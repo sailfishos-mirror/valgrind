@@ -5289,8 +5289,15 @@ static void ppAEnv ( ATmpInfo* env )
 static void initAEnv(ATmpInfo env[], ATmpInfo parent[])
 {
    for (UInt i = 0; i < A_NENV; i++) {
-      env[i].bindee = (parent != NULL) ? parent[i].bindee : NULL;
-      env[i].binder = (parent != NULL) ? parent[i].binder : IRTemp_INVALID;
+      if (LIKELY(parent == NULL)) {
+         env[i].binder = IRTemp_INVALID;
+         env[i].bindee = NULL;
+      } else {
+         env[i].binder      = parent[i].binder;
+         env[i].bindee      = parent[i].bindee;
+         env[i].doesLoad    = parent[i].doesLoad;
+         env[i].getInterval = parent[i].getInterval;
+      }
    }
 }
 
