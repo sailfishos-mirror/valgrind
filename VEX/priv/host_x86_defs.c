@@ -2507,7 +2507,7 @@ UInt emit_X86Instr ( /*MB_MOD*/Bool* is_profInc,
 
    case Xin_Jmp: {
       Long deltaLL
-         = ((Long)(i->Xin.Jmp.hereOffs)) - ((Long)(i->Xin.Jmp.dstOffs));
+         = ((Long)(i->Xin.Jmp.dstOffs)) - ((Long)(i->Xin.Jmp.hereOffs));
       /* Stay sane .. */
       vassert(-1000000LL <= deltaLL && deltaLL <= 1000000LL);
       Int delta = (Int)deltaLL;
@@ -2515,13 +2515,13 @@ UInt emit_X86Instr ( /*MB_MOD*/Bool* is_profInc,
          the next instruction.  Also, there are short and long encodings of
          this instruction.  Try to use the short one if possible. */
       if (delta >= -0x78 && delta <= 0x78) {
-         delta += 2;
+         delta -= 2;
          *p++ = toUChar(0xEB);
          *p++ = toUChar(delta & 0xFF);
          delta >>= 8;
          vassert(delta == 0 || delta == -1);
       } else {
-         delta += 5;
+         delta -= 5;
          *p++ = toUChar(0xE9);
          p = emit32(p, (UInt)delta);
       }
