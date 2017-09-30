@@ -205,7 +205,7 @@ typedef
    struct _MCEnv {
       /* MODIFIED: the stmts being constructed. IRStmts are added. */
       IRStmtVec* stmts;
-      IRTypeEnv* tyenv;
+      IRTypeEnv* tyenv; // Shared among all MCEnv instances.
       UInt       depth; /* for indenting properly nested statements */
 
       /* MODIFIED: a table [0 .. #temps_in_sb-1] which gives the
@@ -222,7 +222,7 @@ typedef
          attached to sb so as to make it possible to do
          "typeOfIRExpr(mce->tyenv, ...)" at various places in the
          instrumentation process. */
-      XArray* /* of TempMapEnt */ tmpMap;
+      XArray* /* of TempMapEnt */ tmpMap; // Shared among all MCEnv instances
 
       struct _MCEnv* parent;
 
@@ -334,15 +334,19 @@ static void initMCEnv(IRTypeEnv* tyenv, IRStmtVec* stmts_in, MCEnv* mce,
    mce->parent   = parent_mce;
    mce->settings = (parent_mce != NULL) ? parent_mce->settings : NULL;
 
-   mce->tmpMap   = VG_(newXA)(VG_(malloc), "mc.createMCEnv.1", VG_(free),
-                              sizeof(TempMapEnt));
-   VG_(hintSizeXA)(mce->tmpMap, mce->tyenv->used);
-   for (UInt i = 0; i < mce->tyenv->used; i++) {
-      TempMapEnt ent;
-      ent.kind    = Orig;
-      ent.shadowV = IRTemp_INVALID;
-      ent.shadowB = IRTemp_INVALID;
-      VG_(addToXA)(mce->tmpMap, &ent);
+   if (parent_mce == NULL) {
+      mce->tmpMap   = VG_(newXA)(VG_(malloc), "mc.createMCEnv.1", VG_(free),
+                                 sizeof(TempMapEnt));
+      VG_(hintSizeXA)(mce->tmpMap, mce->tyenv->used);
+      for (UInt i = 0; i < mce->tyenv->used; i++) {
+         TempMapEnt ent;
+         ent.kind    = Orig;
+         ent.shadowV = IRTemp_INVALID;
+         ent.shadowB = IRTemp_INVALID;
+         VG_(addToXA)(mce->tmpMap, &ent);
+      }
+   } else {
+      mce->tmpMap = parent_mce->tmpMap;
    }
    tl_assert(VG_(sizeXA)(mce->tmpMap) == tyenv->used);
 }
@@ -352,7 +356,9 @@ static void deinitMCEnv(MCEnv* mce)
    /* If this fails, there's been some serious snafu with tmp management,
       that should be investigated. */
    tl_assert(VG_(sizeXA)(mce->tmpMap) == mce->tyenv->used);
-   VG_(deleteXA)(mce->tmpMap);
+   if (mce->parent == NULL) {
+      VG_(deleteXA)(mce->tmpMap);
+   }
 }
 
 
