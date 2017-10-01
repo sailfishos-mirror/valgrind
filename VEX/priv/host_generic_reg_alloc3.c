@@ -569,7 +569,7 @@ static inline HReg find_vreg_to_spill(
    incoming instruction stream as possible. An ideal rreg candidate is
    a callee-save register because it won't be used for parameter passing
    around helper function calls. */
-static Bool find_free_rreg(
+static inline Bool find_free_rreg(
    const RegAllocChunk* chunk, RegAllocState* state,
    Short ii_chunk_current, HRegClass target_hregclass,
    Bool reserve_phase, const RegAllocControl* con, UInt* r_idx_found)
@@ -1541,14 +1541,19 @@ static void merge_vreg_states(RegAllocChunk* chunk,
       case Unallocated:
          /* Good. Nothing to do. */
          break;
-      case Assigned: /* fall through */
-      case Spilled:
+      case Assigned:
          /* Should be dead by now. */
          vassert(v2_src_state->dead_before <= chunk->next->ii_total_start);
 
          HReg rreg2 = v2_src_state->rreg;
          FREE_VREG(v2_src_state);
          FREE_RREG(&state2->rregs[hregIndex(rreg2)]);
+         break;
+      case Spilled:
+         /* Should be dead by now. */
+         vassert(v2_src_state->dead_before <= chunk->next->ii_total_start);
+
+         FREE_VREG(v2_src_state);
          break;
       default:
          vassert(0);
