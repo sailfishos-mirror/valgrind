@@ -483,12 +483,11 @@ static inline void mark_vreg_spilled(UInt v_idx, RegAllocState* state)
 /* Spills a vreg assigned to some rreg.
    The vreg is spilled and the rreg is freed.
    Returns rreg's index. */
-static inline UInt spill_vreg(
-   RegAllocChunk* chunk, RegAllocState* state,
-   HReg vreg, UInt v_idx, Short ii_total_current,
-   UInt depth, const RegAllocControl* con)
+static inline UInt spill_vreg(RegAllocChunk* chunk, RegAllocState* state,
+   HReg vreg, Short ii_total_current, UInt depth, const RegAllocControl* con)
 {
    /* Check some invariants first. */
+   UInt v_idx = hregIndex(vreg);
    vassert(IS_VALID_VREGNO((v_idx)));
    vassert(state->vregs[v_idx].disp == Assigned);
    HReg rreg = state->vregs[v_idx].rreg;
@@ -1099,8 +1098,7 @@ static void stage4_chunk(RegAllocChunk* chunk, RegAllocState* state,
          HReg vreg_to_spill = find_vreg_to_spill(chunk, state,                 \
                                     &chunk->reg_usage[ii_chunk], (_reg_class), \
                                     ii_chunk, con);                            \
-         _r_free_idx = spill_vreg(chunk, state,                                \
-                                  vreg_to_spill, hregIndex(vreg_to_spill),     \
+         _r_free_idx = spill_vreg(chunk, state, vreg_to_spill,                 \
                                   INSTRNO_TOTAL, depth, con);                  \
       }                                                                        \
                                                                                \
@@ -1301,8 +1299,8 @@ static void stage4_chunk(RegAllocChunk* chunk, RegAllocState* state,
                         mark_vreg_spilled(v_idx, state);
                      } else {
                         /* Spill the vreg. It is not used by this instruction.*/
-                        spill_vreg(chunk, state, vreg, v_idx, INSTRNO_TOTAL,
-                                   depth, con);
+                        spill_vreg(chunk, state, vreg, INSTRNO_TOTAL, depth,
+                                   con);
                      }
                   } else {
                      /* Find or make a free rreg where to move this vreg to. */
@@ -1598,12 +1596,21 @@ static void merge_vreg_states(RegAllocChunk* chunk,
             case Free: {
                /* Move rreg2 to rreg1 in outOfLine/state2. */
                reg_reg_move(outOfLine, state2, hregIndex(rreg2),
-                            hregIndex(rreg1), vregD, depth, con);
+                         hregIndex(rreg1), state2->rregs[hregIndex(rreg2)].vreg,
+                         depth, con);
                break;
             }
-            case Bound:
-               vpanic("Assigned/Assigned move to a bound rreg not implemented");
+            case Bound: {
+               /* Make room in state2->rregs[rreg1] first. */
+               UInt r_spilled_idx = spill_vreg(outOfLine, state2,
+                                state2->rregs[hregIndex(rreg1)].vreg,
+                                chunk->next->ii_total_start, depth, con);
+               vassert(r_spilled_idx == hregIndex(rreg1));
+               reg_reg_move(outOfLine, state2, hregIndex(rreg2),
+                         hregIndex(rreg1), state2->rregs[hregIndex(rreg2)].vreg,
+                         depth, con);
                break;
+            }
             default:
                vassert(0);
             }
