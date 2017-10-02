@@ -194,6 +194,7 @@ typedef
 
 #define IS_VALID_VREGNO(v) ((v) >= 0 && (v) < state->n_vregs)
 #define IS_VALID_RREGNO(r) ((r) >= 0 && (r) < state->n_rregs)
+#define MK_VREG(idx, reg_class) mkHReg(True, (reg_class), 0, idx)
 
 #define FREE_VREG(v)             \
    do {                          \
@@ -642,6 +643,39 @@ static inline void reg_reg_move(RegAllocChunk* chunk, RegAllocState* state,
    state->rregs[rd_idx].vreg          = vreg;
    state->rregs[rd_idx].eq_spill_slot = state->rregs[rs_idx].eq_spill_slot;
    FREE_RREG(&state->rregs[rs_idx]);
+}
+
+/* Assigns a vreg to a free rreg. If |genReload| is True, generates reload
+   ("fill" in the proper terminology) as well. */
+static inline void assign_vreg(RegAllocChunk* chunk, RegAllocState* state,
+   HReg vreg, HReg rreg, Bool genReload, UInt depth, const RegAllocControl* con)
+{
+   UInt v_idx = hregIndex(vreg);
+   UInt r_idx = hregIndex(rreg);
+
+   if (genReload) {
+      HInstr* reload1 = NULL;
+      HInstr* reload2 = NULL;
+      con->genReload(&reload1, &reload2, rreg, state->vregs[v_idx].spill_offset,
+                     con->mode64);
+      vassert(reload1 != NULL || reload2 != NULL);
+      if (reload1 != NULL) {
+         emit_instr(chunk, reload1, depth, con, "reload1");
+      }
+      if (reload2 != NULL) {
+         emit_instr(chunk, reload2, depth, con, "reload2");
+      }
+   }
+
+   vassert(state->rregs[r_idx].disp == Free);
+   state->rregs[r_idx].disp          = Bound;
+   state->rregs[r_idx].vreg          = vreg;
+   state->rregs[r_idx].eq_spill_slot = True;
+
+   vassert(state->vregs[v_idx].disp == Unallocated
+           || state->vregs[v_idx].disp == Spilled);
+   state->vregs[v_idx].disp = Assigned;
+   state->vregs[v_idx].rreg = rreg;
 }
 
 
@@ -1444,27 +1478,15 @@ static void stage4_chunk(RegAllocChunk* chunk, RegAllocState* state,
             /* Generate reload only if the vreg is spilled and is about to being
                read or modified. If it is merely written than reloading it first
                would be pointless. */
+            Bool genReload;
             if ((state->vregs[v_idx].disp == Spilled)
                 && (reg_usage->vMode[j] != HRmWrite)) {
-
-               HInstr* reload1 = NULL;
-               HInstr* reload2 = NULL;
-               con->genReload(&reload1, &reload2, rreg,
-                         state->vregs[v_idx].spill_offset, con->mode64);
-               vassert(reload1 != NULL || reload2 != NULL);
-               if (reload1 != NULL) {
-                  emit_instr(chunk, reload1, depth, con, "reload1");
-               }
-               if (reload2 != NULL) {
-                  emit_instr(chunk, reload2, depth, con, "reload2");
-               }
+               genReload = True;
+            } else {
+               genReload = False;
             }
 
-            state->rregs[r_idx].disp          = Bound;
-            state->rregs[r_idx].vreg          = vreg;
-            state->rregs[r_idx].eq_spill_slot = True;
-            state->vregs[v_idx].disp = Assigned;
-            state->vregs[v_idx].rreg = rreg;
+            assign_vreg(chunk, state, vreg, rreg, genReload, depth, con);
             addToHRegRemap(&remap, vreg, rreg);
          }
 
@@ -1540,17 +1562,20 @@ static void stage4_emit_HInstrIfThenElse(RegAllocChunk* chunk, UInt depth,
 }
 
 /* Merges states of two vregs into the destination vreg:
-   |v1_idx| + |v2_idx| -> |vd_idx|.
-   Usually |v1_idx| == |v2_idx| == |vd_idx| so the merging happens between
+   |vreg1| + |vreg2| -> |vregD|.
+   Usually |vreg1| == |vreg2| == |vregD| so the merging happens between
    different states but for the same vreg.
-   For phi node merging, |v1_idx| != |v2_idx| != |vd_idx|.
-   Note: |v1_idx| and |vd_idx| are indexes to |state1|, |v2_idx| to |state2|. */
+   For phi node merging, |vreg1| != |vreg2| != |vregD|.
+   Note: |vreg1| and |vregD| refer to |state1|, |vreg2| to |state2|. */
 static void merge_vreg_states(RegAllocChunk* chunk,
    RegAllocState* state1, RegAllocState* state2,
-   UInt v1_idx, UInt v2_idx, UInt vd_idx, HReg vregD,
+   HReg vreg1, HReg vreg2, HReg vregD,
    UInt depth, const RegAllocControl* con)
 {
    RegAllocChunk* outOfLine = chunk->IfThenElse.outOfLine;
+   UInt v1_idx = hregIndex(vreg1);
+   UInt v2_idx = hregIndex(vreg2);
+   UInt vd_idx = hregIndex(vregD);
    VRegState* v1_src_state = &state1->vregs[v1_idx];
    VRegState* v2_src_state = &state2->vregs[v2_idx];
    VRegState* v1_dst_state = &state1->vregs[vd_idx];
@@ -1581,7 +1606,9 @@ static void merge_vreg_states(RegAllocChunk* chunk,
       }
       break;
 
-   case Assigned:
+   case Assigned: {
+      HReg rreg1 = v1_src_state->rreg;
+
       switch (v2_src_state->disp) {
       case Unallocated:
          vpanic("Logic error during register allocator state merge "
@@ -1589,26 +1616,23 @@ static void merge_vreg_states(RegAllocChunk* chunk,
 
       case Assigned: {
          /* Check if both vregs are assigned to the same rreg. */
-         HReg rreg1 = v1_src_state->rreg;
          HReg rreg2 = v2_src_state->rreg;
          if (! sameHReg(rreg1, rreg2)) {
             switch (state2->rregs[hregIndex(rreg1)].disp) {
             case Free: {
                /* Move rreg2 to rreg1 in outOfLine/state2. */
                reg_reg_move(outOfLine, state2, hregIndex(rreg2),
-                         hregIndex(rreg1), state2->rregs[hregIndex(rreg2)].vreg,
-                         depth, con);
+                            hregIndex(rreg1), vreg2, depth, con);
                break;
             }
             case Bound: {
                /* Make room in state2->rregs[rreg1] first. */
                UInt r_spilled_idx = spill_vreg(outOfLine, state2,
-                                state2->rregs[hregIndex(rreg1)].vreg,
-                                chunk->next->ii_total_start, depth, con);
+                                       state2->rregs[hregIndex(rreg1)].vreg,
+                                       chunk->next->ii_total_start, depth, con);
                vassert(r_spilled_idx == hregIndex(rreg1));
                reg_reg_move(outOfLine, state2, hregIndex(rreg2),
-                         hregIndex(rreg1), state2->rregs[hregIndex(rreg2)].vreg,
-                         depth, con);
+                            hregIndex(rreg1), vreg2, depth, con);
                break;
             }
             default:
@@ -1616,6 +1640,42 @@ static void merge_vreg_states(RegAllocChunk* chunk,
             }
          }
 
+         /* Proceed to phi node merging bellow. */
+         break;
+      }
+
+      case Spilled:
+         switch (state2->rregs[hregIndex(rreg1)].disp) {
+         case Free:
+            assign_vreg(outOfLine, state2, vreg2, rreg1, True, depth, con);
+            break;
+         case Bound: {
+            /* Make a room in state2->rregs[rreg1] first. */
+            HReg vreg_dead = state2->rregs[hregIndex(rreg1)].vreg;
+            UInt vdead_idx = hregIndex(vreg_dead);
+            /* That vreg should be dead by now. */
+            vassert(state2->vregs[vdead_idx].dead_before
+                    <= chunk->next->ii_total_start);
+
+            FREE_VREG(&state2->vregs[vdead_idx]);
+            FREE_RREG(&state2->rregs[hregIndex(rreg1)]);
+
+            assign_vreg(outOfLine, state2, vreg2, rreg1, True, depth, con);
+            break;
+         }
+         default:
+            vassert(0);
+         }
+
+         /* Proceed to phi node merging bellow. */
+         break;
+
+      default:
+         vassert(0);
+      }
+
+      /* Phi node merging. */
+      if (! sameHReg(vreg1, vreg2)) {
          FREE_VREG(v1_src_state);
          FREE_VREG(v2_src_state);
          v1_dst_state->disp = Assigned;
@@ -1625,21 +1685,12 @@ static void merge_vreg_states(RegAllocChunk* chunk,
 
          UInt r_idx = hregIndex(rreg1);
          vassert(state1->rregs[r_idx].disp == Bound);
-         state1->rregs[r_idx].eq_spill_slot = False;
-         if (v1_idx != vd_idx) {
-            vassert(!hregIsInvalid(vregD));
-            state1->rregs[r_idx].vreg       = vregD;
-         }
-         break;
-      }
-      case Spilled:
-         /* Generate reload. */
-         vpanic("Reload not implemented, yet.");
-         break;
-      default:
-         vassert(0);
+         state1->rregs[r_idx].eq_spill_slot
+            = (state1->rregs[r_idx].eq_spill_slot && state2->rregs[r_idx].eq_spill_slot);
+         state1->rregs[r_idx].vreg = vregD;
       }
       break;
+   } // case Assigned
 
    case Spilled:
       switch (v2_src_state->disp) {
@@ -1688,10 +1739,15 @@ static void stage4_merge_states(RegAllocChunk* chunk,
       for (UInt i = 0; i < chunk->IfThenElse.n_phis; i++) {
          const HPhiNode* phi_node = &chunk->IfThenElse.phi_nodes[i];
 
-         merge_vreg_states(chunk, state, cloned,
-                           hregIndex(phi_node->srcFallThrough),
-                           hregIndex(phi_node->srcOutOfLine),
-                           hregIndex(phi_node->dst), phi_node->dst, depth, con);
+         if (DEBUG_REGALLOC) {
+            print_depth(depth);
+            vex_printf("Now merging: ");
+            ppHPhiNode(phi_node);
+            vex_printf("\n");
+         }
+
+         merge_vreg_states(chunk, state, cloned, phi_node->srcFallThrough,
+                           phi_node->srcOutOfLine, phi_node->dst, depth, con);
       }
 
       if (DEBUG_REGALLOC) {
@@ -1711,8 +1767,12 @@ static void stage4_merge_states(RegAllocChunk* chunk,
    }
 
    for (UInt v_idx = 0; v_idx < state->n_vregs; v_idx++) {
-      merge_vreg_states(chunk, state, cloned, v_idx, v_idx, v_idx, INVALID_HREG,
-                        depth, con);
+      HRegClass reg_class = state->vregs[v_idx].reg_class;
+      if (reg_class != HRcINVALID) {
+         merge_vreg_states(chunk, state, cloned, MK_VREG(v_idx, reg_class),
+                           MK_VREG(v_idx, reg_class), MK_VREG(v_idx, reg_class),
+                           depth, con);
+      }
    }
 
    if (DEBUG_REGALLOC) {
