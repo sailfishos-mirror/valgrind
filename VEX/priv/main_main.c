@@ -891,11 +891,362 @@ AssemblyBufferOffset emitSimpleInsn ( /*MB_MOD*/Int* offs_profInc,
 }
 
 
+/* ---- The assembler ---- */
+
+/* Assemble RCODE, writing the resulting machine code into the buffer
+   specified by VTA->host_bytes of size VTA->host_bytes_size.  When done,
+   store the number of bytes written at the location specified by
+   VTA->host_bytes_used.  RES->offs_profInc may be modified as a result.  No
+   other fields of RES are changed.
+
+   Returns True for OK, False for 'ran out of buffer space'.
+*/
+static
+Bool theAssembler ( /*MOD*/VexTranslateResult* res,
+                    const VexTranslateArgs* vta,
+                    HInstrIfThenElse* (*isIfThenElse)( const HInstr* ),
+                    const Bool mode64,
+                    const HInstrSB* rcode )
+{
+   // QElem are work Queue elements.  The work Queue is the top level data
+   // structure for the emitter.  It is initialised with the HInstrVec* of
+   // the overall HInstrSB.  Every OOL HInstrVec* in the tree will at some
+   // point be present in the Queue.  IL HInstrVec*s are never present in
+   // the Queue because the inner emitter loop processes them in-line, using
+   // a Stack (see below) to keep track of its nesting level.
+   //
+   // The Stack (see below) is empty before and after every Queue element is
+   // processed.  In other words, the Stack only holds state needed during
+   // the processing of a single Queue element.
+   //
+   // The ordering of elements in the Queue is irrelevant -- correct code
+   // will be emitted even with set semantics (arbitrary order).  However,
+   // the FIFOness of the queue is believed to generate code in which
+   // colder and colder code (more deeply nested OOLs) is placed further
+   // and further from the start of the emitted machine code, which sounds
+   // like a layout which should minimise icache misses.
+   //
+   // QElems also contain two pieces of jump-fixup information.  When we
+   // finally come to process a QElem, we need to know:
+   //
+   // * |jumpToOOLpoint|: the place which wants to jump to the start of the
+   //   emitted insns for this QElem.  We must have already emitted that,
+   //   since it will be the conditional jump that leads to this QElem (OOL
+   //   block).
+   //
+   // * |resumePoint|: the place we should jump back to after the QElem is
+   //   finished (the "resume point"), which is the emitted code of the
+   //   HInstr immediately following the HInstrIfThenElse that has this
+   //   QElem as its OOL block.
+   //
+   // When the QElem is processed, we know both the |jumpToOOLpoint| and
+   // the |resumePoint|, and so the first can be patched, and the second
+   // we generate an instruction to jump to.
+   //
+   // There are three complications with patching:
+   //
+   // (1) per comments on Stack elems, we do not know the |resumePoint| when
+   //     creating a QElem.  That will only be known when processing of the
+   //     corresponding IL block is completed.
+   //
+   // (2) The top level HInstrVec* has neither a |jumpToOOLpoint| nor a
+   //     |resumePoint|.
+   //
+   // (3) Non-top-level OOLs may not have a valid |resumePoint| if they do
+   //     an unconditional IR-level Exit.  We can generate the resume point
+   //     branch, but it will be never be used.
+   typedef
+      struct {
+         // The HInstrs for this OOL.
+         HInstrVec* oolVec;
+         // Where we should patch to jump to the OOL ("how do we get here?")
+         Bool       jumpToOOLpoint_valid;
+         Relocation jumpToOOLpoint;
+         // Resume point offset, in bytes from start of output buffer
+         // ("where do we go after this block is completed?")
+         Bool                 resumePoint_valid;
+         AssemblyBufferOffset resumePoint;
+      }
+      QElem;
+
+
+   // SElem are stack elements.  When we suspend processing a HInstrVec* in
+   // order to process an IL path in an IfThenElse, we push the HInstrVec*
+   // and the next index to process on the stack, so that we know where to
+   // resume when the nested IL sequence is completed.  |vec| and |vec_next|
+   // record the resume HInstr.
+   //
+   // A second effect of processing a nested IL sequence is that we will
+   // have to (later) process the corresponding OOL sequence.  And that OOL
+   // sequence will have to finish with a jump back to the "resume point"
+   // (the emitted instruction immediately following the IfThenElse).  We
+   // only know the offset of the resume point instruction in the output
+   // buffer when we actually resume emitted from there -- that is, when the
+   // entry we pushed, is popped.  So, when we pop, we must mark the
+   // corresponding OOL entry in the Queue to record there the resume point
+   // offset.  For this reason we also carry |ool_qindex|, which is the
+   // index of the corresponding OOL entry in the Queue.
+   typedef
+      struct {
+         HInstrVec* vec;        // resume point HInstr vector
+         UInt       vec_next;   // resume point HInstr vector index
+         Int        ool_qindex; // index in Queue of OOL to mark when we resume
+      }
+      SElem;
+
+   // The Stack.  The stack depth is bounded by maximum number of nested
+   // hot (IL) sections, so in practice it is going to be very small.
+   const Int nSTACK = 4;
+
+   SElem stack[nSTACK];
+   Int   stackPtr; // points to most recently pushed entry <=> "-1 means empty"
+
+   // The Queue.  The queue size is bounded by the number of cold (OOL)
+   // sections in the entire HInstrSB, so it's also going to be pretty
+   // small.
+   const Int nQUEUE = 8;
+
+   QElem queue[nQUEUE];
+   Int   queueOldest; // index of oldest entry, initially 0
+   Int   queueNewest; // index of newest entry,
+                      // initially -1, otherwise must be >= queueOldest
+
+   ///////////////////////////////////////////////////////
+
+   const Bool verbose_asm = (vex_traceflags & VEX_TRACE_ASM) != 0;
+
+   const EmitConstants emitConsts
+      = { .mode64                     = mode64,
+          .endness_host               = vta->archinfo_host.endness,
+          .disp_cp_chain_me_to_slowEP = vta->disp_cp_chain_me_to_slowEP,
+          .disp_cp_chain_me_to_fastEP = vta->disp_cp_chain_me_to_fastEP,
+          .disp_cp_xindir             = vta->disp_cp_xindir,
+          .disp_cp_xassisted          = vta->disp_cp_xassisted };
+
+   AssemblyBufferOffset cursor = 0;
+   AssemblyBufferOffset cursor_limit = vta->host_bytes_size;
+
+   *(vta->host_bytes_used) = 0;
+
+   queueOldest = 0;
+   queueNewest = -1;
+
+   vassert(queueNewest < nQUEUE);
+   queueNewest++;
+   {
+      QElem* qe = &queue[queueNewest];
+      vex_bzero(qe, sizeof(*qe));
+      qe->oolVec = rcode->insns;
+      qe->jumpToOOLpoint_valid = False;
+      qe->resumePoint_valid = False;
+   }
+   vassert(queueNewest == 0);
+
+   /* Main loop, processing Queue entries, until there are no more. */
+   while (queueOldest <= queueNewest) {
+
+      Int qCur = queueOldest;
+      if (UNLIKELY(verbose_asm))
+         vex_printf("BEGIN queue[%d]\n", qCur);
+
+      // Take the oldest entry in the queue
+      QElem* qe = &queue[queueOldest];
+      queueOldest++;
+
+      // Stay sane.  Only the top level block has no branch to it and no
+      // resume point.
+      if (qe->oolVec == rcode->insns) {
+         // This is the top level block
+         vassert(!qe->jumpToOOLpoint_valid);
+         vassert(!qe->resumePoint_valid);
+      } else {
+         vassert(qe->jumpToOOLpoint_valid);
+         vassert(qe->resumePoint_valid);
+         // In the future, we might be able to allow the resume point to be
+         // invalid for non-top-level blocks, if the block contains an
+         // unconditional exit.  Currently the IR can't represent that, so
+         // the assertion is valid.
+      }
+
+      // Processing |qe|
+      if (qe->jumpToOOLpoint_valid) {
+         // patch qe->jmpToOOLpoint to jump to |here|
+         if (UNLIKELY(verbose_asm)) {
+            vex_printf("  -- APPLY ");
+            ppRelocation(qe->jumpToOOLpoint);
+            vex_printf("\n");
+         }
+         applyRelocation(qe->jumpToOOLpoint, &vta->host_bytes[0],
+                         cursor, cursor, vta->archinfo_host.endness,
+                         verbose_asm);
+      }
+
+      // Initialise the stack, for processing of |qe|.
+      stackPtr = 0; // "contains one element"
+
+      stack[stackPtr].vec        = qe->oolVec;
+      stack[stackPtr].vec_next   = 0;
+      stack[stackPtr].ool_qindex = -1; // INVALID
+
+      // Iterate till the stack is empty.  This effectively does a
+      // depth-first traversal of the hot-path (IL) tree reachable from
+      // here, and at the same time adds any encountered cold-path (OOL)
+      // blocks to the Queue for later processing.  This is the heart of the
+      // flattening algorithm.
+      while (stackPtr >= 0) {
+
+         if (UNLIKELY(verbose_asm))
+            vex_printf("  -- CONSIDER stack[%d]\n", stackPtr);
+
+         HInstrVec* vec        = stack[stackPtr].vec;
+         UInt       vec_next   = stack[stackPtr].vec_next;
+         Int        ool_qindex = stack[stackPtr].ool_qindex;
+         stackPtr--;
+
+         if (vec_next > 0) {
+            // We're resuming the current IL block having just finished
+            // processing a nested IL.  The OOL counterpart to the nested IL
+            // we just finished processing will have to jump back to here.
+            // So we'll need to mark its Queue entry to record that fact.
+
+            // First assert that the OOL actually *is* in the Queue (it
+            // must be, since we can't have processed it yet).
+            vassert(queueOldest <= queueNewest); // "at least 1 entry in Q"
+            vassert(queueOldest <= ool_qindex && ool_qindex <= queueNewest);
+
+            vassert(!queue[ool_qindex].resumePoint_valid);
+            queue[ool_qindex].resumePoint       = cursor;
+            queue[ool_qindex].resumePoint_valid = True;
+            if (UNLIKELY(verbose_asm))
+               vex_printf("  -- RESUME previous IL\n");
+         } else {
+            // We're starting a new IL.  Due to the tail-recursive nature of
+            // entering ILs, this means we can actually only be starting the
+            // outermost (top level) block for this particular Queue entry.
+            vassert(ool_qindex == -1);
+            vassert(vec == qe->oolVec);
+            if (UNLIKELY(verbose_asm))
+               vex_printf("  -- START new IL\n");
+         }
+
+         // Repeatedly process "zero or more simple HInstrs followed by (an
+         // IfThenElse or end-of-block)"
+         while (True) {
+
+            // Process "zero or more simple HInstrs"
+            while (vec_next < vec->insns_used
+                   && !isIfThenElse(vec->insns[vec_next])) {
+               AssemblyBufferOffset cursor_next
+                  = emitSimpleInsn( &(res->offs_profInc), &vta->host_bytes[0],
+                                    cursor, cursor_limit, vec->insns[vec_next],
+                                    &emitConsts, vta );
+               if (UNLIKELY(cursor_next == cursor)) {
+                  // We ran out of output space.  Give up.
+                  return False;
+               }
+               vec_next++;
+               cursor = cursor_next;
+            }
+
+            // Now we've either got to the end of the hot path, or we have
+            // an IfThenElse.
+            if (vec_next >= vec->insns_used)
+               break;
+
+            // So we have an IfThenElse.
+            HInstrIfThenElse* hite = isIfThenElse(vec->insns[vec_next]);
+            vassert(hite);
+            vassert(hite->n_phis == 0); // the regalloc will have removed them
+
+            // Put |ite|'s OOL block in the Queue.  We'll deal with it
+            // later.  Also, generate the (skeleton) conditional branch to it,
+            // and collect enough information that we can create patch the
+            // branch later, once we know where the destination is.
+            vassert(queueNewest < nQUEUE-1); // else out of Queue space
+            queueNewest++;
+            queue[queueNewest].oolVec = hite->outOfLine;
+            queue[queueNewest].resumePoint_valid = False; // not yet known
+            queue[queueNewest].resumePoint = -1; // invalid
+
+            HInstr* cond_branch
+               = X86Instr_JmpCond(hite->ccOOL,
+                                  queueNewest/*FOR DEBUG PRINTING ONLY*/);
+            AssemblyBufferOffset cursor_next
+               = emitSimpleInsn( &(res->offs_profInc), &vta->host_bytes[0],
+                                 cursor, cursor_limit, cond_branch,
+                                 &emitConsts, vta );
+            if (UNLIKELY(cursor_next == cursor)) {
+               // We ran out of output space.  Give up.
+               return False;
+            }
+            queue[queueNewest].jumpToOOLpoint_valid = True;
+            queue[queueNewest].jumpToOOLpoint
+               = collectRelocInfo_X86(cursor, cond_branch);
+
+            cursor = cursor_next;
+
+            // Now we descend into |ite's| IL block.  So we need to save
+            // where we are in this block, so we can resume when the inner
+            // one is done.
+            vassert(stackPtr < nSTACK-1); // else out of Stack space
+            stackPtr++;
+            stack[stackPtr].vec        = vec;
+            stack[stackPtr].vec_next   = vec_next+1;
+            stack[stackPtr].ool_qindex = queueNewest;
+
+            // And now descend into the inner block.  We could have just
+            // pushed its details on the stack and immediately pop it, but
+            // it seems simpler to update |vec| and |vec_next| and continue
+            // directly.
+            if (UNLIKELY(verbose_asm)) {
+               vex_printf("  -- START inner IL\n");
+            }
+            vec      = hite->fallThrough;
+            vec_next = 0;
+
+            // And continue with "Repeatedly process ..."
+         }
+
+         // Getting here means we've completed an inner IL and now want to
+         // resume the parent IL.  That is, pop a saved context off the
+         // stack.
+      }
+
+      // Hot path is complete.  Now, probably, we have to add a jump
+      // back to the resume point.
+      if (qe->resumePoint_valid) {
+         if (0)
+            vex_printf("  // Generate jump to resume point [%03u]\n",
+                       qe->resumePoint);
+         HInstr* jmp = X86Instr_Jmp(cursor, qe->resumePoint);
+         AssemblyBufferOffset cursor_next
+            = emitSimpleInsn( &(res->offs_profInc), &vta->host_bytes[0],
+                              cursor, cursor_limit, jmp,
+                              &emitConsts, vta );
+         if (UNLIKELY(cursor_next == cursor)) {
+            // We ran out of output space.  Give up.
+            return False;
+         }
+         cursor = cursor_next;
+      }
+
+      if (UNLIKELY(verbose_asm))
+         vex_printf("END queue[%d]\n\n", qCur);
+      // Finished with this Queue entry.
+   }
+   // Queue empty, all blocks processed
+
+   *(vta->host_bytes_used) = cursor;
+
+   return True; // OK
+}
+
+
 /* ---- The back end proper ---- */
 
 /* Back end of the compilation pipeline.  Is not exported. */
 
-static void libvex_BackEnd ( const VexTranslateArgs *vta,
+static void libvex_BackEnd ( const VexTranslateArgs* vta,
                              /*MOD*/ VexTranslateResult* res,
                              /*MOD*/ IRSB* irsb,
                              VexRegisterUpdates pxControl )
@@ -926,14 +1277,13 @@ static void libvex_BackEnd ( const VexTranslateArgs *vta,
 
    const RRegUniverse* rRegUniv = NULL;
 
-   Bool            mode64, chainingAllowed;
-   Int             out_used;
-   Int guest_sizeB;
-   Int offB_HOST_EvC_COUNTER;
-   Int offB_HOST_EvC_FAILADDR;
-   Addr            max_ga;
-   HInstrSB*       vcode;
-   HInstrSB*       rcode;
+   Bool      mode64, chainingAllowed;
+   Int       guest_sizeB;
+   Int       offB_HOST_EvC_COUNTER;
+   Int       offB_HOST_EvC_FAILADDR;
+   Addr      max_ga;
+   HInstrSB* vcode;
+   HInstrSB* rcode;
 
    isMove                  = NULL;
    getRegUsage             = NULL;
@@ -1311,340 +1661,9 @@ static void libvex_BackEnd ( const VexTranslateArgs *vta,
                    "------------------------\n\n");
    }
 
-   ////////////////////////////////////////////////////////
-   //// BEGIN the assembler
-
-   // QElem are work Queue elements.  The work Queue is the top level data
-   // structure for the emitter.  It is initialised with the HInstrVec* of
-   // the overall HInstrSB.  Every OOL HInstrVec* in the tree will at some
-   // point be present in the Queue.  IL HInstrVec*s are never present in
-   // the Queue because the inner emitter loop processes them in-line, using
-   // a Stack (see below) to keep track of its nesting level.
-   //
-   // The Stack (see below) is empty before and after every Queue element is
-   // processed.  In other words, the Stack only holds state needed during
-   // the processing of a single Queue element.
-   //
-   // The ordering of elements in the Queue is irrelevant -- correct code
-   // will be emitted even with set semantics (arbitrary order).  However,
-   // the FIFOness of the queue is believed to generate code in which
-   // colder and colder code (more deeply nested OOLs) is placed further
-   // and further from the start of the emitted machine code, which sounds
-   // like a layout which should minimise icache misses.
-   //
-   // QElems also contain two pieces of jump-fixup information.  When we
-   // finally come to process a QElem, we need to know:
-   //
-   // * |jumpToOOLpoint|: the place which wants to jump to the start of the
-   //   emitted insns for this QElem.  We must have already emitted that,
-   //   since it will be the conditional jump that leads to this QElem (OOL
-   //   block).
-   //
-   // * |resumePoint|: the place we should jump back to after the QElem is
-   //   finished (the "resume point"), which is the emitted code of the
-   //   HInstr immediately following the HInstrIfThenElse that has this
-   //   QElem as its OOL block.
-   //
-   // When the QElem is processed, we know both the |jumpToOOLpoint| and
-   // the |resumePoint|, and so the first can be patched, and the second
-   // we generate an instruction to jump to.
-   //
-   // There are three complications with patching:
-   //
-   // (1) per comments on Stack elems, we do not know the |resumePoint| when
-   //     creating a QElem.  That will only be known when processing of the
-   //     corresponding IL block is completed.
-   //
-   // (2) The top level HInstrVec* has neither a |jumpToOOLpoint| nor a
-   //     |resumePoint|.
-   //
-   // (3) Non-top-level OOLs may not have a valid |resumePoint| if they do
-   //     an unconditional IR-level Exit.  We can generate the resume point
-   //     branch, but it will be never be used.
-   typedef
-      struct {
-         // The HInstrs for this OOL.
-         HInstrVec* oolVec;
-         // Where we should patch to jump to the OOL ("how do we get here?")
-         Bool       jumpToOOLpoint_valid;
-         Relocation jumpToOOLpoint;
-         // Resume point offset, in bytes from start of output buffer
-         // ("where do we go after this block is completed?")
-         Bool                 resumePoint_valid;
-         AssemblyBufferOffset resumePoint;
-      }
-      QElem;
-
-
-   // SElem are stack elements.  When we suspend processing a HInstrVec* in
-   // order to process an IL path in an IfThenElse, we push the HInstrVec*
-   // and the next index to process on the stack, so that we know where to
-   // resume when the nested IL sequence is completed.  |vec| and |vec_next|
-   // record the resume HInstr.
-   //
-   // A second effect of processing a nested IL sequence is that we will
-   // have to (later) process the corresponding OOL sequence.  And that OOL
-   // sequence will have to finish with a jump back to the "resume point"
-   // (the emitted instruction immediately following the IfThenElse).  We
-   // only know the offset of the resume point instruction in the output
-   // buffer when we actually resume emitted from there -- that is, when the
-   // entry we pushed, is popped.  So, when we pop, we must mark the
-   // corresponding OOL entry in the Queue to record there the resume point
-   // offset.  For this reason we also carry |ool_qindex|, which is the
-   // index of the corresponding OOL entry in the Queue.
-   typedef
-      struct {
-         HInstrVec* vec;        // resume point HInstr vector
-         UInt       vec_next;   // resume point HInstr vector index
-         Int        ool_qindex; // index in Queue of OOL to mark when we resume
-      }
-      SElem;
-
-   // The Stack.  The stack depth is bounded by maximum number of nested
-   // hot (IL) sections, so in practice it is going to be very small.
-   const Int nSTACK = 4;
-
-   SElem stack[nSTACK];
-   Int   stackPtr; // points to most recently pushed entry <=> "-1 means empty"
-
-   // The Queue.  The queue size is bounded by the number of cold (OOL)
-   // sections in the entire HInstrSB, so it's also going to be pretty
-   // small.
-   const Int nQUEUE = 8;
-
-   QElem queue[nQUEUE];
-   Int   queueOldest; // index of oldest entry, initially 0
-   Int   queueNewest; // index of newest entry,
-                      // initially -1, otherwise must be >= queueOldest
-
-   ///////////////////////////////////////////////////////
-
-   const Bool verbose_asm = (vex_traceflags & VEX_TRACE_ASM) != 0;
-
-   const EmitConstants emitConsts
-      = { .mode64                     = mode64,
-          .endness_host               = vta->archinfo_host.endness,
-          .disp_cp_chain_me_to_slowEP = vta->disp_cp_chain_me_to_slowEP,
-          .disp_cp_chain_me_to_fastEP = vta->disp_cp_chain_me_to_fastEP,
-          .disp_cp_xindir             = vta->disp_cp_xindir,
-          .disp_cp_xassisted          = vta->disp_cp_xassisted };
-
-   AssemblyBufferOffset cursor = 0;
-   AssemblyBufferOffset cursor_limit = vta->host_bytes_size;
-
-   queueOldest = 0;
-   queueNewest = -1;
-
-   vassert(queueNewest < nQUEUE);
-   queueNewest++;
-   {
-      QElem* qe = &queue[queueNewest];
-      vex_bzero(qe, sizeof(*qe));
-      qe->oolVec = rcode->insns;
-      qe->jumpToOOLpoint_valid = False;
-      qe->resumePoint_valid = False;
-   }
-   vassert(queueNewest == 0);
-
-   /* Main loop, processing Queue entries, until there are no more. */
-   while (queueOldest <= queueNewest) {
-
-      Int qCur = queueOldest;
-      if (UNLIKELY(verbose_asm))
-         vex_printf("BEGIN queue[%d]\n", qCur);
-
-      // Take the oldest entry in the queue
-      QElem* qe = &queue[queueOldest];
-      queueOldest++;
-
-      // Stay sane.  Only the top level block has no branch to it and no
-      // resume point.
-      if (qe->oolVec == rcode->insns) {
-         // This is the top level block
-         vassert(!qe->jumpToOOLpoint_valid);
-         vassert(!qe->resumePoint_valid);
-      } else {
-         vassert(qe->jumpToOOLpoint_valid);
-         vassert(qe->resumePoint_valid);
-         // In the future, we might be able to allow the resume point to be
-         // invalid for non-top-level blocks, if the block contains an
-         // unconditional exit.  Currently the IR can't represent that, so
-         // the assertion is valid.
-      }
-
-      // Processing |qe|
-      if (qe->jumpToOOLpoint_valid) {
-         // patch qe->jmpToOOLpoint to jump to |here|
-         if (UNLIKELY(verbose_asm)) {
-            vex_printf("  -- APPLY ");
-            ppRelocation(qe->jumpToOOLpoint);
-            vex_printf("\n");
-         }
-         applyRelocation(qe->jumpToOOLpoint, &vta->host_bytes[0],
-                         cursor, cursor, vta->archinfo_host.endness,
-                         verbose_asm);
-      }
-
-      // Initialise the stack, for processing of |qe|.
-      stackPtr = 0; // "contains one element"
-
-      stack[stackPtr].vec        = qe->oolVec;
-      stack[stackPtr].vec_next   = 0;
-      stack[stackPtr].ool_qindex = -1; // INVALID
-
-      // Iterate till the stack is empty.  This effectively does a
-      // depth-first traversal of the hot-path (IL) tree reachable from
-      // here, and at the same time adds any encountered cold-path (OOL)
-      // blocks to the Queue for later processing.  This is the heart of the
-      // flattening algorithm.
-      while (stackPtr >= 0) {
-
-         if (UNLIKELY(verbose_asm))
-            vex_printf("  -- CONSIDER stack[%d]\n", stackPtr);
-
-         HInstrVec* vec        = stack[stackPtr].vec;
-         UInt       vec_next   = stack[stackPtr].vec_next;
-         Int        ool_qindex = stack[stackPtr].ool_qindex;
-         stackPtr--;
-
-         if (vec_next > 0) {
-            // We're resuming the current IL block having just finished
-            // processing a nested IL.  The OOL counterpart to the nested IL
-            // we just finished processing will have to jump back to here.
-            // So we'll need to mark its Queue entry to record that fact.
-
-            // First assert that the OOL actually *is* in the Queue (it
-            // must be, since we can't have processed it yet).
-            vassert(queueOldest <= queueNewest); // "at least 1 entry in Q"
-            vassert(queueOldest <= ool_qindex && ool_qindex <= queueNewest);
-
-            vassert(!queue[ool_qindex].resumePoint_valid);
-            queue[ool_qindex].resumePoint       = cursor;
-            queue[ool_qindex].resumePoint_valid = True;
-            if (UNLIKELY(verbose_asm))
-               vex_printf("  -- RESUME previous IL\n");
-         } else {
-            // We're starting a new IL.  Due to the tail-recursive nature of
-            // entering ILs, this means we can actually only be starting the
-            // outermost (top level) block for this particular Queue entry.
-            vassert(ool_qindex == -1);
-            vassert(vec == qe->oolVec);
-            if (UNLIKELY(verbose_asm))
-               vex_printf("  -- START new IL\n");
-         }
-
-         // Repeatedly process "zero or more simple HInstrs followed by (an
-         // IfThenElse or end-of-block)"
-         while (True) {
-
-            // Process "zero or more simple HInstrs"
-            while (vec_next < vec->insns_used
-                   && !isIfThenElse(vec->insns[vec_next])) {
-               AssemblyBufferOffset cursor_next
-                  = emitSimpleInsn( &(res->offs_profInc), &vta->host_bytes[0],
-                                    cursor, cursor_limit, vec->insns[vec_next],
-                                    &emitConsts, vta );
-               if (UNLIKELY(cursor_next == cursor)) {
-                  // We ran out of output space.  Give up.
-                  goto out_of_buffer_space;
-               }
-               vec_next++;
-               cursor = cursor_next;
-            }
-
-            // Now we've either got to the end of the hot path, or we have
-            // an IfThenElse.
-            if (vec_next >= vec->insns_used)
-               break;
-
-            // So we have an IfThenElse.
-            HInstrIfThenElse* hite = isIfThenElse(vec->insns[vec_next]);
-            vassert(hite);
-            vassert(hite->n_phis == 0); // the regalloc will have removed them
-
-            // Put |ite|'s OOL block in the Queue.  We'll deal with it
-            // later.  Also, generate the (skeleton) conditional branch to it,
-            // and collect enough information that we can create patch the
-            // branch later, once we know where the destination is.
-            vassert(queueNewest < nQUEUE-1); // else out of Queue space
-            queueNewest++;
-            queue[queueNewest].oolVec = hite->outOfLine;
-            queue[queueNewest].resumePoint_valid = False; // not yet known
-            queue[queueNewest].resumePoint = -1; // invalid
-
-            HInstr* cond_branch
-               = X86Instr_JmpCond(hite->ccOOL,
-                                  queueNewest/*FOR DEBUG PRINTING ONLY*/);
-            AssemblyBufferOffset cursor_next
-               = emitSimpleInsn( &(res->offs_profInc), &vta->host_bytes[0],
-                                 cursor, cursor_limit, cond_branch,
-                                 &emitConsts, vta );
-            if (UNLIKELY(cursor_next == cursor)) {
-               // We ran out of output space.  Give up.
-               goto out_of_buffer_space;
-            }
-            queue[queueNewest].jumpToOOLpoint_valid = True;
-            queue[queueNewest].jumpToOOLpoint
-               = collectRelocInfo_X86(cursor, cond_branch);
-
-            cursor = cursor_next;
-
-            // Now we descend into |ite's| IL block.  So we need to save
-            // where we are in this block, so we can resume when the inner
-            // one is done.
-            vassert(stackPtr < nSTACK-1); // else out of Stack space
-            stackPtr++;
-            stack[stackPtr].vec        = vec;
-            stack[stackPtr].vec_next   = vec_next+1;
-            stack[stackPtr].ool_qindex = queueNewest;
-
-            // And now descend into the inner block.  We could have just
-            // pushed its details on the stack and immediately pop it, but
-            // it seems simpler to update |vec| and |vec_next| and continue
-            // directly.
-            if (UNLIKELY(verbose_asm)) {
-               vex_printf("  -- START inner IL\n");
-            }
-            vec      = hite->fallThrough;
-            vec_next = 0;
-
-            // And continue with "Repeatedly process ..."
-         }
-
-         // Getting here means we've completed an inner IL and now want to
-         // resume the parent IL.  That is, pop a saved context off the
-         // stack.
-      }
-
-      // Hot path is complete.  Now, probably, we have to add a jump
-      // back to the resume point.
-      if (qe->resumePoint_valid) {
-         if (0)
-            vex_printf("  // Generate jump to resume point [%03u]\n",
-                       qe->resumePoint);
-         HInstr* jmp = X86Instr_Jmp(cursor, qe->resumePoint);
-         AssemblyBufferOffset cursor_next
-            = emitSimpleInsn( &(res->offs_profInc), &vta->host_bytes[0],
-                              cursor, cursor_limit, jmp,
-                              &emitConsts, vta );
-         if (UNLIKELY(cursor_next == cursor)) {
-            // We ran out of output space.  Give up.
-            goto out_of_buffer_space;
-         }
-         cursor = cursor_next;
-      }
-
-      if (UNLIKELY(verbose_asm))
-         vex_printf("END queue[%d]\n\n", qCur);
-      // Finished with this Queue entry.
-   }
-   // Queue empty, all blocks processed
-
-   *(vta->host_bytes_used) = cursor;
-   out_used = cursor;
-   ////
-   //// END of the assembler
-   ////////////////////////////////////////////////////////
+   Bool assembly_ok = theAssembler( res, vta, isIfThenElse, mode64, rcode );
+   if (!assembly_ok)
+      goto out_of_buffer_space;
 
    vexAllocSanityCheck();
 
@@ -1657,7 +1676,8 @@ static void libvex_BackEnd ( const VexTranslateArgs *vta,
          j += vta->guest_extents->len[i];
       }
       if (1) vex_printf("VexExpansionRatio %d %d   %d :10\n\n",
-                        j, out_used, (10 * out_used) / (j == 0 ? 1 : j));
+                        j, *(vta->host_bytes_used), 
+                        (10 * *(vta->host_bytes_used)) / (j == 0 ? 1 : j));
    }
 
    vex_traceflags = 0;
