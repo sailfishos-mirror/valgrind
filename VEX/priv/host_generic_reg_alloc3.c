@@ -32,6 +32,18 @@
 #include "main_util.h"
 #include "host_generic_regs.h"
 
+/* TODO-JIT: There is still a room for lot of improvements around phi node
+   merging. For example:
+   - When processing out-of-line leg, we may want to reserve rregs which
+     are assigned to phi node destinations, as to avoid spilling and reg-reg
+     move during the merge.
+   - Although RRegLR's are local to every instruction chunk, the register
+     allocator should have more visibility to what lies ahead after the merge.
+     Avoids the situation when registers are allocated somehow
+     in the fall-through leg and need to be spilled just few instructions
+     after the merge (because of a helper call, for example).
+*/
+
 /* Set to 1 for lots of debugging output. */
 #define DEBUG_REGALLOC 0
 
@@ -611,6 +623,26 @@ static inline Bool find_free_rreg(
    }
 
    return found;
+}
+
+/* Generates a rreg-rreg move for a given |vreg| from |rs_idx| -> |rd_idx|.
+   Updates the register allocator state. */
+static inline void reg_reg_move(RegAllocChunk* chunk, RegAllocState* state,
+    UInt rs_idx, UInt rd_idx, HReg vreg, UInt depth, const RegAllocControl* con)
+{
+   HInstr* move = con->genMove(con->univ->regs[rs_idx],
+                               con->univ->regs[rd_idx], con->mode64);
+   vassert(move != NULL);
+   emit_instr(chunk, move, depth, con, "move");
+
+   /* Update the register allocator state. */
+   UInt v_idx = hregIndex(vreg);
+   state->vregs[v_idx].disp = Assigned;
+   state->vregs[v_idx].rreg = con->univ->regs[rd_idx];
+   state->rregs[rd_idx].disp          = Bound;
+   state->rregs[rd_idx].vreg          = vreg;
+   state->rregs[rd_idx].eq_spill_slot = state->rregs[rs_idx].eq_spill_slot;
+   FREE_RREG(&state->rregs[rs_idx]);
 }
 
 
@@ -1278,18 +1310,9 @@ static void stage4_chunk(RegAllocChunk* chunk, RegAllocState* state,
                                   v_idx, state->vregs[v_idx].reg_class, True);
 
                      /* Generate "move" between real registers. */
-                     HInstr* move = con->genMove(con->univ->regs[r_idx],
-                                      con->univ->regs[r_free_idx], con->mode64);
-                     vassert(move != NULL);
-                     emit_instr(chunk, move, depth, con, "move");
-
-                     /* Update the register allocator state. */
                      vassert(state->vregs[v_idx].disp == Assigned);
-                     state->vregs[v_idx].rreg = con->univ->regs[r_free_idx];
-                     state->rregs[r_free_idx].disp          = Bound;
-                     state->rregs[r_free_idx].vreg          = vreg;
-                     state->rregs[r_free_idx].eq_spill_slot = rreg->eq_spill_slot;
-                     FREE_RREG(rreg);
+                     reg_reg_move(chunk, state, r_idx, r_free_idx, vreg,
+                                  depth, con);
                   }
                   break;
                }
@@ -1571,11 +1594,19 @@ static void merge_vreg_states(RegAllocChunk* chunk,
          HReg rreg1 = v1_src_state->rreg;
          HReg rreg2 = v2_src_state->rreg;
          if (! sameHReg(rreg1, rreg2)) {
-            /* Generate "move" from rreg2 to rreg1. */
-            HInstr* move = con->genMove(con->univ->regs[hregIndex(rreg2)],
-                                con->univ->regs[hregIndex(rreg1)], con->mode64);
-            vassert(move != NULL);
-            emit_instr(outOfLine, move, depth + 1, con, "move");
+            switch (state2->rregs[hregIndex(rreg1)].disp) {
+            case Free: {
+               /* Move rreg2 to rreg1 in outOfLine/state2. */
+               reg_reg_move(outOfLine, state2, hregIndex(rreg2),
+                            hregIndex(rreg1), vregD, depth, con);
+               break;
+            }
+            case Bound:
+               vpanic("Assigned/Assigned move to a bound rreg not implemented");
+               break;
+            default:
+               vassert(0);
+            }
          }
 
          FREE_VREG(v1_src_state);
@@ -1638,6 +1669,33 @@ static void stage4_merge_states(RegAllocChunk* chunk,
    RegAllocState* state, RegAllocState* cloned,
    UInt depth, const RegAllocControl* con)
 {
+   /* Process phi nodes first. */
+   if (chunk->IfThenElse.n_phis > 0) {
+      if (DEBUG_REGALLOC) {
+         print_state(chunk, state, chunk->next->ii_total_start, depth, con,
+                     "Before phi node merge: fall-through leg");
+         print_state(chunk, cloned, chunk->next->ii_total_start, depth, con,
+                     "Before phi node merge: out-of-line leg");
+      }
+
+      for (UInt i = 0; i < chunk->IfThenElse.n_phis; i++) {
+         const HPhiNode* phi_node = &chunk->IfThenElse.phi_nodes[i];
+
+         merge_vreg_states(chunk, state, cloned,
+                           hregIndex(phi_node->srcFallThrough),
+                           hregIndex(phi_node->srcOutOfLine),
+                           hregIndex(phi_node->dst), phi_node->dst, depth, con);
+      }
+
+      if (DEBUG_REGALLOC) {
+         print_state(chunk, state, chunk->next->ii_total_start, depth, con,
+                     "After phi node merge");
+      }
+   }
+
+   /* Merge remaining vreg states. VRegs mentioned by phi nodes are processed
+      as well but merging is no-op for them now. */
+
    if (DEBUG_REGALLOC) {
       print_state(chunk, state, chunk->next->ii_total_start, depth, con,
                   "Before state merge: fall-through leg");
@@ -1645,17 +1703,6 @@ static void stage4_merge_states(RegAllocChunk* chunk,
                   "Before state merge: out-of-line leg");
    }
 
-   /* Process phi nodes first. */
-   for (UInt i = 0; i < chunk->IfThenElse.n_phis; i++) {
-      const HPhiNode* phi_node = &chunk->IfThenElse.phi_nodes[i];
-
-      merge_vreg_states(chunk, state, cloned,
-         hregIndex(phi_node->srcFallThrough), hregIndex(phi_node->srcOutOfLine),
-         hregIndex(phi_node->dst), phi_node->dst, depth, con);
-   }
-
-   /* Merge remaining vreg states. VRegs mentioned by phi nodes are processed
-      as well but merging is no-op for them now. */
    for (UInt v_idx = 0; v_idx < state->n_vregs; v_idx++) {
       merge_vreg_states(chunk, state, cloned, v_idx, v_idx, v_idx, INVALID_HREG,
                         depth, con);
