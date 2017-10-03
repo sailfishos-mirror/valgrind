@@ -3581,8 +3581,8 @@ VexInvalRange patchProfInc_X86 ( VexEndness endness_host,
 
 /* Create relocation info needed to patch a branch offset for instruction I
    whose first instruction is at WHERE in the assembly buffer. */
-Relocation collectRelocInfo_X86 ( AssemblyBufferOffset where,
-                                  X86Instr* i )
+Relocation createRelocInfo_X86 ( AssemblyBufferOffset where,
+                                 const X86Instr* i )
 {
    /* Xin_JmpCond produces a conditional branch, of the form
          0F 8x <32-bit-offset>
@@ -3611,7 +3611,7 @@ Relocation collectRelocInfo_X86 ( AssemblyBufferOffset where,
          return rel;
       }
       default:
-         // We don't expect to be asked to compute relocation information
+         // We don't expect to be asked to create relocation information
          // for any other kind of instruction.
          vpanic("collectRelocInfo_X86");
    }

@@ -793,8 +793,8 @@ extern VexInvalRange patchProfInc_X86 ( VexEndness endness_host,
 
 /* Create relocation info needed to patch a branch offset for instruction I
    whose first instruction is at WHERE in the assembly buffer. */
-extern Relocation collectRelocInfo_X86 ( AssemblyBufferOffset where,
-                                         X86Instr* i );
+extern Relocation createRelocInfo_X86 ( AssemblyBufferOffset where,
+                                        const X86Instr* i );
 
 #endif /* ndef __VEX_HOST_X86_DEFS_H */
 

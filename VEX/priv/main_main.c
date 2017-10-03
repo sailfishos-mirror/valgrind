@@ -838,20 +838,23 @@ void applyRelocation ( Relocation rel,
    profiler-inc, *OFFS_PROFINC will be set to show its offset in the output
    buffer, else *OFFS_PROFINC will be unchanged.
 */
-static
-AssemblyBufferOffset emitSimpleInsn ( /*MB_MOD*/Int* offs_profInc,
-                                      UChar* buf,
-                                      AssemblyBufferOffset buf_used,
-                                      AssemblyBufferOffset buf_limit,
-                                      const HInstr* insn,
-                                      const EmitConstants* emitConsts,
-                                      const VexTranslateArgs* vta )
+static inline
+AssemblyBufferOffset emitSimpleInsn (
+   /*MB_MOD*/Int* offs_profInc,
+   UChar* buf,
+   AssemblyBufferOffset buf_used,
+   AssemblyBufferOffset buf_limit,
+   const HInstr* insn,
+   const EmitConstants* emitConsts,
+   const VexTranslateArgs* vta,
+   UInt (*emitHInstr)(Bool*, UChar*, UInt, const HInstr*, const EmitConstants*)
+)
 {
    /* Emit into a 128 byte temp buffer */
    UChar insn_bytes[128];
    Bool  isProfInc = False;
-   UInt  j = emit_X86Instr(&isProfInc, insn_bytes, sizeof(insn_bytes),
-                           insn, emitConsts);
+   UInt  j = emitHInstr(&isProfInc, insn_bytes, sizeof(insn_bytes),
+                        insn, emitConsts);
    /* Debug printing? */
    if (UNLIKELY(vex_traceflags & VEX_TRACE_ASM)) {
       const Int min_spacing = 9;
@@ -902,11 +905,18 @@ AssemblyBufferOffset emitSimpleInsn ( /*MB_MOD*/Int* offs_profInc,
    Returns True for OK, False for 'ran out of buffer space'.
 */
 static
-Bool theAssembler ( /*MOD*/VexTranslateResult* res,
-                    const VexTranslateArgs* vta,
-                    HInstrIfThenElse* (*isIfThenElse)( const HInstr* ),
-                    const Bool mode64,
-                    const HInstrSB* rcode )
+Bool theAssembler (
+   /*MOD*/VexTranslateResult* res,
+   const VexTranslateArgs*    vta,
+   const Bool                 mode64,
+   const HInstrSB*            rcode,
+   HInstrIfThenElse* (*isIfThenElse)(const HInstr*),
+   UInt              (*emitHInstr)(Bool*, UChar*, UInt,
+                                   const HInstr*, const EmitConstants*),
+   HInstr*           (*HInstr_Jmp)(UInt hereOffs, UInt dstOffs),
+   HInstr*           (*HInstr_JmpCond)(HCondCode cc, UInt qDstEntryNo),
+   Relocation        (*createRelocInfo)(AssemblyBufferOffset, const HInstr*)
+)
 {
    // QElem are work Queue elements.  The work Queue is the top level data
    // structure for the emitter.  It is initialised with the HInstrVec* of
@@ -1139,7 +1149,7 @@ Bool theAssembler ( /*MOD*/VexTranslateResult* res,
                AssemblyBufferOffset cursor_next
                   = emitSimpleInsn( &(res->offs_profInc), &vta->host_bytes[0],
                                     cursor, cursor_limit, vec->insns[vec_next],
-                                    &emitConsts, vta );
+                                    &emitConsts, vta, emitHInstr );
                if (UNLIKELY(cursor_next == cursor)) {
                   // We ran out of output space.  Give up.
                   return False;
@@ -1169,19 +1179,19 @@ Bool theAssembler ( /*MOD*/VexTranslateResult* res,
             queue[queueNewest].resumePoint = -1; // invalid
 
             HInstr* cond_branch
-               = X86Instr_JmpCond(hite->ccOOL,
-                                  queueNewest/*FOR DEBUG PRINTING ONLY*/);
+               = HInstr_JmpCond(hite->ccOOL,
+                                queueNewest/*FOR DEBUG PRINTING ONLY*/);
             AssemblyBufferOffset cursor_next
                = emitSimpleInsn( &(res->offs_profInc), &vta->host_bytes[0],
                                  cursor, cursor_limit, cond_branch,
-                                 &emitConsts, vta );
+                                 &emitConsts, vta, emitHInstr );
             if (UNLIKELY(cursor_next == cursor)) {
                // We ran out of output space.  Give up.
                return False;
             }
             queue[queueNewest].jumpToOOLpoint_valid = True;
             queue[queueNewest].jumpToOOLpoint
-               = collectRelocInfo_X86(cursor, cond_branch);
+               = createRelocInfo(cursor, cond_branch);
 
             cursor = cursor_next;
 
@@ -1218,11 +1228,11 @@ Bool theAssembler ( /*MOD*/VexTranslateResult* res,
          if (0)
             vex_printf("  // Generate jump to resume point [%03u]\n",
                        qe->resumePoint);
-         HInstr* jmp = X86Instr_Jmp(cursor, qe->resumePoint);
+         HInstr* jmp = HInstr_Jmp(cursor, qe->resumePoint);
          AssemblyBufferOffset cursor_next
             = emitSimpleInsn( &(res->offs_profInc), &vta->host_bytes[0],
                               cursor, cursor_limit, jmp,
-                              &emitConsts, vta );
+                              &emitConsts, vta, emitHInstr );
          if (UNLIKELY(cursor_next == cursor)) {
             // We ran out of output space.  Give up.
             return False;
@@ -1269,11 +1279,14 @@ static void libvex_BackEnd ( const VexTranslateArgs* vta,
    HInstrSB*    (*iselSB)       ( const IRSB*, VexArch, const VexArchInfo*,
                                   const VexAbiInfo*, Int, Int, Bool, Bool,
                                   Addr );
-   Int          (*emit)         ( /*MB_MOD*/Bool*,
-                                  UChar*, Int, const HInstr*, Bool, VexEndness,
-                                  const void*, const void*, const void*,
-                                  const void* );
-   Bool (*preciseMemExnsFn) ( Int, Int, VexRegisterUpdates );
+   UInt         (*emitInstr)    ( /*MB_MOD*/Bool*,
+                                  UChar*, UInt, const HInstr*,
+                                  const EmitConstants* );
+   Bool         (*preciseMemExnsFn)
+                                ( Int, Int, VexRegisterUpdates );
+   HInstr*      (*HInstr_Jmp)(UInt hereOffs, UInt dstOffs);
+   HInstr*      (*HInstr_JmpCond)(HCondCode cc, UInt qDstEntryNo);
+   Relocation   (*createRelocInfo)(AssemblyBufferOffset, const HInstr*);
 
    const RRegUniverse* rRegUniv = NULL;
 
@@ -1298,14 +1311,17 @@ static void libvex_BackEnd ( const VexTranslateArgs* vta,
    ppCondCode              = NULL;
    ppReg                   = NULL;
    iselSB                  = NULL;
-   emit                    = NULL;
+   emitInstr               = NULL;
+   preciseMemExnsFn        = NULL;
+   HInstr_Jmp              = NULL;
+   HInstr_JmpCond          = NULL;
+   createRelocInfo         = NULL;
 
    mode64                 = False;
    chainingAllowed        = False;
    guest_sizeB            = 0;
    offB_HOST_EvC_COUNTER  = 0;
    offB_HOST_EvC_FAILADDR = 0;
-   preciseMemExnsFn       = NULL;
 
    vassert(vex_initdone);
    vassert(vta->disp_cp_xassisted != NULL);
@@ -1420,10 +1436,16 @@ static void libvex_BackEnd ( const VexTranslateArgs* vta,
          ppCondCode   = CAST_TO_TYPEOF(ppCondCode) X86FN(ppX86CondCode);
          ppReg        = CAST_TO_TYPEOF(ppReg) X86FN(ppHRegX86);
          iselSB       = X86FN(iselSB_X86);
-         emit         = CAST_TO_TYPEOF(emit) X86FN(emit_X86Instr);
+         emitInstr    = CAST_TO_TYPEOF(emitInstr) X86FN(emit_X86Instr);
+         HInstr_Jmp      = CAST_TO_TYPEOF(HInstr_Jmp)
+                              X86FN(X86Instr_Jmp);
+         HInstr_JmpCond  = CAST_TO_TYPEOF(HInstr_JmpCond)
+                              X86FN(X86Instr_JmpCond);
+         createRelocInfo = CAST_TO_TYPEOF(createRelocInfo)
+                              X86FN(createRelocInfo_X86);
          vassert(vta->archinfo_host.endness == VexEndnessLE);
          break;
-
+#if 0
       case VexArchAMD64:
          mode64       = True;
          rRegUniv     = AMD64FN(getRRegUniverse_AMD64());
@@ -1438,7 +1460,7 @@ static void libvex_BackEnd ( const VexTranslateArgs* vta,
          ppInstr      = CAST_TO_TYPEOF(ppInstr) AMD64FN(ppAMD64Instr);
          ppReg        = CAST_TO_TYPEOF(ppReg) AMD64FN(ppHRegAMD64);
          iselSB       = AMD64FN(iselSB_AMD64);
-         emit         = CAST_TO_TYPEOF(emit) AMD64FN(emit_AMD64Instr);
+         emitInstr    = CAST_TO_TYPEOF(emitInstr) AMD64FN(emit_AMD64Instr);
          vassert(vta->archinfo_host.endness == VexEndnessLE);
          break;
 
@@ -1455,7 +1477,7 @@ static void libvex_BackEnd ( const VexTranslateArgs* vta,
          ppInstr      = CAST_TO_TYPEOF(ppInstr) PPC32FN(ppPPCInstr);
          ppReg        = CAST_TO_TYPEOF(ppReg) PPC32FN(ppHRegPPC);
          iselSB       = PPC32FN(iselSB_PPC);
-         emit         = CAST_TO_TYPEOF(emit) PPC32FN(emit_PPCInstr);
+         emitInstr    = CAST_TO_TYPEOF(emitInstr) PPC32FN(emit_PPCInstr);
          vassert(vta->archinfo_host.endness == VexEndnessBE);
          break;
 
@@ -1472,7 +1494,7 @@ static void libvex_BackEnd ( const VexTranslateArgs* vta,
          ppInstr      = CAST_TO_TYPEOF(ppInstr) PPC64FN(ppPPCInstr);
          ppReg        = CAST_TO_TYPEOF(ppReg) PPC64FN(ppHRegPPC);
          iselSB       = PPC64FN(iselSB_PPC);
-         emit         = CAST_TO_TYPEOF(emit) PPC64FN(emit_PPCInstr);
+         emitInstr    = CAST_TO_TYPEOF(emitInstr) PPC64FN(emit_PPCInstr);
          vassert(vta->archinfo_host.endness == VexEndnessBE ||
                  vta->archinfo_host.endness == VexEndnessLE );
          break;
@@ -1491,7 +1513,7 @@ static void libvex_BackEnd ( const VexTranslateArgs* vta,
          ppInstr      = CAST_TO_TYPEOF(ppInstr) S390FN(ppS390Instr);
          ppReg        = CAST_TO_TYPEOF(ppReg) S390FN(ppHRegS390);
          iselSB       = S390FN(iselSB_S390);
-         emit         = CAST_TO_TYPEOF(emit) S390FN(emit_S390Instr);
+         emitInstr    = CAST_TO_TYPEOF(emitInstr) S390FN(emit_S390Instr);
          vassert(vta->archinfo_host.endness == VexEndnessBE);
          break;
 
@@ -1508,7 +1530,7 @@ static void libvex_BackEnd ( const VexTranslateArgs* vta,
          ppInstr      = CAST_TO_TYPEOF(ppInstr) ARMFN(ppARMInstr);
          ppReg        = CAST_TO_TYPEOF(ppReg) ARMFN(ppHRegARM);
          iselSB       = ARMFN(iselSB_ARM);
-         emit         = CAST_TO_TYPEOF(emit) ARMFN(emit_ARMInstr);
+         emitInstr    = CAST_TO_TYPEOF(emitInstr) ARMFN(emit_ARMInstr);
          vassert(vta->archinfo_host.endness == VexEndnessLE);
          break;
 
@@ -1525,7 +1547,7 @@ static void libvex_BackEnd ( const VexTranslateArgs* vta,
          ppInstr      = CAST_TO_TYPEOF(ppInstr) ARM64FN(ppARM64Instr);
          ppReg        = CAST_TO_TYPEOF(ppReg) ARM64FN(ppHRegARM64);
          iselSB       = ARM64FN(iselSB_ARM64);
-         emit         = CAST_TO_TYPEOF(emit) ARM64FN(emit_ARM64Instr);
+         emitInstr    = CAST_TO_TYPEOF(emitInstr) ARM64FN(emit_ARM64Instr);
          vassert(vta->archinfo_host.endness == VexEndnessLE);
          break;
 
@@ -1542,7 +1564,7 @@ static void libvex_BackEnd ( const VexTranslateArgs* vta,
          ppInstr      = CAST_TO_TYPEOF(ppInstr) MIPS32FN(ppMIPSInstr);
          ppReg        = CAST_TO_TYPEOF(ppReg) MIPS32FN(ppHRegMIPS);
          iselSB       = MIPS32FN(iselSB_MIPS);
-         emit         = CAST_TO_TYPEOF(emit) MIPS32FN(emit_MIPSInstr);
+         emitInstr    = CAST_TO_TYPEOF(emitInstr) MIPS32FN(emit_MIPSInstr);
          vassert(vta->archinfo_host.endness == VexEndnessLE
                  || vta->archinfo_host.endness == VexEndnessBE);
          break;
@@ -1560,11 +1582,11 @@ static void libvex_BackEnd ( const VexTranslateArgs* vta,
          ppInstr      = CAST_TO_TYPEOF(ppInstr) MIPS64FN(ppMIPSInstr);
          ppReg        = CAST_TO_TYPEOF(ppReg) MIPS64FN(ppHRegMIPS);
          iselSB       = MIPS64FN(iselSB_MIPS);
-         emit         = CAST_TO_TYPEOF(emit) MIPS64FN(emit_MIPSInstr);
+         emitInstr    = CAST_TO_TYPEOF(emitInstr) MIPS64FN(emit_MIPSInstr);
          vassert(vta->archinfo_host.endness == VexEndnessLE
                  || vta->archinfo_host.endness == VexEndnessBE);
          break;
-
+#endif
       default:
          vpanic("LibVEX_Translate: unsupported host insn set");
    }
@@ -1661,7 +1683,10 @@ static void libvex_BackEnd ( const VexTranslateArgs* vta,
                    "------------------------\n\n");
    }
 
-   Bool assembly_ok = theAssembler( res, vta, isIfThenElse, mode64, rcode );
+   Bool assembly_ok
+      = theAssembler( res, vta, mode64, rcode, isIfThenElse,
+                      emitInstr, HInstr_Jmp, HInstr_JmpCond,
+                      createRelocInfo );
    if (!assembly_ok)
       goto out_of_buffer_space;
 
