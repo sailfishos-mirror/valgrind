@@ -1566,10 +1566,15 @@ static void stage4_emit_HInstrIfThenElse(RegAllocChunk* chunk, UInt depth,
    Usually |vreg1| == |vreg2| == |vregD| so the merging happens between
    different states but for the same vreg.
    For phi node merging, |vreg1| != |vreg2| != |vregD|.
-   Note: |vreg1| and |vregD| refer to |state1|, |vreg2| to |state2|. */
+   Note: |vreg1| and |vregD| refer to |state1|, |vreg2| to |state2|.
+
+   |merge_completed| is set to True when the state merge was successfully
+                     completed.
+   |merge_not_needed| is set to True when there was nothing to merge. */
 static void merge_vreg_states(RegAllocChunk* chunk,
    RegAllocState* state1, RegAllocState* state2,
    HReg vreg1, HReg vreg2, HReg vregD,
+   Bool* merge_completed, Bool* merge_not_needed,
    UInt depth, const RegAllocControl* con)
 {
    RegAllocChunk* outOfLine = chunk->IfThenElse.outOfLine;
@@ -1581,14 +1586,18 @@ static void merge_vreg_states(RegAllocChunk* chunk,
    VRegState* v1_dst_state = &state1->vregs[vd_idx];
    VRegState* v2_dst_state = &state2->vregs[vd_idx];
 
+   *merge_completed = True;
+   *merge_not_needed = False;
+
    switch (v1_src_state->disp) {
    case Unallocated:
       switch (v2_src_state->disp) {
       case Unallocated:
          /* Good. Nothing to do. */
+         *merge_not_needed = True;
          break;
       case Assigned:
-         /* Should be dead by now. */
+         /* vreg1: unallocated; vreg2: assigned - it should be dead by now. */
          vassert(v2_src_state->dead_before <= chunk->next->ii_total_start);
 
          HReg rreg2 = v2_src_state->rreg;
@@ -1596,7 +1605,7 @@ static void merge_vreg_states(RegAllocChunk* chunk,
          FREE_RREG(&state2->rregs[hregIndex(rreg2)]);
          break;
       case Spilled:
-         /* Should be dead by now. */
+         /* vreg1: unallocated; vreg2: spilled - it should be dead by now. */
          vassert(v2_src_state->dead_before <= chunk->next->ii_total_start);
 
          FREE_VREG(v2_src_state);
@@ -1615,9 +1624,12 @@ static void merge_vreg_states(RegAllocChunk* chunk,
                 "(Assigned/Unallocated).");
 
       case Assigned: {
-         /* Check if both vregs are assigned to the same rreg. */
+         /* vreg1: assigned; vreg2: assigned
+            Check if both vregs are assigned to the same rreg. */
          HReg rreg2 = v2_src_state->rreg;
          if (! sameHReg(rreg1, rreg2)) {
+            /* Check the disposition of rreg1 in state2. That's where we
+               need to get vreg2 into. */
             switch (state2->rregs[hregIndex(rreg1)].disp) {
             case Free: {
                /* Move rreg2 to rreg1 in outOfLine/state2. */
@@ -1638,6 +1650,8 @@ static void merge_vreg_states(RegAllocChunk* chunk,
             default:
                vassert(0);
             }
+         } else {
+            *merge_not_needed = True;
          }
 
          /* Proceed to phi node merging bellow. */
@@ -1645,20 +1659,29 @@ static void merge_vreg_states(RegAllocChunk* chunk,
       }
 
       case Spilled:
+         /* vreg1: assigned to rreg1; vreg2: spilled
+            We worry about the disposition of rreg1 in state2. */
          switch (state2->rregs[hregIndex(rreg1)].disp) {
          case Free:
             assign_vreg(outOfLine, state2, vreg2, rreg1, True, depth, con);
             break;
          case Bound: {
-            /* Make a room in state2->rregs[rreg1] first. */
-            HReg vreg_dead = state2->rregs[hregIndex(rreg1)].vreg;
-            UInt vdead_idx = hregIndex(vreg_dead);
-            /* That vreg should be dead by now. */
-            vassert(state2->vregs[vdead_idx].dead_before
-                    <= chunk->next->ii_total_start);
-
-            FREE_VREG(&state2->vregs[vdead_idx]);
-            FREE_RREG(&state2->rregs[hregIndex(rreg1)]);
+            /* First check if we can make a room in state2->rregs[rreg1]. */
+            HReg vreg_off = state2->rregs[hregIndex(rreg1)].vreg;
+            UInt voff_idx = hregIndex(vreg_off);
+            if (state2->vregs[voff_idx].dead_before
+                > chunk->next->ii_total_start) {
+               /* There is an offending vreg_off in state2 which is still
+                  not dead. Let's spill it now and indicate that merging is not
+                  completed for it. */
+               UInt r_spilled_idx = spill_vreg(outOfLine, state2, vreg_off,
+                                       chunk->next->ii_total_start, depth, con);
+               vassert(r_spilled_idx == hregIndex(rreg1));
+               *merge_completed = False;
+            } else {
+               FREE_VREG(&state2->vregs[voff_idx]);
+               FREE_RREG(&state2->rregs[hregIndex(rreg1)]);
+            }
 
             assign_vreg(outOfLine, state2, vreg2, rreg1, True, depth, con);
             break;
@@ -1676,18 +1699,27 @@ static void merge_vreg_states(RegAllocChunk* chunk,
 
       /* Phi node merging. */
       if (! sameHReg(vreg1, vreg2)) {
-         FREE_VREG(v1_src_state);
-         FREE_VREG(v2_src_state);
-         v1_dst_state->disp = Assigned;
-         v1_dst_state->rreg = rreg1;
-         v2_dst_state->disp = Assigned;
-         v2_dst_state->rreg = rreg1;
+         if ((v1_dst_state->disp == Assigned)
+             && (v2_dst_state->disp == Assigned)
+             && sameHReg(rreg1, v1_dst_state->rreg)
+             && sameHReg(v1_dst_state->rreg, v2_dst_state->rreg)) {
+            // merge not needed at this point but may have been needed previously
+         } else {
+            FREE_VREG(v1_src_state);
+            FREE_VREG(v2_src_state);
+            v1_dst_state->disp = Assigned;
+            v1_dst_state->rreg = rreg1;
+            v2_dst_state->disp = Assigned;
+            v2_dst_state->rreg = rreg1;
 
-         UInt r_idx = hregIndex(rreg1);
-         vassert(state1->rregs[r_idx].disp == Bound);
-         state1->rregs[r_idx].eq_spill_slot
-            = (state1->rregs[r_idx].eq_spill_slot && state2->rregs[r_idx].eq_spill_slot);
-         state1->rregs[r_idx].vreg = vregD;
+            UInt r_idx = hregIndex(rreg1);
+            vassert(state1->rregs[r_idx].disp == Bound);
+            state1->rregs[r_idx].eq_spill_slot
+               = (state1->rregs[r_idx].eq_spill_slot
+                  && state2->rregs[r_idx].eq_spill_slot);
+            state1->rregs[r_idx].vreg = vregD;
+            *merge_not_needed = False;
+         }
       }
       break;
    } // case Assigned
@@ -1699,16 +1731,20 @@ static void merge_vreg_states(RegAllocChunk* chunk,
                 " (Spilled/Unallocated).");
          break;
       case Assigned:
+         /* vreg1: spilled; vreg2: assigned to rreg2 */
          /* Generate spill. */
          vpanic("Spill not implemented, yet.");
          break;
       case Spilled:
+         /* vreg1: spilled; vreg2: spilled */
          /* Check if both vregs are spilled at the same spill slot.
             Eventually reload vreg to a rreg and spill it again. */
          if (v1_src_state->spill_offset != v2_src_state->spill_offset) {
             /* Find a free rreg in |state1|, reload from v2_src_state->spill_slot,
                spill to v1_dst_state->spill_slot. */
             vpanic("Spilled/Spilled reload not implemented, yet.");
+         } else {
+            *merge_not_needed = True;
          }
          break;
       default:
@@ -1746,18 +1782,22 @@ static void stage4_merge_states(RegAllocChunk* chunk,
             vex_printf("\n");
          }
 
+         Bool merge_completed, merge_not_needed;
          merge_vreg_states(chunk, state, cloned, phi_node->srcFallThrough,
-                           phi_node->srcOutOfLine, phi_node->dst, depth, con);
-      }
+                           phi_node->srcOutOfLine, phi_node->dst,
+                           &merge_completed, &merge_not_needed, depth, con);
+         // Don't care about merge_completed here. It will be dealt below.
 
-      if (DEBUG_REGALLOC) {
-         print_state(chunk, state, chunk->next->ii_total_start, depth, con,
-                     "After phi node merge");
+         if (DEBUG_REGALLOC) {
+            print_state(chunk, state, chunk->next->ii_total_start, depth, con,
+                        "After phi node merge");
+         }
       }
    }
 
    /* Merge remaining vreg states. VRegs mentioned by phi nodes are processed
-      as well but merging is no-op for them now. */
+      as well but merging is usually no-op for them now (unless merge_completed
+      returned False above). */
 
    if (DEBUG_REGALLOC) {
       print_state(chunk, state, chunk->next->ii_total_start, depth, con,
@@ -1766,18 +1806,46 @@ static void stage4_merge_states(RegAllocChunk* chunk,
                   "Before state merge: out-of-line leg");
    }
 
-   for (UInt v_idx = 0; v_idx < state->n_vregs; v_idx++) {
-      HRegClass reg_class = state->vregs[v_idx].reg_class;
-      if (reg_class != HRcINVALID) {
-         merge_vreg_states(chunk, state, cloned, MK_VREG(v_idx, reg_class),
+   Bool iterate;
+   UInt n_iterations = 0;
+   do {
+      iterate = False;
+
+      for (UInt v_idx = 0; v_idx < state->n_vregs; v_idx++) {
+         HRegClass reg_class = state->vregs[v_idx].reg_class;
+         if (reg_class != HRcINVALID) {
+            Bool merge_completed, merge_not_needed;
+            merge_vreg_states(chunk, state, cloned, MK_VREG(v_idx, reg_class),
                            MK_VREG(v_idx, reg_class), MK_VREG(v_idx, reg_class),
-                           depth, con);
+                           &merge_completed, &merge_not_needed, depth, con);
+
+            if (!merge_completed) {
+               iterate = True;
+            }
+         }
       }
-   }
+
+      n_iterations += 1;
+      vassert(n_iterations <= 10);
+   } while (iterate);
 
    if (DEBUG_REGALLOC) {
       print_state(chunk, state, chunk->next->ii_total_start, depth, con,
                   "After state merge");
+   }
+
+   if (SANITY_CHECKS_EVERY_INSTR) {
+      for (UInt v_idx = 0; v_idx < state->n_vregs; v_idx++) {
+         HRegClass reg_class = state->vregs[v_idx].reg_class;
+         if (reg_class != HRcINVALID) {
+            Bool merge_completed, merge_not_needed;
+            merge_vreg_states(chunk, state, cloned, MK_VREG(v_idx, reg_class),
+                           MK_VREG(v_idx, reg_class), MK_VREG(v_idx, reg_class),
+                           &merge_completed, &merge_not_needed, depth, con);
+            vassert(merge_completed == True);
+            vassert(merge_not_needed == True);
+         }
+      }
    }
 }
 
