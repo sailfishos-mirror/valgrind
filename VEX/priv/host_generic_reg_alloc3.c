@@ -1732,8 +1732,8 @@ static void merge_vreg_states(RegAllocChunk* chunk,
          break;
       case Assigned:
          /* vreg1: spilled; vreg2: assigned to rreg2 */
-         /* Generate spill. */
-         vpanic("Spill not implemented, yet.");
+         spill_vreg(outOfLine, state2, vreg2, chunk->next->ii_total_start,
+                    depth, con);
          break;
       case Spilled:
          /* vreg1: spilled; vreg2: spilled */
