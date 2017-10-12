@@ -484,12 +484,18 @@ static RegAllocState* clone_state(const RegAllocState* orig)
    }
 
    for (UInt v_idx = 0; v_idx < orig->n_vregs; v_idx++) {
-      st2->vregs[v_idx].live_after   = orig->vregs[v_idx].live_after;
-      st2->vregs[v_idx].dead_before  = orig->vregs[v_idx].dead_before;
-      st2->vregs[v_idx].reg_class    = orig->vregs[v_idx].reg_class;
-      st2->vregs[v_idx].disp         = orig->vregs[v_idx].disp;
-      st2->vregs[v_idx].rreg         = orig->vregs[v_idx].rreg;
-      st2->vregs[v_idx].spill_offset = orig->vregs[v_idx].spill_offset;
+      const VRegState* v1_st = &orig->vregs[v_idx];
+      VRegState*       v2_st = &st2->vregs[v_idx];
+      v2_st->live_after            = v1_st->live_after;
+      v2_st->dead_before           = v1_st->dead_before;
+      v2_st->reg_class             = v1_st->reg_class;
+      v2_st->disp                  = v1_st->disp;
+      v2_st->rreg                  = v1_st->rreg;
+      v2_st->spill_offset          = v1_st->spill_offset;
+      v2_st->coalescedTo           = v1_st->coalescedTo;
+      v2_st->coalescedFirst        = v1_st->coalescedFirst;
+      v2_st->effective_dead_before = v1_st->effective_dead_before;
+
    }
 
    st2->n_rregs = orig->n_rregs;
