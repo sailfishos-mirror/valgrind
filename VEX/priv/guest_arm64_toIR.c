@@ -2390,7 +2390,7 @@ Bool dbm_DecodeBitMasks ( /*OUT*/ULong* wmask, /*OUT*/ULong* tmask,
 
 static
 Bool dis_ARM64_data_processing_immediate(/*MB_OUT*/DisResult* dres,
-                                         UInt insn)
+                                         UInt insn, Bool sigill_diag)
 {
 #  define INSN(_bMax,_bMin)  SLICE_UInt(insn, (_bMax), (_bMin))
 
@@ -2725,7 +2725,9 @@ Bool dis_ARM64_data_processing_immediate(/*MB_OUT*/DisResult* dres,
    }
   after_extr:
 
-   vex_printf("ARM64 front end: data_processing_immediate\n");
+   if (sigill_diag) {
+      vex_printf("ARM64 front end: data_processing_immediate\n");
+   }
    return False;
 #  undef INSN
 }
@@ -2792,7 +2794,7 @@ static IRTemp getShiftedIRegOrZR ( Bool is64,
 
 static
 Bool dis_ARM64_data_processing_register(/*MB_OUT*/DisResult* dres,
-                                        UInt insn)
+                                        UInt insn, Bool sigill_diag)
 {
 #  define INSN(_bMax,_bMin)  SLICE_UInt(insn, (_bMax), (_bMin))
 
@@ -3569,7 +3571,9 @@ Bool dis_ARM64_data_processing_register(/*MB_OUT*/DisResult* dres,
       /* fall through */
    }
 
-   vex_printf("ARM64 front end: data_processing_register\n");
+   if (sigill_diag) {
+      vex_printf("ARM64 front end: data_processing_register\n");
+   }
    return False;
 #  undef INSN
 }
@@ -4634,7 +4638,9 @@ static IRTemp gen_indexed_EA ( /*OUT*/HChar* buf, UInt insn, Bool isInt )
    return res;
 
   fail:
-   vex_printf("gen_indexed_EA: unhandled case optS == 0x%x\n", optS);
+   if (0 /*really, sigill_diag, but that causes too much plumbing*/) {
+      vex_printf("gen_indexed_EA: unhandled case optS == 0x%x\n", optS);
+   }
    return IRTemp_INVALID;
 }
 
@@ -4705,8 +4711,7 @@ const HChar* nameArr_Q_SZ ( UInt bitQ, UInt size )
 
 static
 Bool dis_ARM64_load_store(/*MB_OUT*/DisResult* dres, UInt insn,
-                          const VexAbiInfo* abiinfo
-)
+                          const VexAbiInfo* abiinfo, Bool sigill_diag)
 {
 #  define INSN(_bMax,_bMin)  SLICE_UInt(insn, (_bMax), (_bMin))
 
@@ -6716,7 +6721,9 @@ Bool dis_ARM64_load_store(/*MB_OUT*/DisResult* dres, UInt insn,
       return True;
    }
 
-   vex_printf("ARM64 front end: load_store\n");
+   if (sigill_diag) {
+      vex_printf("ARM64 front end: load_store\n");
+   }
    return False;
 #  undef INSN
 }
@@ -6729,7 +6736,7 @@ Bool dis_ARM64_load_store(/*MB_OUT*/DisResult* dres, UInt insn,
 static
 Bool dis_ARM64_branch_etc(/*MB_OUT*/DisResult* dres, UInt insn,
                           const VexArchInfo* archinfo,
-                          const VexAbiInfo* abiinfo)
+                          const VexAbiInfo* abiinfo, Bool sigill_diag)
 {
 #  define INSN(_bMax,_bMin)  SLICE_UInt(insn, (_bMax), (_bMin))
 
@@ -7098,6 +7105,8 @@ Bool dis_ARM64_branch_etc(/*MB_OUT*/DisResult* dres, UInt insn,
    /* D5 0B 7B 001 Rt  dc cvau, rT
    */
    if ((INSN(31,0) & 0xFFFFFFE0) == 0xD50B7B20) {
+      /* JRS 2019Nov24: should we handle DC_CIVAC the same?
+         || (INSN(31,0) & 0xFFFFFFE0) == 0xD50B7E20 */
       /* Exactly the same scheme as for IC IVAU, except we observe the
          dMinLine size, and request an Ijk_FlushDCache instead of
          Ijk_InvalICache. */
@@ -7217,7 +7226,9 @@ Bool dis_ARM64_branch_etc(/*MB_OUT*/DisResult* dres, UInt insn,
       return True;
    }
 
-   vex_printf("ARM64 front end: branch_etc\n");
+   if (sigill_diag) {
+      vex_printf("ARM64 front end: branch_etc\n");
+   }
    return False;
 #  undef INSN
 }
@@ -14443,7 +14454,8 @@ Bool disInstr_ARM64_WRK (
         /*MB_OUT*/DisResult* dres,
         const UChar* guest_instr,
         const VexArchInfo* archinfo,
-        const VexAbiInfo*  abiinfo
+        const VexAbiInfo*  abiinfo,
+        Bool sigill_diag
      )
 {
    // A macro to fish bits out of 'insn'.
@@ -14567,20 +14579,20 @@ Bool disInstr_ARM64_WRK (
    switch (INSN(28,25)) {
       case BITS4(1,0,0,0): case BITS4(1,0,0,1):
          // Data processing - immediate
-         ok = dis_ARM64_data_processing_immediate(dres, insn);
+         ok = dis_ARM64_data_processing_immediate(dres, insn, sigill_diag);
          break;
       case BITS4(1,0,1,0): case BITS4(1,0,1,1):
          // Branch, exception generation and system instructions
-         ok = dis_ARM64_branch_etc(dres, insn, archinfo, abiinfo);
+         ok = dis_ARM64_branch_etc(dres, insn, archinfo, abiinfo, sigill_diag);
          break;
       case BITS4(0,1,0,0): case BITS4(0,1,1,0):
       case BITS4(1,1,0,0): case BITS4(1,1,1,0):
          // Loads and stores
-         ok = dis_ARM64_load_store(dres, insn, abiinfo);
+         ok = dis_ARM64_load_store(dres, insn, abiinfo, sigill_diag);
          break;
       case BITS4(0,1,0,1): case BITS4(1,1,0,1):
          // Data processing - register
-         ok = dis_ARM64_data_processing_register(dres, insn);
+         ok = dis_ARM64_data_processing_register(dres, insn, sigill_diag);
          break;
       case BITS4(0,1,1,1): case BITS4(1,1,1,1): 
          // Data processing - SIMD and floating point
@@ -14643,7 +14655,7 @@ DisResult disInstr_ARM64 ( IRSB*        irsb_IN,
    /* Try to decode */
    Bool ok = disInstr_ARM64_WRK( &dres,
                                  &guest_code_IN[delta_IN],
-                                 archinfo, abiinfo );
+                                 archinfo, abiinfo, sigill_diag_IN );
    if (ok) {
       /* All decode successes end up here. */
       vassert(dres.len == 4 || dres.len == 20);
