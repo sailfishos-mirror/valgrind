@@ -1,3 +1,16 @@
+Branch 3.22
+~~~~~~~~~~~
+
+* ==================== FIXED BUGS ====================
+
+The following bugs have been fixed or resolved on this branch.
+
+476708  valgrind-monitor.py regular expressions should use raw strings
+
+To see details of a given bug, visit
+  https://bugs.kde.org/show_bug.cgi?id=XXXXXX
+where XXXXXX is the bug number as listed above.
+
 Release 3.22.0 (31 Oct 2023)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
