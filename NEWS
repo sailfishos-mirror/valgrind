@@ -8,6 +8,7 @@ The following bugs have been fixed or resolved on this branch.
 476548  valgrind 3.22.0 fails on assertion when loading debuginfo
         file produced by mold
 476708  valgrind-monitor.py regular expressions should use raw strings
+477198  Add fchmodat2 syscall on linux
 
 To see details of a given bug, visit
   https://bugs.kde.org/show_bug.cgi?id=XXXXXX
