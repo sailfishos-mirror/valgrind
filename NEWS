@@ -5,6 +5,8 @@ Branch 3.22
 
 The following bugs have been fixed or resolved on this branch.
 
+476548  valgrind 3.22.0 fails on assertion when loading debuginfo
+        file produced by mold
 476708  valgrind-monitor.py regular expressions should use raw strings
 
 To see details of a given bug, visit
