@@ -9,6 +9,8 @@ The following bugs have been fixed or resolved on this branch.
         file produced by mold
 476708  valgrind-monitor.py regular expressions should use raw strings
 477198  Add fchmodat2 syscall on linux
+478624  Valgrind incompatibility with binutils-2.42 on x86 with new nop patterns
+        (unhandled instruction bytes: 0x2E 0x8D 0xB4 0x26)
 
 To see details of a given bug, visit
   https://bugs.kde.org/show_bug.cgi?id=XXXXXX
