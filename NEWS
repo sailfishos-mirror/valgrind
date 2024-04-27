@@ -5,6 +5,8 @@ Branch 3.23
 
 The following bugs have been fixed or resolved on this branch.
 
+486180  [MIPS] 'VexGuestArchState' has no member named 'guest_IP_AT_SYSCALL'
+
 To see details of a given bug, visit
   https://bugs.kde.org/show_bug.cgi?id=XXXXXX
 where XXXXXX is the bug number as listed above.
