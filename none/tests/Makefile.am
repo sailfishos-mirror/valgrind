@@ -86,6 +86,7 @@ dist_noinst_SCRIPTS = \
 	filter_none_discards \
 	filter_stderr \
 	filter_timestamp \
+	filter_xml \
 	allexec_prepare_prereq
 
 noinst_HEADERS = fdleak.h
@@ -229,7 +230,9 @@ EXTRA_DIST = \
 	sigprocmask.stderr.exp sigprocmask.vgtest \
 	socket_close.stderr.exp socket_close.vgtest \
 	file_dclose.stderr.exp file_dclose.vgtest \
-	double_close_range.stderr.exp double_close_range.vgtest
+	double_close_range.stderr.exp double_close_range.vgtest \
+	log-track-fds.stderr.exp log-track-fds.vgtest \
+	xml-track-fds.stderr.exp xml-track-fds.vgtest
 
 
 check_PROGRAMS = \
