@@ -8,6 +8,7 @@ The following bugs have been fixed or resolved on this branch.
 202770  open fd at exit --log-socket=127.0.0.1:1500 with --track-fds=yes
 311655  --log-file=FILE leads to apparent fd leak
 337388  fcntl works on Valgrind's own file descriptors
+444781  MIPS: wrong syscall numbers used
 453044  gbserver_tests failures in aarch64
 479661  Valgrind leaks file descriptors
 486180  [MIPS] 'VexGuestArchState' has no member named 'guest_IP_AT_SYSCALL'
