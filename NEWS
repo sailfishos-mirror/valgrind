@@ -19,6 +19,7 @@ The following bugs have been fixed or resolved on this branch.
 487439  SIGILL in JDK11, JDK17
 488379  --track-fds=yes errors that cannot be suppressed with --xml-file=
 489088  Valgrind throws unhandled instruction bytes: 0xC5 0x79 0xD6 0xE0 0xC5
+489338  arm64: Instruction fcvtas should round 322.5 to 323, but result is 322.
 n-i-bz  aarch64 frinta and frinta vector instructions
 
 To see details of a given bug, visit
