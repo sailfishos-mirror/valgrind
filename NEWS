@@ -7,6 +7,7 @@ The following bugs have been fixed or resolved on this branch.
 
 202770  open fd at exit --log-socket=127.0.0.1:1500 with --track-fds=yes
 311655  --log-file=FILE leads to apparent fd leak
+317127  Fedora18/x86_64 --sanity-level=3 : aspacem segment mismatch
 337388  fcntl works on Valgrind's own file descriptors
 391148  Unhandled AVX instruction vmovq %xmm9,%xmm1
 444781  MIPS: wrong syscall numbers used
