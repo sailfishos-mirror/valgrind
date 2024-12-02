@@ -48,16 +48,35 @@ aborting ...
   </stack>
 </fatal_signal>
 
-
 <status>
   <state>FINISHED</state>
   <time>...</time>
 </status>
+
+<heap_summary>
+  <memory_in_use_at_exit>
+    <bytes>0</bytes>
+    <in_blocks>0</in_blocks>
+  </memory_in_use_at_exit>
+  <total_heap_usage>
+    <allocs>0</allocs>
+    <frees>0</frees>
+    <bytes_allocated>0</bytes_allocated>
+  </total_heap_usage>
+</heap_summary>
+
+<all_heap_blocks_freed>true</all_heap_blocks_freed>
 
 <errorcounts>
 </errorcounts>
 
 <suppcounts>...</suppcounts>
 
-</valgrindoutput>
+<error_summary>
+  <errors>0</errors>
+  <from>0</from>
+  <suppressed>0</suppressed>
+  <suppressed_from>0</suppressed_from>
+</error_summary>
 
+</valgrindoutput>

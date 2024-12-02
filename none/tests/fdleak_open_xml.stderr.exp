@@ -36,7 +36,6 @@
   <time>...</time>
 </status>
 
-
 <status>
   <state>FINISHED</state>
   <time>...</time>
@@ -61,6 +60,4 @@
   </stack>
 </error>
 
-
 </valgrindoutput>
-

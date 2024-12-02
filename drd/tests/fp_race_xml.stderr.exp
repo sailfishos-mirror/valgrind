@@ -100,5 +100,11 @@
 
 <suppcounts>...</suppcounts>
 
-</valgrindoutput>
+<error_summary>
+  <errors>2</errors>
+  <from>2</from>
+  <suppressed>8</suppressed>
+  <suppressed_from>4</suppressed_from>
+</error_summary>
 
+</valgrindoutput>

@@ -231,5 +231,11 @@ destroy a barrier that was never initialised
 
 <suppcounts>...</suppcounts>
 
-</valgrindoutput>
+<error_summary>
+  <errors>6</errors>
+  <from>5</from>
+  <suppressed>135</suppressed>
+  <suppressed_from>11</suppressed_from>
+</error_summary>
 
+</valgrindoutput>

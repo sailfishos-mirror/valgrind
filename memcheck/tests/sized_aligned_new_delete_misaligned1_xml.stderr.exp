@@ -454,11 +454,24 @@
   </stack>
 </error>
 
-
 <status>
   <state>FINISHED</state>
   <time>...</time>
 </status>
+
+<heap_summary>
+  <memory_in_use_at_exit>
+    <bytes>0</bytes>
+    <in_blocks>0</in_blocks>
+  </memory_in_use_at_exit>
+  <total_heap_usage>
+    <allocs>6</allocs>
+    <frees>6</frees>
+    <bytes_allocated>72,864</bytes_allocated>
+  </total_heap_usage>
+</heap_summary>
+
+<all_heap_blocks_freed>true</all_heap_blocks_freed>
 
 <errorcounts>
   <pair>
@@ -521,5 +534,11 @@
 
 <suppcounts>...</suppcounts>
 
-</valgrindoutput>
+<error_summary>
+  <errors>14</errors>
+  <from>14</from>
+  <suppressed>0</suppressed>
+  <suppressed_from>0</suppressed_from>
+</error_summary>
 
+</valgrindoutput>

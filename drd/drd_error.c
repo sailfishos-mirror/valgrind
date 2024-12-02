@@ -60,7 +60,7 @@ void DRD_(trace_msg)(const HChar* format, ...)
    if (VG_(clo_xml)) {
       VG_(printf_xml)("  <trace><text>");
       VG_(vprintf_xml)(format, vargs);
-      VG_(printf_xml)("</text></trace>\n");
+      VG_(printf_xml)("</text></trace>\n\n");
    } else {
       VG_(vmessage)(Vg_UserMsg, format, vargs);
       VG_(message)(Vg_UserMsg, "\n");

@@ -101,7 +101,6 @@
   </stack>
 </error>
 
-
 <status>
   <state>FINISHED</state>
   <time>...</time>
@@ -141,7 +140,14 @@
 </errorcounts>
 
 <suppcounts>
+
 </suppcounts>
 
-</valgrindoutput>
+<error_summary>
+  <errors>2</errors>
+  <from>2</from>
+  <suppressed>0</suppressed>
+  <suppressed_from>0</suppressed_from>
+</error_summary>
 
+</valgrindoutput>

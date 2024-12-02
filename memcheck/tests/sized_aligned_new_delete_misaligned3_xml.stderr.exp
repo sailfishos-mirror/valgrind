@@ -58,6 +58,7 @@
   <text>new/new[] aligned failed and should throw an exception, but Valgrind
   </text>
 </clientmsg>
+
 <clientmsg>
   <tid>...</tid>
   <text>   cannot throw exceptions and so is aborting instead.  Sorry.
@@ -95,6 +96,20 @@
   <time>...</time>
 </status>
 
+<heap_summary>
+  <memory_in_use_at_exit>
+    <bytes>0</bytes>
+    <in_blocks>0</in_blocks>
+  </memory_in_use_at_exit>
+  <total_heap_usage>
+    <allocs>1</allocs>
+    <frees>1</frees>
+    <bytes_allocated>72,704</bytes_allocated>
+  </total_heap_usage>
+</heap_summary>
+
+<all_heap_blocks_freed>true</all_heap_blocks_freed>
+
 <errorcounts>
   <pair>
     <count>...</count>
@@ -104,5 +119,11 @@
 
 <suppcounts>...</suppcounts>
 
-</valgrindoutput>
+<error_summary>
+  <errors>1</errors>
+  <from>1</from>
+  <suppressed>0</suppressed>
+  <suppressed_from>0</suppressed_from>
+</error_summary>
 
+</valgrindoutput>

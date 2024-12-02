@@ -388,7 +388,6 @@ thread_func instance 10
   </stack>
 </error>
 
-
 <status>
   <state>FINISHED</state>
   <time>...</time>
@@ -439,5 +438,11 @@ thread_func instance 10
 
 <suppcounts>...</suppcounts>
 
-</valgrindoutput>
+<error_summary>
+  <errors>10</errors>
+  <from>10</from>
+  <suppressed>8</suppressed>
+  <suppressed_from>2</suppressed_from>
+</error_summary>
 
+</valgrindoutput>

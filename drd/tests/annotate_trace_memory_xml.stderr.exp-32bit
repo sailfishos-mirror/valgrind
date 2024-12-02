@@ -298,5 +298,11 @@ Done.
 
 <suppcounts>...</suppcounts>
 
-</valgrindoutput>
+<error_summary>
+  <errors>0</errors>
+  <from>0</from>
+  <suppressed>0</suppressed>
+  <suppressed_from>0</suppressed_from>
+</error_summary>
 
+</valgrindoutput>
