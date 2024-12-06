@@ -7,6 +7,7 @@ The following bugs have been fixed or resolved on this branch.
 
 489913  WARNING: unhandled amd64-linux syscall: 444 (landlock_create_ruleset)
 494246  syscall fsopen not wrapped
+497130  Recognize new DWARF5 DW_LANG constants
 
 To see details of a given bug, visit
   https://bugs.kde.org/show_bug.cgi?id=XXXXXX
