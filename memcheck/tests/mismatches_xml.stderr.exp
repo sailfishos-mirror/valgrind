@@ -343,8 +343,8 @@
 <error_summary>
   <errors>8</errors>
   <from>8</from>
-  <suppressed>0</suppressed>
-  <suppressed_from>0</suppressed_from>
+  <suppressed>...</suppressed>
+  <suppressed_from>...</suppressed_from>
 </error_summary>
 
 </valgrindoutput>

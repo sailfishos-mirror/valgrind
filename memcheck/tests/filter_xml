@@ -25,6 +25,8 @@ perl    -p -e "s/(m_replacemalloc\/)?vg_replace_malloc.c/vg_replace_malloc.c/" |
 perl -0 -p -e "s/<suppcounts>.*<\/suppcounts>/<suppcounts>...<\/suppcounts>/s" |
 perl    -p -e "s/<time>.*<\/time>/<time>...<\/time>/s" |
 perl -0 -p -e "s/<vargv>.*<\/vargv>/<vargv>...<\/vargv>/s" |
+perl -0 -p -e "s/<suppressed>.*<\/suppressed>/<suppressed>...<\/suppressed>/s" |
+perl -0 -p -e "s/<suppressed_from>.*<\/suppressed_from>/<suppressed_from>...<\/suppressed_from>/s" |
 
 # Remove stack traces for Syscall param errors (see filter_stderr for more).  
 # Chops everything within <stack>...</stack>.

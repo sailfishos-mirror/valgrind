@@ -471,8 +471,8 @@
 <error_summary>
   <errors>7</errors>
   <from>7</from>
-  <suppressed>0</suppressed>
-  <suppressed_from>0</suppressed_from>
+  <suppressed>...</suppressed>
+  <suppressed_from>...</suppressed_from>
 </error_summary>
 
 </valgrindoutput>

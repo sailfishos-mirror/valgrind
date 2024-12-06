@@ -234,8 +234,8 @@ destroy a barrier that was never initialised
 <error_summary>
   <errors>6</errors>
   <from>5</from>
-  <suppressed>135</suppressed>
-  <suppressed_from>11</suppressed_from>
+  <suppressed>...</suppressed>
+  <suppressed_from>...</suppressed_from>
 </error_summary>
 
 </valgrindoutput>

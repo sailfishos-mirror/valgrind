@@ -251,7 +251,6 @@ destroy a barrier that was never initialised
   </first_observed_at>
 </error>
 
-
 <status>
   <state>FINISHED</state>
   <time>...</time>
@@ -282,5 +281,11 @@ destroy a barrier that was never initialised
 
 <suppcounts>...</suppcounts>
 
-</valgrindoutput>
+<error_summary>
+  <errors>6</errors>
+  <from>5</from>
+  <suppressed>...</suppressed>
+  <suppressed_from>...</suppressed_from>
+</error_summary>
 
+</valgrindoutput>

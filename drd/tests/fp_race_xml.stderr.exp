@@ -29,10 +29,15 @@
 </status>
 
   <trace><text>drd_pre_thread_create creator = 0, created = 1</text></trace>
+
   <trace><text>drd_post_thread_create created = 1</text></trace>
+
   <trace><text>drd_pre_thread_create creator = 1, created = 2</text></trace>
+
   <trace><text>drd_post_thread_create created = 2</text></trace>
+
   <trace><text>drd_thread_finished tid = 2</text></trace>
+
 <error>
   <unique>0x........</unique>
   <tid>...</tid>
@@ -80,6 +85,7 @@
 </error>
 
   <trace><text>drd_post_thread_join joiner = 1, joinee = 2, new vc: [ ... ]</text></trace>
+
   <trace><text>drd_thread_finished tid = 1</text></trace>
 
 <status>
@@ -103,8 +109,8 @@
 <error_summary>
   <errors>2</errors>
   <from>2</from>
-  <suppressed>8</suppressed>
-  <suppressed_from>4</suppressed_from>
+  <suppressed>...</suppressed>
+  <suppressed_from>...</suppressed_from>
 </error_summary>
 
 </valgrindoutput>

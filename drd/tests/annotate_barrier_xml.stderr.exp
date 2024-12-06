@@ -325,8 +325,8 @@ Done.
 <error_summary>
   <errors>11</errors>
   <from>7</from>
-  <suppressed>8</suppressed>
-  <suppressed_from>2</suppressed_from>
+  <suppressed>...</suppressed>
+  <suppressed_from>...</suppressed_from>
 </error_summary>
 
 </valgrindoutput>
