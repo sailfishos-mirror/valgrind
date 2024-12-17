@@ -1804,8 +1804,9 @@ static void print_results(ThreadId tid, LeakCheckParams* lcp)
                   "    <bytes>%'lu%s</bytes>\n"
                   "    <in_blocks>%'lu%s</in_blocks>\n"
                   "  </suppressed>\n" :
-                  "        suppressed: %'lu%s bytes in %'lu%s blocks\n",                MC_(bytes_suppressed), 
-                DBY (MC_(bytes_suppressed), old_bytes_suppressed), 
+                  "        suppressed: %'lu%s bytes in %'lu%s blocks\n",
+                MC_(bytes_suppressed),
+                DBY (MC_(bytes_suppressed), old_bytes_suppressed),
                 MC_(blocks_suppressed),
                 DBL (MC_(blocks_suppressed), old_blocks_suppressed));
       if (lcp->mode != LC_Full &&
@@ -2089,11 +2090,11 @@ void MC_(detect_memory_leaks) ( ThreadId tid, LeakCheckParams* lcp)
          lr_table = NULL;
       }
       if (VG_(clo_verbosity) >= 1) {
-         if (!VG_(clo_xml)) {         
+         if (!VG_(clo_xml)) {
             VG_(umsg)("All heap blocks were freed -- no leaks are possible\n");
             VG_(umsg)("\n");
          } else
-            VG_(printf_xml)("<all_heap_blocks_freed>true</all_heap_blocks_freed>\n\n");         
+            VG_(printf_xml)("<all_heap_blocks_freed>true</all_heap_blocks_freed>\n\n");
       }
       return;
    } else {

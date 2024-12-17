@@ -349,18 +349,6 @@
   <time>...</time>
 </status>
 
-<heap_summary>
-  <memory_in_use_at_exit>
-    <bytes>396</bytes>
-    <in_blocks>1</in_blocks>
-  </memory_in_use_at_exit>
-  <total_heap_usage>
-    <allocs>3</allocs>
-    <frees>4</frees>
-    <bytes_allocated>4,532</bytes_allocated>
-  </total_heap_usage>
-</heap_summary>
-
 <all_heap_blocks_freed>false</all_heap_blocks_freed>
 
 <error>
@@ -467,12 +455,5 @@
 </errorcounts>
 
 <suppcounts>...</suppcounts>
-
-<error_summary>
-  <errors>7</errors>
-  <from>7</from>
-  <suppressed>...</suppressed>
-  <suppressed_from>...</suppressed_from>
-</error_summary>
 
 </valgrindoutput>

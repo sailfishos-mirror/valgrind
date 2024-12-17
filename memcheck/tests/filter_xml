@@ -30,7 +30,9 @@ perl -0 -p -e "s/<suppressed_from>.*<\/suppressed_from>/<suppressed_from>...<\/s
 
 # Remove stack traces for Syscall param errors (see filter_stderr for more).  
 # Chops everything within <stack>...</stack>.
-perl -p -0 -e 's/(<what>Syscall param[^\n]*\n)([^\n]*(stack|frame|ip|obj|fn|dir|file|line)[^\n]*\n)+/$1/gs'
+perl -p -0 -e 's/(<what>Syscall param[^\n]*\n)([^\n]*(stack|frame|ip|obj|fn|dir|file|line)[^\n]*\n)+/$1/gs' |
+
+sed "/<heap_summary>/,+11d;/<error_summary>/,+6d"
 
 # Collected wisdom re Perl magic incantation:
 #

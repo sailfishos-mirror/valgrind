@@ -85,18 +85,6 @@
   <time>...</time>
 </status>
 
-<heap_summary>
-  <memory_in_use_at_exit>
-    <bytes>0</bytes>
-    <in_blocks>0</in_blocks>
-  </memory_in_use_at_exit>
-  <total_heap_usage>
-    <allocs>3</allocs>
-    <frees>3</frees>
-    <bytes_allocated>76,804</bytes_allocated>
-  </total_heap_usage>
-</heap_summary>
-
 <all_heap_blocks_freed>true</all_heap_blocks_freed>
 
 <errorcounts>
@@ -107,12 +95,5 @@
 </errorcounts>
 
 <suppcounts>...</suppcounts>
-
-<error_summary>
-  <errors>1</errors>
-  <from>1</from>
-  <suppressed>...</suppressed>
-  <suppressed_from>...</suppressed_from>
-</error_summary>
 
 </valgrindoutput>
