@@ -51,6 +51,7 @@ are not entered into bugzilla tend to get forgotten about or ignored.
 
 126256  (fnop) vex x86->IR: unhandled instruction bytes: 0xD9 0xD0 0x31 0xC0
 228343  none/tests/darwin/bug228343 fails on OS X
+233298  MEMPOOL_FREE not reflected in heap summary
 253436  vex amd64->IR: unhandled instruction bytes: 0xF2 0xA6 (repne cmps)
 258140  Valgrind on OS X always reports some memory "still reachable"
 413369  unhandled amd64-darwin syscall: unix:151 (getpgid)
