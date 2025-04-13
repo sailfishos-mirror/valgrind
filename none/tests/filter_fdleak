@@ -57,6 +57,9 @@ sed "s/by 0x........: close (.*)/by 0x........: close/" |
 sed "s/by 0x........: __printf_buffer_flush_dprintf (.*)/by 0x........: __printf_buffer_flush_dprintf/" |
 sed "s/by 0x........: __vdprintf_internal (.*)/by 0x........: __vdprintf_internal/" |
 sed "s/by 0x........: dprintf (.*)/by 0x........: dprintf/" |
+# s390x
+sed "s/by 0x........: dprintf@@GLIBC_2.4/by 0x........: dprintf/" |
+
 
 # With glibc debuginfo installed we might see syscall-template.S,
 # dup2.c close.c or creat64.c
