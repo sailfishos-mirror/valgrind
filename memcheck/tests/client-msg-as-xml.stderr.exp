@@ -81,10 +81,13 @@
   <time>...</time>
 </status>
 
+<heap_summary>...</heap_summary>
+
 <errorcounts>
 </errorcounts>
 
 <suppcounts>...</suppcounts>
 
-</valgrindoutput>
+<error_summary>...</error_summary>
 
+</valgrindoutput>

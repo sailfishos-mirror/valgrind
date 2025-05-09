@@ -154,5 +154,6 @@
 
 <suppcounts>...</suppcounts>
 
-</valgrindoutput>
+<error_summary>...</error_summary>
 
+</valgrindoutput>

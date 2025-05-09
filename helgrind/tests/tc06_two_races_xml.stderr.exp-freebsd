@@ -237,7 +237,6 @@
   <xauxwhat><text>declared at tc06_two_races.c:9</text> <file>tc06_two_races.c</file> <line>9</line> </xauxwhat>
 </error>
 
-
 <status>
   <state>FINISHED</state>
   <time>...</time>
@@ -247,5 +246,11 @@
 
 <suppcounts>...</suppcounts>
 
-</valgrindoutput>
+<error_summary>
+  <errors>4</errors>
+  <from>4</from>
+  <suppressed>7</suppressed>
+  <suppressed_from>6</suppressed_from>
+</error_summary>
 
+</valgrindoutput>

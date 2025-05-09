@@ -209,5 +209,6 @@ destroy a barrier that was never initialised
 
 <suppcounts>...</suppcounts>
 
-</valgrindoutput>
+<error_summary>...</error_summary>
 
+</valgrindoutput>
