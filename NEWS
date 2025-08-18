@@ -7,6 +7,7 @@ The following bugs have been fixed or resolved on this branch.
 
 503241  s390x: Support z17 changes to the NNPA instruction
 508030  Add several missing syscall hooks to ppc64-linux
+508145  ppc64le needs ld.so hardwire for strcmp
 
 To see details of a given bug, visit
   https://bugs.kde.org/show_bug.cgi?id=XXXXXX
