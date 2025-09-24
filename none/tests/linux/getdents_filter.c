@@ -83,7 +83,9 @@ static void test_retry_logic_with_small_buffer(void)
      * may return only Valgrind FDs, which will trigger the retry mechanism.
      */
     for (;;) {
-        nread = syscall(SYS_getdents, fd, buf, SMALL_BUF_SIZE);
+        /* Note, using getdents64 since some linux arches don't implement
+           the 32bit getdents. */
+        nread = syscall(SYS_getdents64, fd, buf, SMALL_BUF_SIZE);
 
         if (nread == -1) {
             printf("retry_test_error\n");
