@@ -6271,9 +6271,26 @@ PRE(sys_mknodat)
    FUSE_COMPATIBLE_MAY_BLOCK();
    PRINT("sys_mknodat ( %ld, %#" FMT_REGWORD "x(%s), 0x%" FMT_REGWORD "x, 0x%"
          FMT_REGWORD "x )", SARG1, ARG2, (HChar*)(Addr)ARG2, ARG3, ARG4 );
-   ML_(fd_at_check_allowed)(SARG1, (const HChar*)ARG2, "mknodat", tid, status);
    PRE_REG_READ4(long, "mknodat",
                  int, dfd, const char *, pathname, int, mode, unsigned, dev);
+   if ((Addr)ARG2 == (Addr)NULL) {
+      SET_STATUS_Failure( VKI_EFAULT );
+      return;
+   }
+   const HChar *path = (const HChar*) ARG2;
+   Bool NullFound = False;
+   for(int i=0; i<VKI_PATH_MAX; i++)
+      if(path[i]=='\0')
+      {
+         NullFound = True;
+         break;
+      }
+   if(NullFound == False) {
+      SET_STATUS_Failure( VKI_ENAMETOOLONG );
+      return;
+   }
+
+   ML_(fd_at_check_allowed)(SARG1, (const HChar*)ARG2, "mknodat(dirfd)", tid, status);
    PRE_MEM_RASCIIZ( "mknodat(pathname)", ARG2 );
 }
 
