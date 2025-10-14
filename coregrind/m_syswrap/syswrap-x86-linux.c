@@ -1682,6 +1682,8 @@ static SyscallTableEntry syscall_table[] = {
    LINX_(__NR_fchmodat2,         sys_fchmodat2),         // 452
    LINXY(__NR_statmount,         sys_statmount),         // 457
    LINXY(__NR_listmount,         sys_listmount),         // 458
+   LINXY(__NR_lsm_get_self_attr, sys_lsm_get_self_attr), // 459
+   LINX_(__NR_lsm_set_self_attr, sys_lsm_set_self_attr), // 460
    LINX_(__NR_mseal,             sys_mseal),             // 462
 };
 

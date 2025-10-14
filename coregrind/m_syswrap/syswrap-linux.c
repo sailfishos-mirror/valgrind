@@ -4482,6 +4482,43 @@ POST(sys_listmount)
    }
 }
 
+PRE(sys_lsm_get_self_attr)
+{
+   //  * sys_lsm_get_self_attr - Return current task's security module attributes
+   //  * @attr: which attribute to return
+   //  * @ctx: the user-space destination for the information, or NULL
+   //  * @size: pointer to the size of space available to receive the data
+   //  * @flags: special handling options. LSM_FLAG_SINGLE indicates that only
+   //  * attributes associated with the LSM identified in the passed @ctx be
+   //  * reported.
+   // SYSCALL_DEFINE4(lsm_get_self_attr, unsigned int, attr, struct lsm_ctx __user *,
+   //                 ctx, u32 __user *, size, u32, flags)
+   PRINT("sys_lsm_get_self_attr (  %#" FMT_REGWORD "x, %#" FMT_REGWORD "x, %" FMT_REGWORD "u, %#" FMT_REGWORD "x)", ARG1, ARG2, ARG3, ARG4);
+   PRE_REG_READ4(long, "lsm_get_self_attr", unsigned int, attr, struct vki_lsm_ctx *, ctx, __vki_u32 *, size, __vki_u32, flags);
+   PRE_MEM_READ("lsm_get_self_attr(ctx)", ARG2, ARG3);
+}
+
+POST(sys_lsm_get_self_attr)
+{
+   if(ARG3 > 0)
+   {
+      POST_MEM_WRITE(ARG2, ARG3);
+   }
+}
+
+PRE(sys_lsm_set_self_attr)
+{
+   //  * sys_lsm_set_self_attr - Set current task's security module attribute
+   //  * @attr: which attribute to set
+   //  * @ctx: the LSM contexts
+   //  * @size: size of @ctx
+   //  * @flags: reserved for future use
+   // SYSCALL_DEFINE4(lsm_set_self_attr, unsigned int, attr, struct lsm_ctx __user *,
+   //                 ctx, u32, size, u32, flags)
+   PRINT("sys_lsm_get_self_attr (  %#" FMT_REGWORD "x, %#" FMT_REGWORD "x, %" FMT_REGWORD "u, %#" FMT_REGWORD "x)", ARG1, ARG2, ARG3, ARG4);
+   PRE_REG_READ4(long, "lsm_set_self_attr", unsigned int, attr, struct vki_lsm_ctx *, ctx, __vki_u32 *, size, __vki_u32, flags);
+}
+
 PRE(sys_syncfs)
 {
    *flags |= SfMayBlock;

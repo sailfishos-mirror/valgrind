@@ -372,6 +372,8 @@ DECL_TEMPLATE(linux, sys_statmount);
 
 // Since Linux 6.10
 DECL_TEMPLATE(linux, sys_mseal);
+DECL_TEMPLATE(linux, sys_lsm_get_self_attr);
+DECL_TEMPLATE(linux, sys_lsm_set_self_attr);
 
 /* ---------------------------------------------------------------------
    Wrappers for sockets and ipc-ery.  These are split into standalone
