@@ -170,6 +170,9 @@ EXTRA_DIST = \
 		duplicate_align_size_errors.stderr.exp-memalign \
 		duplicate_align_size_errors.stderr.exp-darwin \
 		duplicate_align_size_errors.vgtest \
+	ioctl_procmap_query.stderr.exp \
+		ioctl_procmap_query.stdout.exp \
+		ioctl_procmap_query.vgtest \
 	sized_aligned_new_delete_args.stderr.exp \
 		sized_aligned_new_delete_args.vgtest \
 	sized_aligned_new_delete_misaligned1.stderr.exp \
@@ -519,6 +522,7 @@ check_PROGRAMS = \
 	file_locking \
 	fprw fwrite inits inline inlinfo inltemplate \
 	holey_buffer_too_small \
+	ioctl_procmap_query \
 	leak-0 \
 	leak-cases \
 	leak-cycle \

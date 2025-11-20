@@ -921,6 +921,7 @@
 /memcheck/tests/inline
 /memcheck/tests/inlinfo
 /memcheck/tests/inltemplate
+/memcheck/tests/ioctl_procmap_query
 /memcheck/tests/leak-0
 /memcheck/tests/leak-autofreepool
 /memcheck/tests/leak-cases
