@@ -1,7 +1,8 @@
 
 include $(top_srcdir)/Makefile.tool-tests.am
 
-dist_noinst_SCRIPTS = filter_stderr
+dist_noinst_SCRIPTS = filter_stderr \
+	filter_ioctl_procmap_query
 
 EXTRA_DIST = \
 	aligned_alloc.vgtest aligned_alloc.stderr.exp \
@@ -19,6 +20,9 @@ EXTRA_DIST = \
 	    dlclose_leak-no-keep.vgtest \
 	dlclose_leak.stderr.exp dlclose_leak.stdout.exp \
 	    dlclose_leak.vgtest \
+	ioctl_procmap_query.stderr.exp \
+		ioctl_procmap_query.stdout.exp \
+		ioctl_procmap_query.vgtest \
 	ioctl-tiocsig.vgtest ioctl-tiocsig.stderr.exp \
 	lsframe1.vgtest lsframe1.stdout.exp lsframe1.stderr.exp \
 	lsframe2.vgtest lsframe2.stdout.exp lsframe2.stderr.exp \
@@ -53,6 +57,7 @@ check_PROGRAMS = \
 	check_preadv2_pwritev2 \
 	debuginfod-check \
 	dlclose_leak dlclose_leak_so.so \
+	ioctl_procmap_query \
 	ioctl-tiocsig \
 	getregset \
 	lsframe1 \
