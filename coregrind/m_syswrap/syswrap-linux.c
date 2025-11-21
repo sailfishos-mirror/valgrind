@@ -10833,8 +10833,12 @@ PRE(sys_ioctl)
          (struct vki_procmap_query *)(Addr)ARG3;
       PRE_FIELD_READ("ioctl(PROCMAP_QUERY).vma_name_size", pq->vma_name_size);
       PRE_FIELD_READ("ioctl(PROCMAP_QUERY).vma_name_addr", pq->vma_name_addr);
+      PRE_FIELD_READ("ioctl(PROCMAP_QUERY).build_id_size", pq->build_id_size);
+      PRE_FIELD_READ("ioctl(PROCMAP_QUERY).build_id_addr", pq->build_id_addr);
       if (pq->vma_name_size > 0)
          PRE_MEM_WRITE("ioctl(PROCMAP_QUERY)", (Addr)pq->vma_name_addr, pq->vma_name_size);
+      if (pq->build_id_size > 0)
+         PRE_MEM_WRITE("ioctl(PROCMAP_QUERY)", (Addr)pq->build_id_addr, pq->build_id_size);
       break;
    }
 
@@ -13001,7 +13005,9 @@ POST(sys_ioctl)
       struct vki_procmap_query *pq =
          (struct vki_procmap_query *)(Addr)ARG3;
       if (pq->vma_name_size > 0)
-          POST_MEM_WRITE(pq->vma_name_addr, pq->vma_name_size);
+         POST_MEM_WRITE(pq->vma_name_addr, pq->vma_name_size);
+      if (pq->build_id_size > 0)
+         POST_MEM_WRITE(pq->build_id_addr, pq->build_id_size);
       break;
    }
 
