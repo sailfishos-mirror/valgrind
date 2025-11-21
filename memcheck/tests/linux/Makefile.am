@@ -57,7 +57,6 @@ check_PROGRAMS = \
 	check_preadv2_pwritev2 \
 	debuginfod-check \
 	dlclose_leak dlclose_leak_so.so \
-	ioctl_procmap_query \
 	ioctl-tiocsig \
 	getregset \
 	lsframe1 \
@@ -74,6 +73,10 @@ check_PROGRAMS = \
 	check_execveat \
 	enomem \
 	memalign
+
+if HAVE_PROCMAP_QUERY
+check_PROGRAMS += ioctl_procmap_query
+endif
 
 if HAVE_OPENSSL
 check_PROGRAMS += bug480706
