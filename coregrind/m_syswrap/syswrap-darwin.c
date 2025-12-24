@@ -77,6 +77,12 @@ typedef HChar name_t[BOOTSTRAP_MAX_NAME_LEN];
 
 typedef uint64_t mig_addr_t;
 
+// Apple started using more inclusive language in Xcode 12+ and macOS 12+
+#if !defined(HOST_IO_MAIN_PORT)
+#define HOST_IO_MAIN_PORT HOST_IO_MASTER_PORT
+#endif
+
+
 
 // Saved ports
 static mach_port_t vg_host_port = 0;
@@ -5566,8 +5572,8 @@ PRE(host_get_special_port)
             PRINT("host_get_special_port(%s, HOST_PRIV_PORT)",
                   name_for_port(MACH_REMOTE));
             break;
-        case HOST_IO_MASTER_PORT:
-            PRINT("host_get_special_port(%s, HOST_IO_MASTER_PORT)",
+        case HOST_IO_MAIN_PORT:
+            PRINT("host_get_special_port(%s, HOST_IO_MAIN_PORT)",
                   name_for_port(MACH_REMOTE));
             break;
         // Not provided by kernel
@@ -5628,7 +5634,7 @@ POST(host_get_special_port)
         case HOST_PRIV_PORT:
             assign_port_name(reply->port.name, "priv-%p");
             break;
-        case HOST_IO_MASTER_PORT:
+        case HOST_IO_MAIN_PORT:
             assign_port_name(reply->port.name, "io-master-%p");
             break;
         // Not provided by kernel
@@ -11213,6 +11219,14 @@ PRE(objc_bp_assist_cfg_np)
 
 
 /* ---------------------------------------------------------------------
+ Added for macOS 12.0 (Monterey)
+ ------------------------------------------------------------------ */
+
+#if DARWIN_VERS >= DARWIN_12_00
+
+#endif /* DARWIN_VERS >= DARWIN_12_00 */
+
+/* ---------------------------------------------------------------------
    syscall tables
    ------------------------------------------------------------------ */
 
@@ -11863,7 +11877,10 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    MACX_(__NR_ulock_wait2, ulock_wait2),                // 544
 // _____(__NR_proc_info_extended_id),                   // 545
 #endif
-
+#if DARWIN_VERS >= DARWIN_12_00
+// _____(__NR_tracker_action),                          // 546
+// _____(__NR_debug_syscall_reject),                    // 547
+#endif
    MACX_(__NR_darwin_fake_sigreturn, fake_sigreturn)
 };
 
