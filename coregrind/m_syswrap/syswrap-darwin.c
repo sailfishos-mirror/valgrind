@@ -3852,7 +3852,9 @@ PRE(posix_spawn)
 
    PRE_REG_READ5(int, "posix_spawn", vki_pid_t*, pid, char*, path,
                  void*, file_actions, char**, argv, char**, envp );
-   PRE_MEM_WRITE("posix_spawn(pid)", ARG1, sizeof(vki_pid_t) );
+   if (ARG1 != 0) {
+      PRE_MEM_WRITE("posix_spawn(pid)", ARG1, sizeof(vki_pid_t) );
+   }
    PRE_MEM_RASCIIZ("posix_spawn(path)", ARG2);
    // DDD: check file_actions
    if (ARG4 != 0)
