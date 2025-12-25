@@ -20,40 +20,7 @@ int main(int argc, char *argv[], char *envp[], char *apple[])
       ;
 
    // envp[i]==NULL; envp[i+1]==apple[0]==executable_path
-   //assert(envp[i+1] == apple[0]);
-   fprintf(stderr, "DEBUG: apple %p\n", apple);
-   fprintf(stderr, "DEBUG: envp[i+1] %p apple[0] %p\n", envp[i+1], apple[0]);
-   fprintf(stderr, "DEBUG: apple[-1] %p\n", apple[-1]);
-   fprintf(stderr, "DEBUG: apple[-2] %p\n", apple[-2]);
-   fprintf(stderr, "DEBUG: apple[-3] %p\n", apple[-3]);
-   fprintf(stderr, "DEBUG: apple[+1] %p\n", apple[+1]);
-   fprintf(stderr, "DEBUG: apple[+2] %p\n", apple[+2]);
-   fprintf(stderr, "DEBUG: &envp[i+1] %p &apple[0] %p\n", &envp[i+1], &apple[0]);
-   if (envp[i+1] != apple[0]) {
-      fprintf(stderr, "DEBUG: oh shit\n");
-      if (apple[0]) {
-         fprintf(stderr, "DEBUG: apple zero is %s\n", apple[0]);
-      } else {
-         fprintf(stderr, "DEBUG: apple zero is NULL\n");
-         if (apple[-1]) {
-            fprintf(stderr, "DEBUG: apple minus one is %p %s\n", apple[-1], apple[-1]);
-         } else {
-            fprintf(stderr, "DEBUG: apple minus one is NULL\n");
-         }
-         if (apple[-2]) {
-            fprintf(stderr, "DEBUG: apple minus two is %p %s\n", apple[-2], apple[-2]);
-         } else {
-            fprintf(stderr, "DEBUG: apple minus two is NULL\n");
-         }
-      }
-      if (envp[i+1]) {
-         fprintf(stderr, "DEBUG: after NULL after envp is %s\n", envp[i+1]);
-      } else {
-         fprintf(stderr, "DEBUG: after NULL after envp is NULL\n");
-      }
-   }
-
-   return 0;
+   assert(envp[i+1] == apple[0]);
 
    // Make sure realpath(argv[0]) == realpath(apple[0]).  (realpath resolves
    // symlinks.)
