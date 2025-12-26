@@ -1182,7 +1182,6 @@ static inline void my_exit ( int x )
 
 #endif
 
-
 /*---------------------- memcmp ----------------------*/
 
 #define MEMCMP(soname, fnname) \
@@ -1240,9 +1239,15 @@ static inline void my_exit ( int x )
  MEMCMP(VG_Z_LIBC_SONAME,  timingsafe_bcmp)
 
 #elif defined(VGO_darwin)
-# if DARWIN_VERS >= DARWIN_10_9
+# if DARWIN_VERS < DARWIN_12_00
   MEMCMP(VG_Z_LIBSYSTEM_PLATFORM_SONAME, _platform_memcmp)
-# endif
+# else
+  // PJF I'm not sure what is going on with macOS 12 Intel
+  // I was getting crashes here in Valgrind. This was in the
+  // return from the _platform_memcmp redir where there's a
+  // rip-relative jump but the dest address is NULL
+  MEMCMP(VG_Z_LIBSYSTEM_PLATFORM_SONAME, _platform_memcmp$VARIANT$Base)
+#endif
 
 #elif defined(VGO_solaris)
  MEMCMP(VG_Z_LIBC_SONAME, memcmp)
