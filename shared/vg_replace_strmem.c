@@ -1856,8 +1856,42 @@ static inline void my_exit ( int x )
       return NULL; \
    }
 
+#define MEMMEM_DARWIN(soname, fnname) \
+   void* VG_REPLACE_FUNCTION_EZU(20460,soname,fnname) \
+         (const void* big, SizeT big_len, const void* little, SizeT little_len); \
+   void* VG_REPLACE_FUNCTION_EZU(20460,soname,fnname) \
+         (const void* big, SizeT big_len, const void* little, SizeT little_len) \
+   { \
+      const HChar* h = big; \
+      const HChar* n = little; \
+      \
+      if (big_len < little_len) return NULL; \
+      if (little_len == 0) return NULL; \
+      \
+      HChar n0 = n[0]; \
+      \
+      for (; big_len >= little_len; big_len--, h++) { \
+         if (h[0] != n0) continue; \
+         \
+         UWord i; \
+         for (i = 1; i < little_len; i++) { \
+            if (n[i] != h[i]) \
+               break; \
+         } \
+         if (i == little_len) \
+           return CONST_CAST(HChar *,h); \
+         \
+      } \
+      return NULL; \
+   }
+
+
 #if defined(VGP_s390x_linux)
  MEMMEM(VG_Z_LIBC_SONAME,          memmem)
+#endif
+
+#if defined(VGO_darwin)
+ MEMMEM_DARWIN(VG_Z_LIBSYSTEM_C_SONAME,          memmem)
 #endif
 
 
