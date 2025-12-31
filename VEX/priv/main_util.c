@@ -462,6 +462,7 @@ UInt vprintf_wrk ( void(*sink)(HChar),
             PAD(len1); PUTSTR(str); PAD(len3);
             break;
          }
+         case 'i':
          case 'd': {
             Long l;
             vassert(is_sizet == False); // %zd is obscure; we don't allow it
