@@ -8,7 +8,7 @@ X86/Android, X86/Solaris, AMD64/Solaris, X86/macOS, AMD64/macOS.
 X86/FreeBSD, AMD64/FreeBSD and ARM64/FreeBSD. There is preliminary support
 for nanoMIPS/Linux. macOS is supported up to version 12 Monterey (amd64 only).
 
-* ==================== CORE CHANGES ===================
+ ==================== CORE CHANGES ===================
 
 * ================== PLATFORM CHANGES =================
 
@@ -1121,6 +1121,7 @@ are not entered into bugzilla tend to get forgotten about or ignored.
 506211  Constant folding improvements
 506453  Unexpected behaviour with IR injection and vex-guest-chase=yes
 509157  riscv64: Shift instructions can behave wrong
+510840  Use objdump for disassembly in VEX (s390x only)
 
 To see details of a given bug, visit
   https://bugs.kde.org/show_bug.cgi?id=XXXXXX

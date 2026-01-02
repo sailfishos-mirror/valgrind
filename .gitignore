@@ -2538,6 +2538,10 @@ none/tests/freebsd/bug499212
 /VEX/priv/.deps
 /VEX/priv/.dirstamp
 
+# /VEX/priv/objdump
+/VEX/priv/objdump/.deps
+/VEX/priv/objdump/.dirstamp
+
 # /VEX/pub/
 /VEX/pub/libvex_guest_offsets.h
 
