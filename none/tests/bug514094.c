@@ -26,8 +26,8 @@ int main(int argc, char** argv)
    assert(strcmp(resolved, buf) == 0);
 
    const size_t small_buf_size = 11;
-   char small_buf[11];
-   memset(small_buf, '#', 11);
+   char small_buf[small_buf_size];
+   memset(small_buf, '#', small_buf_size);
 #if defined(VGO_solaris)
    ret = readlink("/proc/self/path/a.out", small_buf, 10);
 #else
