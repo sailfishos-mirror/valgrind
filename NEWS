@@ -8,6 +8,7 @@ The following bugs have been fixed or resolved on this branch.
 511972  valgrind-3.26.0 tests fail to build on upcomig gcc-16:
         unrecognized command-line option
         '-Wno-alloc-size-larger-than=18446744073709551615'
+514094  readlink("/proc/self/exe") overwrites buffer beyond its return value
 
 To see details of a given bug, visit
   https://bugs.kde.org/show_bug.cgi?id=XXXXXX
