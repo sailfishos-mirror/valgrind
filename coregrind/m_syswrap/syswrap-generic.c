@@ -5095,6 +5095,7 @@ PRE(sys_readlink)
           && (VG_STREQ(arg1s, name) || VG_STREQ(arg1s, SELF_EXEPATH))) {
          HChar* out_name = (HChar*)ARG2;
          SizeT res = VG_(strlen)(VG_(resolved_exename));
+         res = VG_MIN(res, ARG3);
          VG_(strncpy)(out_name, VG_(resolved_exename), res);
          SET_STATUS_Success(res);
          fuse_may_block = False;

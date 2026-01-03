@@ -1921,6 +1921,7 @@
 /none/tests/linux/mremap6
 /none/tests/linux/open_client
 /none/tests/linux/pthread-stack
+/none/tests/linux/readlinkat_self
 /none/tests/linux/stack-overflow
 /none/tests/linux/getdents_filter
 
