@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <limits.h>
+#include <errno.h>
 #include "../../config.h"
 
 int main(int argc, char** argv)
@@ -36,5 +37,12 @@ int main(int argc, char** argv)
    assert(strncmp(resolved, small_buf, 10) == 0);
    assert(small_buf[10] == '#');
 
+#if defined(VGO_solaris)
+   ret = readlink("/proc/self/path/a.out", (char*)1, 100);
+#else
+   ret = readlink("/proc/self/exe", (char*)1, 100);
+#endif
+   assert(ret == -1);
+   assert(errno = EFAULT);
 }
 

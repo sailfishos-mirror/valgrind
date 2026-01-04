@@ -5096,8 +5096,12 @@ PRE(sys_readlink)
          HChar* out_name = (HChar*)ARG2;
          SizeT res = VG_(strlen)(VG_(resolved_exename));
          res = VG_MIN(res, ARG3);
-         VG_(strncpy)(out_name, VG_(resolved_exename), res);
-         SET_STATUS_Success(res);
+         if (ML_(safe_to_deref)(out_name, res)) {
+            VG_(strncpy)(out_name, VG_(resolved_exename), res);
+            SET_STATUS_Success(res);
+         } else {
+            SET_STATUS_Failure(VKI_EFAULT);
+         }
          fuse_may_block = False;
       }
    }

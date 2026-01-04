@@ -59,6 +59,7 @@ open_client_SOURCES = open_client.cpp
 endif
 clonev_LDADD = -lpthread
 pthread_stack_LDADD = -lpthread
+readlinkat_self_CFLAGS = ${AM_CFLAGS} @FLAG_W_NO_STRINGOP_OVERFLOW@
 
 stack_overflow_CFLAGS = $(AM_CFLAGS) @FLAG_W_NO_UNINITIALIZED@ \
 			@FLAG_W_NO_INFINITE_RECURSION@
