@@ -3112,6 +3112,16 @@ PRE(sys_madvise)
                         ARG1, ARG2, SARG3);
    PRE_REG_READ3(long, "madvise",
                  unsigned long, start, vki_size_t, length, int, advice);
+   /* Ugly hack to try to bypass the problem of guard pages not being
+      understood by valgrind aspace manager.
+      By making the syscall fail, we expect glibc to fallback
+      on implementing guard pages with mprotect PROT_NONE to ensure
+      the valgrind address space manager is not confused wrongly
+      believing the guard page is rw. */
+#ifdef VKI_MADV_GUARD_INSTALL
+   if (ARG3 == VKI_MADV_GUARD_INSTALL)
+      SET_STATUS_Failure( VKI_EINVAL );
+#endif
 }
 
 #if HAVE_MREMAP

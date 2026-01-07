@@ -1,6 +1,18 @@
 Branch 3.26
 ~~~~~~~~~~~
 
+* ==================== CORE CHANGES ===================
+
+* linux madvise MADV_GUARD_INSTALL unsupported
+
+  glibc 2.42+ (with linux 6.13+) uses MADV_GUARD_INSTALL to setup
+  stack guard pages. valgrind currently isn't able to track this and
+  such guard pages also don't show up in /proc maps (only in /proc
+  pagemap since linux 6.14). For now valgrind fails a madvise
+  MADV_GUARD_INSTALL syscall with EINVAL. This causes glibc to fall
+  back to mprotect PROT_NONE which valgrind is able to track.
+  See also https://bugs.kde.org/show_bug.cgi?id=514297
+
 * ==================== FIXED BUGS ====================
 
 The following bugs have been fixed or resolved on this branch.
@@ -8,6 +20,8 @@ The following bugs have been fixed or resolved on this branch.
 511972  valgrind-3.26.0 tests fail to build on upcomig gcc-16:
         unrecognized command-line option
         '-Wno-alloc-size-larger-than=18446744073709551615'
+511717  gdbserver (valgrind_read_memory) the 'impossible' happened:
+        Killed by fatal signal (SIGSEGV)
 514094  readlink("/proc/self/exe") overwrites buffer beyond its return value
 
 To see details of a given bug, visit
