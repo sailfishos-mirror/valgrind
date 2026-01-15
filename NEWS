@@ -23,6 +23,7 @@ The following bugs have been fixed or resolved on this branch.
 511717  gdbserver (valgrind_read_memory) the 'impossible' happened:
         Killed by fatal signal (SIGSEGV)
 514094  readlink("/proc/self/exe") overwrites buffer beyond its return value
+514613  Unclosed leak_summary/still_reachable tag in xml output
 
 To see details of a given bug, visit
   https://bugs.kde.org/show_bug.cgi?id=XXXXXX
