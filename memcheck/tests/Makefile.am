@@ -307,6 +307,7 @@ EXTRA_DIST = \
 	new_nothrow.stderr.exp new_nothrow.vgtest \
 	new_override.stderr.exp new_override.stdout.exp new_override.vgtest \
 	noisy_child.vgtest noisy_child.stderr.exp noisy_child.stdout.exp \
+	nothing_xml.vgtest nothing_xml.stderr.exp \
 	null_socket.stderr.exp null_socket.vgtest \
 	origin1-yes.vgtest origin1-yes.stdout.exp origin1-yes.stderr.exp \
 		origin1-yes.stderr.exp-freebsd \
@@ -403,6 +404,8 @@ EXTRA_DIST = \
 	    sigkill.stderr.exp-glibc-2.28 sigkill.vgtest \
 	signal2.stderr.exp signal2.stdout.exp signal2.vgtest \
 	sigprocmask.stderr.exp sigprocmask.stderr.exp2 sigprocmask.vgtest \
+	simple_leak_xml.vgtest simple_reachable_xml.vgtest \
+	simple_leak_xml.stderr.exp simple_reachable_xml.stderr.exp \
 	sized_delete.stderr.exp sized_delete.stderr.exp-x86 sized_delete.vgtest \
 	static_malloc.stderr.exp static_malloc.vgtest \
 	stpncpy.vgtest stpncpy.stderr.exp stpncpy.stdout.exp \
@@ -478,6 +481,7 @@ EXTRA_DIST = \
 	wrapmallocstatic.vgtest wrapmallocstatic.stdout.exp \
 	wrapmallocstatic.stderr.exp \
 	writev1.stderr.exp writev1.stderr.exp-solaris writev1.vgtest \
+	xmas_tree_xml.vgtest xmas_tree_xml.supp xmas_tree_xml.stderr.exp \
 	xml1.stderr.exp xml1.stdout.exp xml1.vgtest xml1.stderr.exp-s390x-mvc
 
 check_PROGRAMS = \
@@ -539,6 +543,7 @@ check_PROGRAMS = \
 	mismatches new_override metadata \
 	nanoleak_supp nanoleak2 new_nothrow \
 	noisy_child \
+	nothing \
 	null_socket \
 	origin1-yes origin2-not-quite origin3-no \
 	origin4-many origin5-bz2 origin6-fp \
@@ -556,7 +561,9 @@ check_PROGRAMS = \
 	sbfragment \
 	sendmsg \
 	sh-mem sh-mem-random \
-	sigaltstack signal2 sigprocmask static_malloc sigkill \
+	sigaltstack signal2 sigprocmask \
+	simple_leak simple_reachable \
+	static_malloc sigkill \
 	strchr \
 	str_tester \
 	supp_unknown supp1 supp2 suppfree \
@@ -575,7 +582,8 @@ check_PROGRAMS = \
 	wmemcmp \
 	wrap1 wrap2 wrap3 wrap4 wrap5 wrap6 wrap7 wrap7so.so wrap8 \
 	wrapmalloc wrapmallocso.so wrapmallocstatic \
-	writev1
+	writev1 \
+	xmas_tree
 
 if !SOLARIS_SUN_STUDIO_AS
 # Sun Studio assembler fails on "IDENT too long"
@@ -950,3 +958,5 @@ endif
 writev1_CFLAGS		= $(AM_CFLAGS) @FLAG_W_NO_STRINGOP_OVERFLOW@ @FLAG_W_NO_STRINGOP_OVERREAD@
 xml1_CFLAGS             = $(AM_CFLAGS) -D_GNU_SOURCE @FLAG_W_NO_UNINITIALIZED@ @FLAG_W_NO_USE_AFTER_FREE@
 
+xmas_tree_SOURCES	= xmas_tree.cpp
+xmas_tree_CXXFLAGS	= ${AM_CXXFLAGS} @FLAG_W_NO_UNINITIALIZED@ @FLAG_W_NO_MISMATCHED_NEW_DELETE@ @FLAG_W_ALLOC_SIZE_LARGER_THAN@
