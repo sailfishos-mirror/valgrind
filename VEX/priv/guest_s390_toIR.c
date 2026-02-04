@@ -16402,7 +16402,7 @@ s390_irgen_VMSL(UChar v1, UChar v2, UChar v3, UChar v4, UChar m5, UChar m6)
       return;
    }
 
-   s390_insn_assert(m5 == 3 && (m6 & 3) == 0);
+   s390_insn_assert(m5 == 3);
 
    IRDirty* d;
    IRTemp cc = newTemp(Ity_I64);

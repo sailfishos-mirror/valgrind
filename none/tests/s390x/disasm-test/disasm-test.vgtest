@@ -6,7 +6,6 @@
 # exrl - Offset is expected to denote a decodable insn; no such scaffolding
 # kma  - cannot express constraint that r3 must be different from r1 and r2
 # The following need to be fixed
-# vmsl - m6 does not cause a spec exc.
 # vgef - runs into an assert instead of spec. exc.
 # vgeg - runs into an assert instead of spec. exc.
 # vscef - runs into an assert instead of spec. exc.
@@ -18,7 +17,7 @@
 
 prereq: ./disasm-test --check-march=arch14
 prog: /bin/true
-post: ./disasm-test --gcc-flags=-march=arch14 --all --exclude exrl kma vmsl vgef vgeg vscef vsceg vstef srnmb --summary
+post: ./disasm-test --gcc-flags=-march=arch14 --all --exclude exrl kma vgef vgeg vscef vsceg vstef srnmb --summary
 vgopts: -q
 stderr_filter:
 stderrB_filter:
