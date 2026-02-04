@@ -4,7 +4,7 @@
    This file is part of Valgrind, a dynamic binary instrumentation
    framework.
 
-   Copyright (C) 2024-2025  Florian Krohm
+   Copyright (C) 2024-2026  Florian Krohm
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
@@ -145,6 +145,22 @@ vex_disasm(const unsigned char *codebuf, int *spec_exc)
    if (res.whatNext == Dis_StopHere &&
        res.jk_StopHere == Ijk_NoDecode) {
       *spec_exc = 1;
+   }
+
+   if (last_vex_string) {
+      /* Compress a sequence of spaces with a single blank. */
+      int space_seen = 0;
+      char *p, *q;
+      for (p = q = last_vex_string; *p; ++p) {
+         if (isspace(*p)) {
+            if (space_seen) continue;
+            space_seen = 1;
+         } else {
+            space_seen = 0;
+         }
+         *q++ = *p;
+      }
+      *q = '\0';
    }
 
    return last_vex_string;
