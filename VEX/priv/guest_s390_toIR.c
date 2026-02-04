@@ -14424,7 +14424,7 @@ s390_irgen_VSTEH(UChar v1, IRTemp op2addr, UChar m3)
 static void
 s390_irgen_VSTEF(UChar v1, IRTemp op2addr, UChar m3)
 {
-   s390_insn_assert(m3 < 8);
+   s390_insn_assert(m3 < 4);
 
    store(mkexpr(op2addr), get_vr(v1, Ity_I32, m3));
 }

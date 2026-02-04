@@ -11,11 +11,10 @@
 # vgeg - runs into an assert instead of spec. exc.
 # vscef - runs into an assert instead of spec. exc.
 # vsceg - runs into an assert instead of spec. exc.
-# vstef - runs into an assert instead of spec. exc.
 
 prereq: ./disasm-test --check-march=arch14
 prog: /bin/true
-post: ./disasm-test --gcc-flags=-march=arch14 --all --exclude exrl kma vgef vgeg vscef vsceg vstef srnmb --summary
+post: ./disasm-test --gcc-flags=-march=arch14 --all --exclude exrl kma vgef vgeg vscef vsceg srnmb --summary
 vgopts: -q
 stderr_filter:
 stderrB_filter:
