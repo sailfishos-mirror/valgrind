@@ -12,7 +12,6 @@
 # vscef - runs into an assert instead of spec. exc.
 # vsceg - runs into an assert instead of spec. exc.
 # vstef - runs into an assert instead of spec. exc.
-# popcnt - s390_insn_assert is wrong; just "may not operate correctly"
 # srnmb - The compile-time checkable constraint cannot be expressed in opcode.c
 #         But the s390_insn_assert is wrong nevertheless because bits [0:55] are ignored.
 #         Need to mask d2 before checking  (d2 & 0xff)
@@ -20,7 +19,7 @@
 
 prereq: ./disasm-test --check-march=arch14
 prog: /bin/true
-post: ./disasm-test --gcc-flags=-march=arch14 --all --exclude exrl kma vmsl vgef vgeg vscef vsceg vstef popcnt srnmb vster --summary
+post: ./disasm-test --gcc-flags=-march=arch14 --all --exclude exrl kma vmsl vgef vgeg vscef vsceg vstef srnmb vster --summary
 vgopts: -q
 stderr_filter:
 stderrB_filter:
