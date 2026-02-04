@@ -9337,6 +9337,7 @@ s390_irgen_SRNMB(UChar b2, UShort d2)
 {
    /* Can only check at IR generation time when b2 == 0 */
    if (b2 == 0) {
+      d2 &= 0xff;     // d2[0:55] is ignored
       s390_insn_assert(d2 <= 3 || d2 == 7);  // valid rounding mode
    }
    IRTemp op2addr = newTemp(Ity_I64);

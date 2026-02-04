@@ -3,17 +3,15 @@
 # Therefore the real test here is run in the "post" command.
 #
 # Excluded opcodes:
-# exrl - Offset is expected to denote a decodable insn; no such scaffolding
-# kma  - cannot express constraint that r3 must be different from r1 and r2
+# exrl  - Offset is expected to denote a decodable insn; no such scaffolding
+# kma   - Cannot express constraint that r3 must be different from r1 and r2
+# srnmb - The compile-time checkable constraint cannot be expressed in opcode.c
 # The following need to be fixed
 # vgef - runs into an assert instead of spec. exc.
 # vgeg - runs into an assert instead of spec. exc.
 # vscef - runs into an assert instead of spec. exc.
 # vsceg - runs into an assert instead of spec. exc.
 # vstef - runs into an assert instead of spec. exc.
-# srnmb - The compile-time checkable constraint cannot be expressed in opcode.c
-#         But the s390_insn_assert is wrong nevertheless because bits [0:55] are ignored.
-#         Need to mask d2 before checking  (d2 & 0xff)
 
 prereq: ./disasm-test --check-march=arch14
 prog: /bin/true
