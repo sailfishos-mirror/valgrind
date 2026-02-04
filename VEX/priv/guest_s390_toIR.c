@@ -17159,7 +17159,7 @@ s390_irgen_VSTER(UChar v1, IRTemp op2addr, UChar m3)
       return;
    }
 
-   s390_insn_assert(m3 >= 1 && m3 <= 4);
+   s390_insn_assert(m3 >= 1 && m3 <= 3);
 
    store(mkexpr(op2addr), s390_reverse_elements(get_vr_qw(v1), m3));
 }

@@ -15,11 +15,10 @@
 # srnmb - The compile-time checkable constraint cannot be expressed in opcode.c
 #         But the s390_insn_assert is wrong nevertheless because bits [0:55] are ignored.
 #         Need to mask d2 before checking  (d2 & 0xff)
-# vster - should be    s390_insn_assert(m3 >= 1 && m3 <= 3);   // 3 not 4
 
 prereq: ./disasm-test --check-march=arch14
 prog: /bin/true
-post: ./disasm-test --gcc-flags=-march=arch14 --all --exclude exrl kma vmsl vgef vgeg vscef vsceg vstef srnmb vster --summary
+post: ./disasm-test --gcc-flags=-march=arch14 --all --exclude exrl kma vmsl vgef vgeg vscef vsceg vstef srnmb --summary
 vgopts: -q
 stderr_filter:
 stderrB_filter:
