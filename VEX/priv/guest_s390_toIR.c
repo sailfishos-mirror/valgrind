@@ -3289,8 +3289,10 @@ s390_format_VRV(void (*irgen)(UChar v1, IRTemp op2addr, UChar m3),
    vassert(type == Ity_I32 || type == Ity_I64);
    IRExpr *x2;
    if(type == Ity_I32) {
+      s390_insn_assert(m3 < 4);
       x2 = unop(Iop_32Uto64, get_vr(v2, type, m3));
    } else {
+      s390_insn_assert(m3 < 2);
       x2 = get_vr(v2, type, m3);
    }
 
