@@ -20800,8 +20800,10 @@ s390_decode_and_irgen(const UChar *bytes, UInt insn_length, DisResult *dres)
          s390_decode_special_and_irgen(bytes + S390_SPECIAL_OP_PREAMBLE_SIZE);
    } else {
       /* Handle normal instructions. */
-      if (UNLIKELY(vex_traceflags & VEX_TRACE_FE))
-         s390_disasm(bytes);
+      if (UNLIKELY(vex_traceflags & VEX_TRACE_FE)) {
+         HChar *str = s390_disasm(bytes, /* padmnm */ 1);
+         vex_printf("%s\n", str ? str : "disassembly failed");
+      }
  
       switch (insn_length) {
       case 2:
@@ -20870,6 +20872,11 @@ s390_decode_and_irgen(const UChar *bytes, UInt insn_length, DisResult *dres)
          if (i != 0)
             vex_printf(" ");
          vex_printf("%02x%02x", bytes[i], bytes[i + 1]);
+      }
+      if (status == S390_DECODE_UNIMPLEMENTED_INSN ||
+          status == S390_DECODE_SPECIFICATION_EXCEPTION) {
+         const HChar *str = s390_disasm(bytes, /* padmnm */ 0);
+         vex_printf("   %s", str == NULL ? "??????" : str);
       }
       vex_printf("\n");
    }
