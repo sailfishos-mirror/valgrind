@@ -219,6 +219,7 @@ EXTRA_DIST = \
 	rcrl.stderr.exp rcrl.stdout.exp rcrl.vgtest \
 	readline1.stderr.exp readline1.stdout.exp \
 	readline1.vgtest \
+	replaces_malloc_client_req.stdout.exp replaces_malloc_client_req.vgtest \
 	require-text-symbol-1.vgtest \
 	require-text-symbol-2.vgtest \
 		require-text-symbol-2.stderr.exp-libcso1 \

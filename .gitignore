@@ -999,6 +999,7 @@
 /memcheck/tests/realloc1
 /memcheck/tests/realloc2
 /memcheck/tests/realloc3
+/memcheck/tests/replaces_malloc_client_req
 /memcheck/tests/recursive-merge
 /memcheck/tests/resvn_stack
 /memcheck/tests/sbfragment
