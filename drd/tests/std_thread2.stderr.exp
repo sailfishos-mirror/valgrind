@@ -2,6 +2,7 @@
 Thread 2:
 Conflicting store by thread 2 at 0x........ size 4
    at 0x........: main::LAMBDA::operator()() const (std_thread2.cpp:21)
+   by 0x........: void std::__invoke_impl<void, main::LAMBDA>(std::__invoke_other, main::{lambda()#1}&&) (invoke.h:?)
 Allocation context: BSS section of std_thread2
 
 Done.
