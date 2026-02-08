@@ -20,6 +20,12 @@ for nanoMIPS/Linux. macOS is supported up to version 12 Monterey (amd64 only).
   back to mprotect PROT_NONE which valgrind is able to track.
   See also https://bugs.kde.org/show_bug.cgi?id=514297
 
+* --num-callers now has a minimum value of 2.
+
+  This is a breaking change. See
+  https://bugs.kde.org/show_bug.cgi?id=515183#c13
+  for full details.
+
 * ================== PLATFORM CHANGES =================
 
 s390x: Machine models older than z196 are no longer supported.
