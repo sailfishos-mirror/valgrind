@@ -31,7 +31,7 @@ int main(void)
    fprintf(stderr, "Added leak check, expect 40 bytes still reachable\n");
    VALGRIND_DO_ADDED_LEAK_CHECK;
    errno = 0;
-   /* this will fail in the mallloc lib, not enough memory */
+   /* this will fail in the malloc lib, not enough memory */
    newpi = reallocarray(pi, 1UL << 49, 1U);
    assert(!newpi);
    assert(errno == ENOMEM);
