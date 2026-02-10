@@ -2363,7 +2363,7 @@ Int VG_(machine_get_size_of_largest_guest_register) ( void )
    return 8;
 
 #  elif defined(VGA_s390x)
-   return 8;
+   return (vai.hwcaps & VEX_HWCAPS_S390X_VX) ? 16 : 8;
 
 #  elif defined(VGA_arm)
    /* Really it depends whether or not we have NEON, but let's just
