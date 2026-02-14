@@ -37,7 +37,7 @@ EXTRA_DIST = \
 	ksh_test.stdout.exp \
 	open_client.vgtest \
 	procfs-cmdline-exe.vgtest \
-	procfs-cmdline-exe..stderr.exp \
+	procfs-cmdline-exe.stderr.exp \
 	readlinkat.vgtest \
 	readlinkat2.vgtest \
 	sanity_level_thread.vgtest \
