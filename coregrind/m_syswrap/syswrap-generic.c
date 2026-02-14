@@ -4779,8 +4779,8 @@ POST(sys_nanosleep)
    fake file we cooked up at startup (in m_main).  Also, seeks the
    cloned fd back to the start.
    Returns True if auxv open was handled (status is set). */
-Bool ML_(handle_auxv_open)(SyscallStatus *status, const HChar *filename,
-                           int flags)
+static Bool handle_auxv_open(SyscallStatus *status, const HChar *filename,
+                             int flags)
 {
    HChar  name[30];   // large enough
 
@@ -4924,8 +4924,8 @@ PRE(sys_open)
 
    /* Handle also the case of /proc/self/auxv or /proc/<pid>/auxv
       or /proc/self/exe or /proc/<pid>/exe. */
-   if (ML_(handle_auxv_open)(status, (const HChar *)(Addr)ARG1, ARG2)
-       || ML_(handle_self_exe_open)(status, (const HChar *)(Addr)ARG1, ARG2))
+   if (handle_auxv_open(status, (const HChar *)(Addr)ARG1, ARG2)
+       || handle_self_exe_open(status, (const HChar *)(Addr)ARG1, ARG2))
       return;
 
    if (proc_self_exe) {

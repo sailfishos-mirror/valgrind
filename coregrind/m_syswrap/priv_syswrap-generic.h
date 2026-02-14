@@ -121,10 +121,6 @@ extern
 void ML_(pre_argv_envp)(Addr a, ThreadId tid, const HChar *s1, const HChar *s2);
 
 extern Bool
-ML_(handle_auxv_open)(SyscallStatus *status, const HChar *filename,
-                      int flags);
-
-extern Bool
 ML_(handle_self_exe_open)(SyscallStatus *status, const HChar *filename,
                           int flags);
 
