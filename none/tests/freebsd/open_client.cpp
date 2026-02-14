@@ -7,12 +7,22 @@
 #include <unistd.h>
 #include <sys/syscall.h>
 #include <unistd.h>
+#include <sys/mount.h>
+#include <iostream>
 
 int main(int argc, char** argv)
 {
     std::vector<int> flags{O_WRONLY|O_CREAT|O_TRUNC, O_WRONLY, O_RDWR};
     std::string ppf = std::string("/proc/") + std::to_string(getpid()) + "/file";
-    std::vector<std::string> paths{argv[0], ppf, "/proc/curproc/file"};
+    std::vector<std::string> paths{argv[0]};
+    struct statfs sfs;
+
+    if (statfs("/proc", &sfs) == 0) {
+        if (std::string(sfs.f_fstypename) == "procfs") {
+            paths.emplace_back(ppf);
+            paths.emplace_back("/proc/curproc/file");
+        }
+    }
 
     for (const auto& p : paths)
     {
