@@ -194,12 +194,6 @@ EXTRA_DIST = \
 		nodir.stderr.exp-freebsd \
 	pending.stdout.exp pending.stderr.exp pending.vgtest \
 	ppoll_alarm.vgtest \
-	procfs-linux.stderr.exp-with-readlinkat \
-	procfs-linux.stderr.exp-without-readlinkat \
-	procfs-linux.vgtest \
-	procfs-non-linux.vgtest \
-	procfs-non-linux.stderr.exp-with-readlinkat \
-	procfs-non-linux.stderr.exp-without-readlinkat \
 	pselect_alarm.vgtest \
 	pselect_sigmask_null.vgtest \
 	pth_atfork1.stderr.exp pth_atfork1.stdout.exp pth_atfork1.vgtest \
