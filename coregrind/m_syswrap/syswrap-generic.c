@@ -4773,7 +4773,7 @@ POST(sys_nanosleep)
       POST_MEM_WRITE( ARG2, sizeof(struct vki_timespec) );
 }
 
-#if defined(VGO_linux) || defined(VGO_solaris)
+#if defined(VGO_linux)
 /* Handles the case where the open is of /proc/self/auxv or
    /proc/<pid>/auxv, and just gives out a copy of the fd for the
    fake file we cooked up at startup (in m_main).  Also, seeks the
@@ -4798,11 +4798,6 @@ Bool ML_(handle_auxv_open)(SyscallStatus *status, const HChar *filename,
       return True;
    }
 
-#  if defined(VGO_solaris)
-   VG_(sprintf)(name, "/proc/self/fd/%d", VG_(cl_auxv_fd));
-   SysRes sres = VG_(open)(name, flags, 0);
-   SET_STATUS_from_SysRes(sres);
-#  else
    SysRes sres = VG_(dup)(VG_(cl_auxv_fd));
    SET_STATUS_from_SysRes(sres);
    if (!sr_isError(sres)) {
@@ -4810,13 +4805,10 @@ Bool ML_(handle_auxv_open)(SyscallStatus *status, const HChar *filename,
       if (off < 0)
          SET_STATUS_Failure(VKI_EMFILE);
    }
-#  endif
 
    return True;
 }
-#endif // defined(VGO_linux) || defined(VGO_solaris)
 
-#if defined(VGO_linux)
 Bool ML_(handle_self_exe_open)(SyscallStatus *status, const HChar *filename,
                                int flags)
 {
