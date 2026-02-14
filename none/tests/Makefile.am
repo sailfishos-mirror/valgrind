@@ -300,7 +300,6 @@ check_PROGRAMS = \
 	munmap_exe map_unaligned map_unmap mq \
 	nocwd \
 	pending \
-	procfs-cmdline-exe \
 	pselect_alarm \
 	pselect_sigmask_null \
 	pth_atfork1 pth_blockedsig pth_cancel1 pth_cancel2 pth_cvsimple \

@@ -1645,7 +1645,6 @@
 /none/tests/pluto
 /none/tests/ppoll_alarm
 /none/tests/process_vm_readv_writev
-/none/tests/procfs-cmdline-exe
 /none/tests/pselect_alarm
 /none/tests/pselect_sigmask_null
 /none/tests/pth_2sig
@@ -1902,6 +1901,7 @@
 /none/tests/darwin/bug254164
 /none/tests/darwin/bug390269
 /none/tests/darwin/bug411369
+/none/tests/darwin/procfs-cmdline-exe
 /none/tests/darwin/rlimit
 
 # /none/tests/linux/
@@ -1924,6 +1924,7 @@
 /none/tests/linux/mremap5
 /none/tests/linux/mremap6
 /none/tests/linux/open_client
+/none/tests/linux/procfs-cmdline-exe
 /none/tests/linux/pthread-stack
 /none/tests/linux/readlinkat_self
 /none/tests/linux/stack-overflow

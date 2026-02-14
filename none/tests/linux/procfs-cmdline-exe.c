@@ -15,7 +15,7 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <unistd.h>
-#include "../../config.h"
+#include "../../../config.h"
 
 static void test_cmdline(const char* const cwd, const char* const label,
                          const char* const path)
