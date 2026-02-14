@@ -1,4 +1,4 @@
-prereq: which xmllint > /dev/null
+prereq: command -v xmllint > /dev/null
 prog: simple_leak
 args: | xmllint --noout -
 vgopts: --xml=yes --xml-fd=1
