@@ -2357,6 +2357,7 @@ none/tests/freebsd/bug499212
 /none/tests/freebsd/hello_world
 /none/tests/freebsd/open_client
 /none/tests/freebsd/proc_pid_file
+/none/tests/freebsd/procfs-cmdline-exe
 /none/tests/freebsd/sanity_level_thread
 /none/tests/freebsd/usrstack
 /none/tests/freebsd/umtx_shm_creat

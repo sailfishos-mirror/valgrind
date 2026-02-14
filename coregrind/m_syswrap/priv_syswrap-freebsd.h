@@ -50,7 +50,7 @@ DECL_TEMPLATE(freebsd, sys_exit) // 1
 DECL_TEMPLATE(freebsd, sys_fork) // 2
 // generic read 3
 // generic write 4
-// generic open 5
+DECL_TEMPLATE(freebsd, sys_open) // 5
 // generic close 6
 // generic wait4 7
 // generic link 9
