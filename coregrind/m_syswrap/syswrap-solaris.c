@@ -1770,6 +1770,11 @@ PRE(sys_open)
                           ARG2, ARG3))
       return;
 
+#if defined(SOLARIS_PROC_CMDLINE)
+   if (handle_cmdline_open(status, (const HChar*)ARG1))
+      return;
+#endif
+
    *flags |= SfMayBlock;
 }
 
