@@ -1,5 +1,3 @@
-# On FreeBSD, /proc is optional and often not present
-prereq: [ -d /proc]
 args:arg1 "arg 2" arg3
 prog: procfs-cmdline-exe
 stderr_filter: filter_stderr
