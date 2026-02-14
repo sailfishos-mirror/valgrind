@@ -4809,8 +4809,8 @@ static Bool handle_auxv_open(SyscallStatus *status, const HChar *filename,
    return True;
 }
 
-Bool ML_(handle_self_exe_open)(SyscallStatus *status, const HChar *filename,
-                               int flags)
+static handle_self_exe_open(SyscallStatus *status, const HChar *filename,
+                            int flags)
 {
    HChar  name[30];   // large enough for /proc/<int>/exe
 
