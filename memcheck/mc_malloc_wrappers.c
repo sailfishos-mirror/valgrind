@@ -1014,6 +1014,7 @@ void MC_(mempool_free)(Addr pool, Addr addr)
 
    die_and_free_mem ( tid, mc, mp->rzB );
    if (MP_DETAILED_SANITY_CHECKS) check_mempool_sane(mp);
+   cmalloc_n_frees++;
 }
 
 
@@ -1073,10 +1074,11 @@ void MC_(mempool_trim)(Addr pool, Addr addr, SizeT szB)
             MC_(record_free_error)(tid, (Addr)mc->data);
             VG_(free)(chunks);
             if (MP_DETAILED_SANITY_CHECKS) check_mempool_sane(mp);
+            cmalloc_n_frees++;
             return;
          }
          die_and_free_mem ( tid, mc, mp->rzB );  
-
+         cmalloc_n_frees++;
       } else {
 
          /* The current chunk intersects the trim extent: remove,
@@ -1088,6 +1090,7 @@ void MC_(mempool_trim)(Addr pool, Addr addr, SizeT szB)
             MC_(record_free_error)(tid, (Addr)mc->data);
             VG_(free)(chunks);
             if (MP_DETAILED_SANITY_CHECKS) check_mempool_sane(mp);
+            cmalloc_n_frees++;
             return;
          }
 
@@ -1122,6 +1125,7 @@ void MC_(mempool_trim)(Addr pool, Addr addr, SizeT szB)
          mc->data = lo;
          mc->szB = (UInt) (hi - lo);
          VG_(HT_add_node)( mp->chunks, mc );        
+         cmalloc_n_frees++;
       }
 
 #undef EXTENT_CONTAINS
