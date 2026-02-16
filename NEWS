@@ -92,6 +92,7 @@ are not entered into bugzilla tend to get forgotten about or ignored.
 515731  Distinguish between realloc functions in realloc size 0 error messages
 515810  Update the LTP version in valgrind testsuite to 20260130
 515992  Add FreeBSD /proc virtualisation for cmdline and file
+516090  Regression : Linux FreeBSD and Darwin: refactor *at syscall dirfd checks
 
 To see details of a given bug, visit
   https://bugs.kde.org/show_bug.cgi?id=XXXXXX
