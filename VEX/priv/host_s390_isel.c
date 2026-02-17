@@ -1984,6 +1984,11 @@ s390_isel_int_expr_wrk(ISelEnv *env, IRExpr *expr)
          return dst;
       }
 
+      case Iop_PopCount64: {
+         addInstr(env, s390_insn_popcnt(8, dst, opnd));
+         return dst;
+      }
+
       default:
          goto irreducible;
       }

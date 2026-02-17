@@ -13094,6 +13094,15 @@ s390_irgen_FLOGR(UChar r1, UChar r2)
 static void
 s390_irgen_POPCNT(UChar m3, UChar r1, UChar r2)
 {
+   if (s390_host_has_mi3 && m3 == 8) {
+      IRTemp val = newTemp(Ity_I64);
+
+      assign(val, unop(Iop_PopCount64, get_gpr_dw0(r2)));
+      s390_cc_thunk_putZ(S390_CC_OP_BITWISE, val);
+      put_gpr_dw0(r1, mkexpr(val));
+      return;
+   }
+
    static const ULong masks[] = {
       0x5555555555555555, 0x3333333333333333, 0x0F0F0F0F0F0F0F0F,
       0x00FF00FF00FF00FF, 0x0000FFFF0000FFFF, 0x00000000FFFFFFFF,

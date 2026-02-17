@@ -129,6 +129,7 @@ typedef enum {
    S390_INSN_UDIV,   /* unsigned division; 2n-bit / n-bit -> n-bit quot/rem */
    S390_INSN_DIVS,   /* n-bit dividend; n-bit divisor; n-bit quot/rem */
    S390_INSN_CLZ,    /* count left-most zeroes */
+   S390_INSN_POPCNT, /* count bits whose value is 1 */
    S390_INSN_UNOP,
    S390_INSN_TEST,   /* test operand and set cc */
    S390_INSN_CC2BOOL,/* convert condition code to 0/1 */
@@ -527,6 +528,10 @@ typedef struct {
          s390_opnd_RMI src;
       } clz;
       struct {
+         HReg          dst; /* number of '1' bits */
+         s390_opnd_RMI src;
+      } popcnt;
+      struct {
          s390_unop_t   tag;
          HReg          dst;
          s390_opnd_RMI src;
@@ -772,6 +777,7 @@ s390_insn *s390_insn_div(UChar size, HReg op1_hi, HReg op1_lo,
 s390_insn *s390_insn_divs(UChar size, HReg rem, HReg op1, s390_opnd_RMI op2);
 s390_insn *s390_insn_clz(UChar size, HReg num_bits, HReg clobber,
                          s390_opnd_RMI op);
+s390_insn *s390_insn_popcnt(UChar size, HReg dst, s390_opnd_RMI op);
 s390_insn *s390_insn_cas(UChar size, HReg op1, s390_amode *op2, HReg op3,
                          HReg old);
 s390_insn *s390_insn_cdas(UChar size, HReg op1_high, HReg op1_low,
@@ -940,6 +946,8 @@ extern UInt s390_host_hwcaps;
                       (s390_host_hwcaps & (VEX_HWCAPS_S390X_MSA8))
 #define s390_host_has_msa9 \
                       (s390_host_hwcaps & (VEX_HWCAPS_S390X_MSA9))
+#define s390_host_has_mi3 \
+                      (s390_host_hwcaps & (VEX_HWCAPS_S390X_MI3))
 #endif /* ndef __VEX_HOST_S390_DEFS_H */
 
 /*---------------------------------------------------------------*/

@@ -806,6 +806,11 @@ s390_insn_get_reg_usage(HRegUsage *u, const s390_insn *insn)
       s390_opnd_RMI_get_reg_usage(u, insn->variant.clz.src);
       break;
 
+   case S390_INSN_POPCNT:
+      addHRegUse(u, HRmWrite, insn->variant.popcnt.dst);
+      s390_opnd_RMI_get_reg_usage(u, insn->variant.popcnt.src);
+      break;
+
    case S390_INSN_UNOP:
       addHRegUse(u, HRmWrite, insn->variant.unop.dst);
       s390_opnd_RMI_get_reg_usage(u, insn->variant.unop.src);
@@ -1160,6 +1165,11 @@ s390_insn_map_regs(HRegRemap *m, s390_insn *insn)
       insn->variant.clz.num_bits = lookupHRegRemap(m, insn->variant.clz.num_bits);
       insn->variant.clz.clobber  = lookupHRegRemap(m, insn->variant.clz.clobber);
       s390_opnd_RMI_map_regs(m, &insn->variant.clz.src);
+      break;
+
+   case S390_INSN_POPCNT:
+      insn->variant.popcnt.dst = lookupHRegRemap(m, insn->variant.popcnt.dst);
+      s390_opnd_RMI_map_regs(m, &insn->variant.popcnt.src);
       break;
 
    case S390_INSN_UNOP:
@@ -2467,6 +2477,13 @@ static UChar *
 s390_emit_FLOGR(UChar *p, UChar r1, UChar r2)
 {
    return emit_RRE(p, 0xb9830000, r1, r2);
+}
+
+
+static UChar *
+s390_emit_POPCNT(UChar *p, UChar r1, UChar r2)
+{
+   return emit_RRF3(p, 0xb9e10000, 8, r1, r2);
 }
 
 
@@ -4853,6 +4870,22 @@ s390_insn_clz(UChar size, HReg num_bits, HReg clobber, s390_opnd_RMI src)
 
 
 s390_insn *
+s390_insn_popcnt(UChar size, HReg dst, s390_opnd_RMI src)
+{
+   s390_insn *insn = LibVEX_Alloc_inline(sizeof(s390_insn));
+
+   vassert(size == 8);
+
+   insn->tag  = S390_INSN_POPCNT;
+   insn->size = size;
+   insn->variant.popcnt.dst = dst;
+   insn->variant.popcnt.src = src;
+
+   return insn;
+}
+
+
+s390_insn *
 s390_insn_unop(UChar size, s390_unop_t tag, HReg dst, s390_opnd_RMI opnd)
 {
    s390_insn *insn = LibVEX_Alloc_inline(sizeof(s390_insn));
@@ -6083,6 +6116,11 @@ s390_insn_as_string(const s390_insn *insn)
    case S390_INSN_CLZ:
       s390_sprintf(buf, "%M %R,%O", "v-clz", insn->variant.clz.num_bits,
                    &insn->variant.clz.src);
+      break;
+
+   case S390_INSN_POPCNT:
+      s390_sprintf(buf, "%M %R,%O", "v-popcnt", insn->variant.popcnt.dst,
+                   &insn->variant.popcnt.src);
       break;
 
    case S390_INSN_UNOP:
@@ -8428,6 +8466,49 @@ s390_insn_clz_emit(UChar *buf, const s390_insn *insn)
 }
 
 
+static UChar *
+s390_insn_popcnt_emit(UChar *buf, const s390_insn *insn)
+{
+   s390_opnd_RMI src;
+   UChar r1, r2, *p;
+
+   p = buf;
+   r1  = hregNumber(insn->variant.popcnt.dst);
+   src = insn->variant.clz.src;
+
+   /* Get operand and move it to r2 */
+   switch (src.tag) {
+   case S390_OPND_REG:
+      r2 = hregNumber(src.variant.reg);
+      break;
+
+   case S390_OPND_AMODE: {
+      const s390_amode *am = src.variant.am;
+      UChar b = hregNumber(am->b);
+      UChar x = hregNumber(am->x);
+      Int   d = am->d;
+
+      p  = s390_emit_LG(p, R0, x, b, DISP20(d));
+      r2 = R0;
+      break;
+   }
+
+   case S390_OPND_IMMEDIATE: {
+      ULong value = src.variant.imm;
+
+      p  = s390_emit_load_64imm(p, R0, value);
+      r2 = R0;
+      break;
+   }
+
+   default:
+      vpanic("s390_insn_popcnt_emit");
+   }
+
+   return s390_emit_POPCNT(p, r1, r2);
+}
+
+
 /* Returns a value == BUF to denote failure, != BUF to denote success. */
 static UChar *
 s390_insn_helper_call_emit(UChar *buf, const s390_insn *insn)
@@ -9870,6 +9951,10 @@ emit_S390Instr(Bool *is_profinc, UChar *buf, Int nbuf, const s390_insn *insn,
 
    case S390_INSN_CLZ:
       end = s390_insn_clz_emit(buf, insn);
+      break;
+
+   case S390_INSN_POPCNT:
+      end = s390_insn_popcnt_emit(buf, insn);
       break;
 
    case S390_INSN_UNOP:

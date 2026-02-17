@@ -2240,6 +2240,7 @@
 /none/tests/s390x/pfpo
 /none/tests/s390x/rxsbg
 /none/tests/s390x/popcnt
+/none/tests/s390x/popcnt-mi3
 /none/tests/s390x/vector
 /none/tests/s390x/lsc2
 /none/tests/s390x/ppno
