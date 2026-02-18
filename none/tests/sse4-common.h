@@ -159,9 +159,9 @@ static inline double mkNegNan ( void ) { return -mkPosNan(); }
 
 /* Macros for testing XMM register to register and memory to register operations */
 
-/* Use xmm7 for 32-bit x86, xmm11 for amd64 (xmm8-15 don't exist in 32-bit mode) */
+/* Use xmm7 for both 32-bit x86 and amd64 (xmm8-15 don't exist in 32-bit mode) */
 #ifdef __x86_64__
-#define XMMREG_DST "xmm11"
+#define XMMREG_DST "xmm7"
 #else
 #define XMMREG_DST "xmm7"
 #endif
@@ -653,6 +653,207 @@ static inline void test_PBLENDW ( void )
       DO_imm_mandr_r("pblendw", 253, src, dst);
       DO_imm_mandr_r("pblendw", 254, src, dst);
       DO_imm_mandr_r("pblendw", 255, src, dst);
+   }
+}
+
+/* ------------ PBLENDVB ------------ */
+
+static inline void do_PBLENDVB ( Bool mem, V128* xmm0, V128* src, /*MOD*/V128* dst )
+{
+   if (mem) {
+      __asm__ __volatile__(
+         "movupd   (%2), %%xmm0"         "\n\t"
+         "movupd   (%1), %%xmm7"        "\n\t"
+         "pblendvb (%0), %%xmm7"        "\n\t"
+         "movupd   %%xmm7, (%1)"        "\n"
+         : /*OUT*/
+         : /*IN*/ "r"(src), "r"(dst), "r"(xmm0)
+         : /*TRASH*/ "xmm7","xmm0"
+      );
+   } else {
+      __asm__ __volatile__(
+         "movupd   (%2), %%xmm0"         "\n\t"
+         "movupd   (%1), %%xmm7"        "\n\t"
+         "movupd   (%0), %%xmm2"         "\n\t"
+         "pblendvb %%xmm2, %%xmm7"      "\n\t"
+         "movupd   %%xmm7, (%1)"        "\n"
+         : /*OUT*/
+         : /*IN*/ "r"(src), "r"(dst), "r"(xmm0)
+         : /*TRASH*/ "xmm7","xmm2","xmm0"
+      );
+   }
+}
+
+static inline void test_PBLENDVB ( void )
+{
+   __attribute__ ( (aligned (16))) V128 xmm0, src, dst, t_xmm0, t_src, t_dst;
+   Int i;
+   for (i = 0; i < 10; i++) {
+      randV128(&t_xmm0);
+      randV128(&t_src);
+      randV128(&t_dst);
+
+      memcpy(&xmm0, &t_xmm0, 16);
+      memcpy(&src, &t_src, 16);
+      memcpy(&dst, &t_dst, 16);
+      do_PBLENDVB(False/*reg*/, &xmm0, &src, &dst);
+      printf("r pblendvb  ");
+      showV128(&t_xmm0);
+      printf(" ");
+      showV128(&t_src);
+      printf(" ");
+      showV128(&t_dst);
+      printf(" -> ");
+      showV128(&dst);
+      printf("\n");
+
+      memcpy(&xmm0, &t_xmm0, 16);
+      memcpy(&src, &t_src, 16);
+      memcpy(&dst, &t_dst, 16);
+      do_PBLENDVB(True/*mem*/, &xmm0, &src, &dst);
+      printf("m pblendvb  ");
+      showV128(&t_xmm0);
+      printf(" ");
+      showV128(&t_src);
+      printf(" ");
+      showV128(&t_dst);
+      printf(" -> ");
+      showV128(&dst);
+      printf("\n");
+   }
+}
+
+/* ------------ BLENDVPD ------------ */
+
+static inline void do_BLENDVPD ( Bool mem, V128* xmm0, V128* src, /*MOD*/V128* dst )
+{
+   if (mem) {
+      __asm__ __volatile__(
+         "movupd   (%2), %%xmm0"         "\n\t"
+         "movupd   (%1), %%xmm7"        "\n\t"
+         "blendvpd (%0), %%xmm7"        "\n\t"
+         "movupd   %%xmm7, (%1)"        "\n"
+         : /*OUT*/
+         : /*IN*/ "r"(src), "r"(dst), "r"(xmm0)
+         : /*TRASH*/ "xmm7","xmm0"
+      );
+   } else {
+      __asm__ __volatile__(
+         "movupd   (%2), %%xmm0"         "\n\t"
+         "movupd   (%1), %%xmm7"        "\n\t"
+         "movupd   (%0), %%xmm2"         "\n\t"
+         "blendvpd %%xmm2, %%xmm7"      "\n\t"
+         "movupd   %%xmm7, (%1)"        "\n"
+         : /*OUT*/
+         : /*IN*/ "r"(src), "r"(dst), "r"(xmm0)
+         : /*TRASH*/ "xmm7","xmm2","xmm0"
+      );
+   }
+}
+
+static inline void test_BLENDVPD ( void )
+{
+   __attribute__ ( (aligned (16))) V128 xmm0, src, dst, t_xmm0, t_src, t_dst;
+   Int i;
+   for (i = 0; i < 10; i++) {
+      randV128(&t_xmm0);
+      randV128(&t_src);
+      randV128(&t_dst);
+
+      memcpy(&xmm0, &t_xmm0, 16);
+      memcpy(&src, &t_src, 16);
+      memcpy(&dst, &t_dst, 16);
+      do_BLENDVPD(False/*reg*/, &xmm0, &src, &dst);
+      printf("r blendvpd  ");
+      showV128(&t_xmm0);
+      printf(" ");
+      showV128(&t_src);
+      printf(" ");
+      showV128(&t_dst);
+      printf(" -> ");
+      showV128(&dst);
+      printf("\n");
+
+      memcpy(&xmm0, &t_xmm0, 16);
+      memcpy(&src, &t_src, 16);
+      memcpy(&dst, &t_dst, 16);
+      do_BLENDVPD(True/*mem*/, &xmm0, &src, &dst);
+      printf("m blendvpd  ");
+      showV128(&t_xmm0);
+      printf(" ");
+      showV128(&t_src);
+      printf(" ");
+      showV128(&t_dst);
+      printf(" -> ");
+      showV128(&dst);
+      printf("\n");
+   }
+}
+
+/* ------------ BLENDVPS ------------ */
+
+static inline void do_BLENDVPS ( Bool mem, V128* xmm0, V128* src, /*MOD*/V128* dst )
+{
+   if (mem) {
+      __asm__ __volatile__(
+         "movupd   (%2), %%xmm0"         "\n\t"
+         "movupd   (%1), %%xmm7"        "\n\t"
+         "blendvps (%0), %%xmm7"        "\n\t"
+         "movupd   %%xmm7, (%1)"        "\n"
+         : /*OUT*/
+         : /*IN*/ "r"(src), "r"(dst), "r"(xmm0)
+         : /*TRASH*/ "xmm7","xmm0"
+      );
+   } else {
+      __asm__ __volatile__(
+         "movupd   (%2), %%xmm0"         "\n\t"
+         "movupd   (%1), %%xmm7"        "\n\t"
+         "movupd   (%0), %%xmm2"         "\n\t"
+         "blendvps %%xmm2, %%xmm7"      "\n\t"
+         "movupd   %%xmm7, (%1)"        "\n"
+         : /*OUT*/
+         : /*IN*/ "r"(src), "r"(dst), "r"(xmm0)
+         : /*TRASH*/ "xmm7","xmm2","xmm0"
+      );
+   }
+}
+
+static inline void test_BLENDVPS ( void )
+{
+   __attribute__ ( (aligned (16))) V128 xmm0, src, dst, t_xmm0, t_src, t_dst;
+   Int i;
+   for (i = 0; i < 10; i++) {
+      randV128(&t_xmm0);
+      randV128(&t_src);
+      randV128(&t_dst);
+
+      memcpy(&xmm0, &t_xmm0, 16);
+      memcpy(&src, &t_src, 16);
+      memcpy(&dst, &t_dst, 16);
+      do_BLENDVPS(False/*reg*/, &xmm0, &src, &dst);
+      printf("r blendvps  ");
+      showV128(&t_xmm0);
+      printf(" ");
+      showV128(&t_src);
+      printf(" ");
+      showV128(&t_dst);
+      printf(" -> ");
+      showV128(&dst);
+      printf("\n");
+
+      memcpy(&xmm0, &t_xmm0, 16);
+      memcpy(&src, &t_src, 16);
+      memcpy(&dst, &t_dst, 16);
+      do_BLENDVPS(True/*mem*/, &xmm0, &src, &dst);
+      printf("m blendvps  ");
+      showV128(&t_xmm0);
+      printf(" ");
+      showV128(&t_src);
+      printf(" ");
+      showV128(&t_dst);
+      printf(" -> ");
+      showV128(&dst);
+      printf("\n");
    }
 }
 

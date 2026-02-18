@@ -116,6 +116,9 @@ int main(void)
    test_BLENDPD();
    test_BLENDPS();
    test_PBLENDW();
+   test_PBLENDVB();
+   test_BLENDVPD();
+   test_BLENDVPS();
 
    return 0;
 }

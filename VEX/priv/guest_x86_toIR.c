@@ -8098,6 +8098,45 @@ static void decode_sse4_blend_imm (Int* delta_inout, const UChar*  insn,
      *delta_inout = delta;
 }
 
+/* decode_sse4_blend: Helper for decoding BLEND instructions
+   (PBLENDVB, BLENDVPS, BLENDVPD) .  */
+static void decode_sse4_blend (Int* delta_inout, const UChar*  insn,
+                               const HChar*  insn_name, UInt gran,
+                               UChar sorb, IROp opSAR)
+{
+  Int alen;
+  IRTemp addr;
+  HChar dis_buf[50];
+  Int delta = *delta_inout;
+  IRTemp vecE = newTemp(Ity_V128);
+  IRTemp vecG = newTemp(Ity_V128);
+  IRTemp vec0 = newTemp(Ity_V128);
+  UChar modrm = insn[3];
+
+  if ( epartIsReg(modrm) ) {
+    assign(vecE, getXMMReg(eregOfRM(modrm)));
+    delta += 1 + 3;
+    DIP( "%s %s,%s\n", insn_name,
+        nameXMMReg( eregOfRM(modrm) ),
+        nameXMMReg( gregOfRM(modrm) ) );
+  } else {
+    addr = disAMode( &alen, sorb, delta + 3, dis_buf );
+    gen_SEGV_if_not_16_aligned( addr );
+    assign(vecE, loadLE( Ity_V128, mkexpr(addr) ));
+    delta += alen + 3;
+    DIP( "%s %s,%s\n", insn_name,
+        dis_buf, nameXMMReg( gregOfRM(modrm) ) );
+  }
+
+  assign(vecG, getXMMReg(gregOfRM(modrm)));
+  assign(vec0, getXMMReg(0));
+
+  IRTemp res = math_PBLENDVB_128( vecE, vecG, vec0, gran, opSAR );
+  putXMMReg(gregOfRM(modrm), mkexpr(res));
+
+  *delta_inout = delta;
+}
+
 /*------------------------------------------------------------*/
 /*--- Disassemble a single instruction                     ---*/
 /*------------------------------------------------------------*/
@@ -13061,6 +13100,24 @@ DisResult disInstr_X86_WRK (
    /* 66 0F 3A 0E /r ib = PBLENDW */
    if (sz == 2 && insn[0] == 0x0F && insn[1] == 0x3A && insn[2] == 0x0E) {
      decode_sse4_blend_imm(&delta, insn, "pblendw", math_PBLENDW_128, sorb);
+     goto decode_success;
+   }
+
+   /* 66 0F 38 10 /r = PBLENDVB xmm1, xmm2/m128 */
+   if (sz == 2 && insn[0] == 0x0F && insn[1] == 0x38 && insn[2] == 0x10) {
+     decode_sse4_blend(&delta, insn, "pblendvb", 1, sorb, Iop_SarN8x16);
+     goto decode_success;
+   }
+
+   /* 66 0F 38 14 /r = BLENDVPS xmm1, xmm2/m128  */
+   if (sz == 2 && insn[0] == 0x0F && insn[1] == 0x38 && insn[2] == 0x14) {
+     decode_sse4_blend(&delta, insn, "blendvps", 4, sorb, Iop_SarN32x4);
+     goto decode_success;
+   }
+
+   /* 66 0F 38 15 /r = BLENDVPD xmm1, xmm2/m128  */
+   if (sz == 2 && insn[0] == 0x0F && insn[1] == 0x38 && insn[2] == 0x15) {
+     decode_sse4_blend(&delta, insn, "blendvpd", 8, sorb, Iop_SarN64x2);
      goto decode_success;
    }
 
