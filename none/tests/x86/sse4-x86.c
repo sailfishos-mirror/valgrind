@@ -165,6 +165,7 @@ int main(void)
    test_PTEST();
    test_PCMPEQQ();
    test_MPSADBW();
+   test_MOVNTDQA();
 
    return 0;
 }

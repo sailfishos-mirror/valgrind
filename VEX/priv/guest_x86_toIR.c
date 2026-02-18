@@ -13150,6 +13150,23 @@ DisResult disInstr_X86_WRK (
          goto decode_success;
    }
 
+   /* 66 0F 38 2A /r MOVNTDQA xmm1, m128
+      "non-temporal" "streaming" load
+      Handle like MOVDQA but only memory operand is allowed */
+   if ( sz == 2
+	&& insn[0] == 0x0F && insn[1] == 0x38 && insn[2] == 0x2A ) {
+      modrm = insn[3];
+      if ( !epartIsReg( modrm ) ) {
+	 addr = disAMode( &alen, sorb, delta+3, dis_buf );
+         gen_SEGV_if_not_16_aligned( addr );
+         putXMMReg( gregOfRM(modrm),
+                    loadLE(Ity_V128, mkexpr(addr)) );
+         DIP("movntdqa %s,%s\n", dis_buf, nameXMMReg(gregOfRM(modrm)));
+         delta += 3 + alen;
+         goto decode_success;
+      }
+   }
+
    /* 66 0F 3A 22 /r ib = PINSRD xmm1, r/m32, imm8
       Extract Doubleword int from gen.reg/mem32 and insert into xmm1 */
    if ( sz == 2

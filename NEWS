@@ -126,6 +126,7 @@ are not entered into bugzilla tend to get forgotten about or ignored.
 515810  Update the LTP version in valgrind testsuite to 20260130
 515992  Add FreeBSD /proc virtualisation for cmdline and file
 516090  Regression : Linux FreeBSD and Darwin: refactor *at syscall dirfd checks
+516225  Add MOVNTDQA SSE4.1 support for x86
 516289  illumos lsframe2 regtest fails
 516748  Incorrect use of SET_STATUS_Failure for syscall wrappers that return
         error codes rather than -1 on error

@@ -2871,18 +2871,6 @@ void test_PTEST ( void )
    }
 }
 
-void test_MOVNTDQA ( void )
-{
-   V128 src, dst;
-   Int i;
-   for (i = 0; i < 10; i++) {
-      randV128(&src);
-      /* make sure the load actually happens */
-      randV128(&dst);
-      DO_m_r("movntdqa", src, dst);
-   }
-}
-
 /* ------------ main ------------ */
 
 int main ( int argc, char** argv )
