@@ -1586,6 +1586,7 @@ Bool VG_(machine_get_hwcaps)( void )
         { False, 146,  VEX_HWCAPS_S390X_MSA8,  "MSA8"  },
         { False, 155,  VEX_HWCAPS_S390X_MSA9,  "MSA9"  },
         { False,  61,  VEX_HWCAPS_S390X_MI3,   "MI3"   },
+        { False, 198,  VEX_HWCAPS_S390X_VXE3,  "VXE3"  },
      };
 
      /* Set hwcaps according to the detected facilities */

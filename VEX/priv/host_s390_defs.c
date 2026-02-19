@@ -4501,6 +4501,30 @@ s390_emit_VMLO(UChar *p, UChar v1, UChar v2, UChar v3, UChar m4)
 }
 
 static UChar *
+s390_emit_VD(UChar *p, UChar v1, UChar v2, UChar v3, UChar m4, UChar m5)
+{
+   return emit_VRR_VVVMM(p, 0xE700000000b2ULL, v1, v2, v3, m4, m5);
+}
+
+static UChar *
+s390_emit_VDL(UChar *p, UChar v1, UChar v2, UChar v3, UChar m4, UChar m5)
+{
+   return emit_VRR_VVVMM(p, 0xE700000000b0ULL, v1, v2, v3, m4, m5);
+}
+
+static UChar *
+s390_emit_VR(UChar *p, UChar v1, UChar v2, UChar v3, UChar m4, UChar m5)
+{
+   return emit_VRR_VVVMM(p, 0xE700000000b3ULL, v1, v2, v3, m4, m5);
+}
+
+static UChar *
+s390_emit_VRL(UChar *p, UChar v1, UChar v2, UChar v3, UChar m4, UChar m5)
+{
+   return emit_VRR_VVVMM(p, 0xE700000000b1ULL, v1, v2, v3, m4, m5);
+}
+
+static UChar *
 s390_emit_VESLV(UChar *p, UChar v1, UChar v2, UChar v3, UChar m4)
 {
    return emit_VRR_VVVM(p, 0xE70000000070ULL, v1, v2, v3, m4);
@@ -6548,6 +6572,10 @@ s390_insn_as_string(const s390_insn *insn)
       case S390_VEC_INT_MUL_LOW:      op = "v-vintmullo"; break;
       case S390_VEC_INT_MUL_ODDS:     op = "v-vintmulodds"; break;
       case S390_VEC_INT_MUL_ODDU:     op = "v-vintmuloddu"; break;
+      case S390_VEC_INT_DIVU:         op = "v-vintdivu"; break;
+      case S390_VEC_INT_DIVS:         op = "v-vintdivs"; break;
+      case S390_VEC_INT_MODU:         op = "v-vintmodu"; break;
+      case S390_VEC_INT_MODS:         op = "v-vintmods"; break;
       case S390_VEC_ELEM_SHL_V:       op = "v-velemshl"; break;
       case S390_VEC_ELEM_SHRA_V:      op = "v-vshrav"; break;
       case S390_VEC_ELEM_SHRL_V:      op = "v-vshrlv"; break;
@@ -9789,6 +9817,14 @@ s390_insn_vec_binop_emit(UChar *buf, const s390_insn *insn)
          return s390_emit_VMO(buf, v1, v2, v3, s390_getM_from_size(size));
       case S390_VEC_INT_MUL_ODDU:
          return s390_emit_VMLO(buf, v1, v2, v3, s390_getM_from_size(size));
+      case S390_VEC_INT_DIVU:
+         return s390_emit_VDL(buf, v1, v2, v3, s390_getM_from_size(size), 0);
+      case S390_VEC_INT_DIVS:
+         return s390_emit_VD(buf, v1, v2, v3, s390_getM_from_size(size), 0);
+      case S390_VEC_INT_MODU:
+         return s390_emit_VRL(buf, v1, v2, v3, s390_getM_from_size(size), 0);
+      case S390_VEC_INT_MODS:
+         return s390_emit_VR(buf, v1, v2, v3, s390_getM_from_size(size), 0);
       case S390_VEC_ELEM_SHL_V:
          return s390_emit_VESLV(buf, v1, v2, v3, s390_getM_from_size(size));
       case S390_VEC_ELEM_SHRA_V:

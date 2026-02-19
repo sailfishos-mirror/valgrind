@@ -4495,6 +4495,23 @@ s390_isel_vec_expr_wrk(ISelEnv *env, IRExpr *expr)
          vec_binop = S390_VEC_INT_MUL_ODDU;
          goto Iop_VV_wrk;
 
+      case Iop_DivU128:
+         size = 16;
+         vec_binop = S390_VEC_INT_DIVU;
+         goto Iop_VV_wrk;
+      case Iop_DivS128:
+         size = 16;
+         vec_binop = S390_VEC_INT_DIVS;
+         goto Iop_VV_wrk;
+      case Iop_ModU128:
+         size = 16;
+         vec_binop = S390_VEC_INT_MODU;
+         goto Iop_VV_wrk;
+      case Iop_ModS128:
+         size = 16;
+         vec_binop = S390_VEC_INT_MODS;
+         goto Iop_VV_wrk;
+
       case Iop_Shl8x16:
          size = 1;
          vec_binop = S390_VEC_ELEM_SHL_V;

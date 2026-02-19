@@ -1789,12 +1789,12 @@ pfcr,"perform functions with concurrent results","not implemented",arch15
 vblend,"vector blend",implemented,arch15
 vcvbq,"vector convert to binary 128 bit","not implemented",arch15
 vcvdq,"vector convert to decimal 128 bit","not implemented",arch15
-vd,"vector divide","not implemented",arch15
-vdl,"vector divide logical","not implemented",arch15
+vd,"vector divide",implemented,arch15
+vdl,"vector divide logical",implemented,arch15
 veval,"vector evaluate",implemented,arch15
 vgem,"vector generate element masks",implemented,arch15
-vr,"vector remainder","not implemented",arch15
-vrl,"vector remainder logical","not implemented",arch15
+vr,"vector remainder",implemented,arch15
+vrl,"vector remainder logical",implemented,arch15
 vtz,"vector test zoned","not implemented",arch15
 vavgq,"vector average quadword",implemented,arch15
 vavglq,"vector average logical quadword",implemented,arch15

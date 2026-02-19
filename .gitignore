@@ -2255,6 +2255,7 @@
 /none/tests/s390x/vec2
 /none/tests/s390x/vec2_float
 /none/tests/s390x/vec3
+/none/tests/s390x/vecdiv
 
 # /none/tests/riscv64/
 /none/tests/riscv64/*.stderr.diff

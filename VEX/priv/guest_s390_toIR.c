@@ -18046,6 +18046,140 @@ s390_irgen_VEVAL(UChar v1, UChar v2, UChar v3, UChar v4, UChar i5)
    put_vr_qw(v1, t);
 }
 
+/* Return a mask for the lanes where a/b would fail */
+static IRExpr*
+s390_V128_bad_div_mask(IRTemp a, IRTemp b, UChar m4, Bool is_signed)
+{
+   IRExpr* res;
+   res = s390_V128_CmpEQ(mkexpr(b), mkV128(0), m4);
+   if (is_signed) {
+      IRExpr* max_neg;
+      switch (m4) {
+      case 2:
+         max_neg = s390_V128_fill(mkU32(0x80000000));
+         break;
+      case 3:
+         max_neg = s390_V128_fill(mkU64(1ULL << 63));
+         break;
+      case 4:
+         max_neg = binop(Iop_64HLtoV128, mkU64(1ULL << 63), mkU64(0));
+         break;
+      default:
+         vpanic("s390_V128_bad_div_mask: bad m4");
+      }
+      res = binop(Iop_OrV128, res,
+                  binop(Iop_AndV128,
+                        s390_V128_CmpEQ(mkexpr(b), mkV128(0xffff), m4),
+                        s390_V128_CmpEQ(mkexpr(a), max_neg, m4)));
+   }
+   return res;
+}
+
+static void
+s390_irgen_VDx(UChar v1, UChar v2, UChar v3, UChar m4, UChar m5,
+               Bool is_signed, Bool do_remainder)
+{
+   s390_insn_assert((m5 & 7) == 0 && m4 >= 2 && m4 <= 4);
+
+   IRTemp  op1 = newTemp(Ity_V128);
+   IRTemp  op2 = newTemp(Ity_V128);
+   IRTemp  a   = newTemp(Ity_V128);
+   IRTemp  b   = newTemp(Ity_V128);
+   Bool    idc = (m5 & 8) != 0;
+   IRExpr* result;
+
+   assign(op1, get_vr_qw(v2));
+   assign(op2, get_vr_qw(v3));
+   if (idc) {
+      /* Avoid bad divisions; ensure a zero result for affected lanes */
+      IRTemp bad = newTemp(Ity_V128);
+      assign(bad, s390_V128_bad_div_mask(op1, op2, m4, is_signed));
+      assign(a,
+             binop(Iop_AndV128, mkexpr(op1), unop(Iop_NotV128, mkexpr(bad))));
+      assign(b, binop(Iop_OrV128, mkexpr(op2), mkexpr(bad)));
+   } else {
+      assign(a, mkexpr(op1));
+      assign(b, mkexpr(op2));
+   }
+
+   /* There are no Iops for vector divisions, so split up by lane */
+   switch (m4) {
+   case 2: {
+      IRExpr* res[4];
+      IROp    divop = is_signed ? Iop_DivModS64to32 : Iop_DivModU64to32;
+      IROp    widen = is_signed ? Iop_32Sto64 : Iop_32Uto64;
+      IROp    hilo  = do_remainder ? Iop_64HIto32 : Iop_64to32;
+      for (UChar i = 0; i < 4; i++) {
+         res[i] = unop(
+            hilo, binop(divop,
+                        unop(widen, binop(Iop_GetElem32x4, mkexpr(a), mkU8(i))),
+                        binop(Iop_GetElem32x4, mkexpr(b), mkU8(i))));
+      }
+      result = binop(Iop_64HLtoV128, binop(Iop_32HLto64, res[0], res[1]),
+                     binop(Iop_32HLto64, res[2], res[3]));
+      break;
+   }
+   case 3: {
+      IRExpr* res[2];
+      IROp    hilo = do_remainder ? Iop_128HIto64 : Iop_128to64;
+      if (is_signed) {
+         IROp divop = Iop_DivModS64to64;
+         for (UChar i = 0; i < 2; i++) {
+            res[i] = unop(
+               hilo, binop(divop, binop(Iop_GetElem64x2, mkexpr(a), mkU8(i)),
+                           binop(Iop_GetElem64x2, mkexpr(b), mkU8(i))));
+         }
+      } else {
+         IROp divop = Iop_DivModU128to64;
+         for (UChar i = 0; i < 2; i++) {
+            res[i] = unop(
+               hilo, binop(divop,
+                           binop(Iop_64HLto128, mkU64(0),
+                                 binop(Iop_GetElem64x2, mkexpr(a), mkU8(i))),
+                           binop(Iop_GetElem64x2, mkexpr(b), mkU8(i))));
+         }
+      }
+      result = binop(Iop_64HLtoV128, res[0], res[1]);
+      break;
+   }
+   case 4: {
+      if (!s390_host_has_vxe3) {
+         emulation_failure(EmFail_S390X_vxe3);
+         return;
+      }
+      IROp divop = do_remainder ? (is_signed ? Iop_ModS128 : Iop_ModU128)
+                                : (is_signed ? Iop_DivS128 : Iop_DivU128);
+      result     = binop(divop, mkexpr(a), mkexpr(b));
+      break;
+   }
+   }
+   put_vr_qw(v1, result);
+}
+
+static void
+s390_irgen_VD(UChar v1, UChar v2, UChar v3, UChar m4, UChar m5)
+{
+   s390_irgen_VDx(v1, v2, v3, m4, m5, True, False);
+}
+
+static void
+s390_irgen_VDL(UChar v1, UChar v2, UChar v3, UChar m4, UChar m5)
+{
+   s390_irgen_VDx(v1, v2, v3, m4, m5, False, False);
+}
+
+static void
+s390_irgen_VR(UChar v1, UChar v2, UChar v3, UChar m4, UChar m5)
+{
+   s390_irgen_VDx(v1, v2, v3, m4, m5, True, True);
+}
+
+static void
+s390_irgen_VRL(UChar v1, UChar v2, UChar v3, UChar m4, UChar m5)
+{
+   s390_irgen_VDx(v1, v2, v3, m4, m5, False, True);
+}
+
 /* New insns are added here.
    If an insn is contingent on a facility being installed also
    check whether function do_extension_STFLE needs updating. */
@@ -19783,10 +19917,14 @@ s390_decode_6byte_and_irgen(const UChar *bytes)
                            goto ok;
    case 0xe700000000afULL: s390_format_VRRd1(s390_irgen_VMAO, ovl);
                            goto ok;
-   case 0xe700000000b0ULL: /* VDL */ goto unimplemented;
-   case 0xe700000000b1ULL: /* VRL */ goto unimplemented;
-   case 0xe700000000b2ULL: /* VD */ goto unimplemented;
-   case 0xe700000000b3ULL: /* VR */ goto unimplemented;
+   case 0xe700000000b0ULL: s390_format_VRRc2(s390_irgen_VDL, ovl);
+                           goto ok;
+   case 0xe700000000b1ULL: s390_format_VRRc2(s390_irgen_VRL, ovl);
+                           goto ok;
+   case 0xe700000000b2ULL: s390_format_VRRc2(s390_irgen_VD, ovl);
+                           goto ok;
+   case 0xe700000000b3ULL: s390_format_VRRc2(s390_irgen_VR, ovl);
+                           goto ok;
    case 0xe700000000b4ULL: s390_format_VRRc1(s390_irgen_VGFM, ovl);
                            goto ok;
    case 0xe700000000b8ULL: s390_format_VRRd(s390_irgen_VMSL, ovl);

@@ -990,7 +990,9 @@ static enum ExtensionError do_extension_STFLE(ThreadState* tst, ULong variant)
       /* 192: vector-packed-decimal, not supported */
       (S390_SETBITS(193, 194)
        /* 195: unassigned */
-       | S390_SETBITS(196, 197)),
+       | S390_SETBITS(196, 198)
+       /* 199: vector-packed-decimal-enhancment 3, not supported */
+       /* 200-255: unassigned */),
    };
 
    cc = do_STFLE_insn((void*)addr, last_dw + 1, &gpr0);
