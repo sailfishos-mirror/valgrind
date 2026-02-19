@@ -956,7 +956,13 @@ static enum ExtensionError do_extension_STFLE(ThreadState* tst, ULong variant)
        /* 80: DFP packed-conversion, not supported */
        /* 81: PPA-in-order, not supported */
        | S390_SETBITS(82, 82)
-       /* 83-127: unassigned */),
+       /* 83: unassigned */
+       | S390_SETBITS(84, 84)
+       /* 85: sequential-instruction, not supported */
+       /* 86: MSA 12, not supported */
+       /* 87: PLO-extension, not supported */
+       /* 88-127: unassigned */
+       ),
 
       /* ===  128 .. 191  === */
       (S390_SETBITS(128, 131)

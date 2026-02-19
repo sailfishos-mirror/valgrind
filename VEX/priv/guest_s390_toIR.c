@@ -2811,6 +2811,20 @@ s390_format_RXY(void (*irgen)(UChar r1, IRTemp op2addr), ULong ovl)
 }
 
 static void
+s390_format_RXYc(
+   void (*irgen)(UChar r1, UChar x2, UChar b2, UInt dx), ULong ovl)
+{
+   UChar  r1   = (ovl >> 52) & 0xf;
+   UChar  x2   = (ovl >> 48) & 0xf;
+   UChar  b2   = (ovl >> 44) & 0xf;
+   UShort dxl2 = (ovl >> 32) & 0xfff;
+   UChar  dxh2 = (ovl >> 24) & 0xff;
+   UInt   dx   = (((UInt)(Int)(Char)dxh2) << 12) | dxl2;
+
+   irgen(r1, x2, b2, dx);
+}
+
+static void
 s390_format_S(void (*irgen)(IRTemp op2addr), ULong ovl)
 {
    UChar  b2      = S_b2(ovl);
@@ -17667,6 +17681,182 @@ s390_irgen_PPA(UChar m3, UChar r1, UChar r2)
       15: in-order-execution assist -- we don't claim support */
 }
 
+static void
+s390_irgen_CLZG(UChar r1, UChar r2)
+{
+   put_gpr_dw0(r1, unop(Iop_ClzNat64, get_gpr_dw0(r2)));
+}
+
+static void
+s390_irgen_CTZG(UChar r1, UChar r2)
+{
+   IRTemp op2 = newTemp(Ity_I64);
+
+   assign(op2, get_gpr_dw0(r2));
+   put_gpr_dw0(
+      r1, binop(Iop_Sub64, mkU64(64),
+                unop(Iop_ClzNat64,
+                     binop(Iop_And64, binop(Iop_Sub64, mkexpr(op2), mkU64(1)),
+                           unop(Iop_Not64, mkexpr(op2))))));
+}
+
+/* Helper for BEXTG and BDEPG -- they share much of the logic */
+static void
+s390_irgen_BExtDep(UChar r3, UChar r1, UChar r2, Bool do_ext)
+{
+   IRTemp  op2 = newTemp(Ity_I64);
+   IRTemp  op3 = newTemp(Ity_I64);
+   IRTemp  movemask[6];
+   IRExpr* mk;
+   IRExpr* x;
+
+   assign(op2, get_gpr_dw0(r2));
+   assign(op3, get_gpr_dw0(r3));
+
+   x  = mkexpr(op3);
+   mk = binop(Iop_Shr64, unop(Iop_Not64, mkexpr(op3)), mkU8(1));
+   for (int i = 0; i < 6; i++) {
+      IRTemp  mki = newTemp(Ity_I64);
+      IRExpr* mpx;
+      assign(mki, mk);
+      mpx = mkexpr(mki);
+      for (int j = 0; j < 6; j++) {
+         IRTemp mpj = newTemp(Ity_I64);
+         assign(mpj, mpx);
+         mpx = binop(Iop_Xor64, mkexpr(mpj),
+                     binop(Iop_Shr64, mkexpr(mpj), mkU8(1 << j)));
+      }
+      IRTemp mp   = newTemp(Ity_I64);
+      IRTemp m    = newTemp(Ity_I64);
+      movemask[i] = newTemp(Ity_I64);
+      assign(mp, mpx);
+      assign(m, x);
+      assign(movemask[i], binop(Iop_And64, mkexpr(mp), mkexpr(m)));
+      if (i != 5) {
+         x  = binop(Iop_Or64, binop(Iop_Xor64, mkexpr(m), mkexpr(movemask[i])),
+                    binop(Iop_Shl64, mkexpr(movemask[i]), mkU8(1 << i)));
+         mk = binop(Iop_And64, mkexpr(mki), unop(Iop_Not64, mkexpr(mp)));
+      }
+   }
+
+   if (do_ext) {
+      /* Extract */
+      x = binop(Iop_And64, mkexpr(op2), mkexpr(op3));
+      for (int i = 0; i < 6; i++) {
+         IRTemp t = newTemp(Ity_I64);
+         assign(t, binop(Iop_And64, x, mkexpr(movemask[i])));
+         x = binop(Iop_Or64, binop(Iop_Xor64, x, mkexpr(t)),
+                   binop(Iop_Shl64, mkexpr(t), mkU8(1 << i)));
+      }
+   } else {
+      /* Deposit */
+      x = mkexpr(op2);
+      for (int i = 6; i-- > 0;) {
+         IRTemp xi = newTemp(Ity_I64);
+         assign(xi, x);
+         x = binop(
+            Iop_Or64,
+            binop(Iop_And64, mkexpr(xi), unop(Iop_Not64, mkexpr(movemask[i]))),
+            binop(Iop_And64, binop(Iop_Shr64, mkexpr(xi), mkU8(1 << i)),
+                  mkexpr(movemask[i])));
+      }
+      x = binop(Iop_And64, x, mkexpr(op3));
+   }
+   put_gpr_dw0(r1, x);
+}
+
+static void
+s390_irgen_BEXTG(UChar r3, UChar r1, UChar r2)
+{
+   s390_irgen_BExtDep(r3, r1, r2, True);
+}
+
+static void
+s390_irgen_BDEPG(UChar r3, UChar r1, UChar r2)
+{
+   s390_irgen_BExtDep(r3, r1, r2, False);
+}
+
+/* Implement the various "load (logical) indexed address" variants */
+static void
+s390_irgen_LXAx(UChar r1, UChar x2, UChar b2, UInt dx, Bool is_signed, UChar es)
+{
+   IRExpr* res;
+
+   res = mkU32(dx);
+   if (x2) {
+      res = binop(Iop_Add32, res, get_gpr_w1(x2));
+   }
+   res = unop(is_signed ? Iop_32Sto64 : Iop_32Uto64, res);
+   if (es) {
+      res = binop(Iop_Shl64, res, mkU8(es));
+   }
+   if (b2) {
+      res = binop(Iop_Add64, res, get_gpr_dw0(b2));
+   }
+   put_gpr_dw0(r1, res);
+}
+
+static void
+s390_irgen_LXAB(UChar r1, UChar x2, UChar b2, UInt dx)
+{
+   s390_irgen_LXAx(r1, x2, b2, dx, True, 0);
+}
+
+static void
+s390_irgen_LXAH(UChar r1, UChar x2, UChar b2, UInt dx)
+{
+   s390_irgen_LXAx(r1, x2, b2, dx, True, 1);
+}
+
+static void
+s390_irgen_LXAF(UChar r1, UChar x2, UChar b2, UInt dx)
+{
+   s390_irgen_LXAx(r1, x2, b2, dx, True, 2);
+}
+
+static void
+s390_irgen_LXAG(UChar r1, UChar x2, UChar b2, UInt dx)
+{
+   s390_irgen_LXAx(r1, x2, b2, dx, True, 3);
+}
+
+static void
+s390_irgen_LXAQ(UChar r1, UChar x2, UChar b2, UInt dx)
+{
+   s390_irgen_LXAx(r1, x2, b2, dx, True, 4);
+}
+
+static void
+s390_irgen_LLXAB(UChar r1, UChar x2, UChar b2, UInt dx)
+{
+   s390_irgen_LXAx(r1, x2, b2, dx, False, 0);
+}
+
+static void
+s390_irgen_LLXAH(UChar r1, UChar x2, UChar b2, UInt dx)
+{
+   s390_irgen_LXAx(r1, x2, b2, dx, False, 1);
+}
+
+static void
+s390_irgen_LLXAF(UChar r1, UChar x2, UChar b2, UInt dx)
+{
+   s390_irgen_LXAx(r1, x2, b2, dx, False, 2);
+}
+
+static void
+s390_irgen_LLXAG(UChar r1, UChar x2, UChar b2, UInt dx)
+{
+   s390_irgen_LXAx(r1, x2, b2, dx, False, 3);
+}
+
+static void
+s390_irgen_LLXAQ(UChar r1, UChar x2, UChar b2, UInt dx)
+{
+   s390_irgen_LXAx(r1, x2, b2, dx, False, 4);
+}
+
 /* New insns are added here.
    If an insn is contingent on a facility being installed also
    check whether function do_extension_STFLE needs updating. */
@@ -18548,10 +18738,14 @@ s390_decode_4byte_and_irgen(const UChar *bytes)
                 goto ok;
    case 0xb967: s390_irgen_NXGRK(RRFa_r3(ovl), RRFa_r1(ovl), RRFa_r2(ovl));
                 goto ok;
-   case 0xb968: /* CLZG */ goto unimplemented;
-   case 0xb969: /* CTZG */ goto unimplemented;
-   case 0xb96c: /* BEXTG */ goto unimplemented;
-   case 0xb96d: /* BDEPG */ goto unimplemented;
+   case 0xb968: s390_irgen_CLZG(RRE_r1(ovl), RRE_r2(ovl));
+                goto ok;
+   case 0xb969: s390_irgen_CTZG(RRE_r1(ovl), RRE_r2(ovl));
+                goto ok;
+   case 0xb96c: s390_irgen_BEXTG(RRFa_r3(ovl), RRFa_r1(ovl), RRFa_r2(ovl));
+                goto ok;
+   case 0xb96d: s390_irgen_BDEPG(RRFa_r3(ovl), RRFa_r1(ovl), RRFa_r2(ovl));
+                goto ok;
    case 0xb972: s390_irgen_CRT(RRFc_m3(ovl), RRFc_r1(ovl), RRFc_r2(ovl));
                 goto ok;
    case 0xb973: s390_irgen_CLRT(RRFc_m3(ovl), RRFc_r1(ovl), RRFc_r2(ovl));
@@ -19006,16 +19200,26 @@ s390_decode_6byte_and_irgen(const UChar *bytes)
                            goto ok;
    case 0xe3000000005fULL: s390_format_RXY(s390_irgen_SLY, ovl);
                            goto ok;
-   case 0xe30000000060ULL: /* LXAB */ goto unimplemented;
-   case 0xe30000000061ULL: /* LLXAB */ goto unimplemented;
-   case 0xe30000000062ULL: /* LXAH */ goto unimplemented;
-   case 0xe30000000063ULL: /* LLXAH */ goto unimplemented;
-   case 0xe30000000064ULL: /* LXAF */ goto unimplemented;
-   case 0xe30000000065ULL: /* LLXAF */ goto unimplemented;
-   case 0xe30000000066ULL: /* LXAG */ goto unimplemented;
-   case 0xe30000000067ULL: /* LLXAG */ goto unimplemented;
-   case 0xe30000000068ULL: /* LXAQ */ goto unimplemented;
-   case 0xe30000000069ULL: /* LLXAQ */ goto unimplemented;
+   case 0xe30000000060ULL: s390_format_RXYc(s390_irgen_LXAB, ovl);
+                           goto ok;
+   case 0xe30000000061ULL: s390_format_RXYc(s390_irgen_LLXAB, ovl);
+                           goto ok;
+   case 0xe30000000062ULL: s390_format_RXYc(s390_irgen_LXAH, ovl);
+                           goto ok;
+   case 0xe30000000063ULL: s390_format_RXYc(s390_irgen_LLXAH, ovl);
+                           goto ok;
+   case 0xe30000000064ULL: s390_format_RXYc(s390_irgen_LXAF, ovl);
+                           goto ok;
+   case 0xe30000000065ULL: s390_format_RXYc(s390_irgen_LLXAF, ovl);
+                           goto ok;
+   case 0xe30000000066ULL: s390_format_RXYc(s390_irgen_LXAG, ovl);
+                           goto ok;
+   case 0xe30000000067ULL: s390_format_RXYc(s390_irgen_LLXAG, ovl);
+                           goto ok;
+   case 0xe30000000068ULL: s390_format_RXYc(s390_irgen_LXAQ, ovl);
+                           goto ok;
+   case 0xe30000000069ULL: s390_format_RXYc(s390_irgen_LLXAQ, ovl);
+                           goto ok;
    case 0xe30000000070ULL: s390_format_RXY(s390_irgen_STHY, ovl);
                            goto ok;
    case 0xe30000000071ULL: s390_format_RXY(s390_irgen_LAY, ovl);
