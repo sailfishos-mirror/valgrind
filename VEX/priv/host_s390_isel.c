@@ -4076,6 +4076,15 @@ s390_isel_vec_expr_wrk(ISelEnv *env, IRExpr *expr)
          return dst;
       }
 
+      case Iop_ReinterpI128asV128: {
+         HReg reg2 = INVALID_HREG;
+         dst = newVRegV(env);
+         s390_isel_int128_expr(&reg1, &reg2, env, arg);
+         addInstr(env, s390_insn_vec_binop(size, S390_VEC_INIT_FROM_GPRS,
+                                           dst, reg1, reg2));
+         return dst;
+      }
+
       default:
          goto irreducible;
       }

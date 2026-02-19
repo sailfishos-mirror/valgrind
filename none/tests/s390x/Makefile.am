@@ -20,7 +20,7 @@ INSN_TESTS = clc clcle cvb cvd icm lpr lam_stam xc mvst add sub mul \
 	     spechelper-icm-1  spechelper-icm-2 spechelper-tmll \
 	     spechelper-tm laa vector lsc2 ppno vector_string vector_integer \
 	     vector_float add-z14 sub-z14 mul-z14 bic \
-	     misc3 misc4 vec2 vec2_float \
+	     misc3 misc4 vec2 vec2_float vec3 \
 	     dfp-1 dfp-2 dfp-3 dfp-4 dfpconv dfpext dfptest pfpo srnmt \
 	     hfp
 
@@ -75,6 +75,7 @@ vector_integer_CFLAGS    = $(AM_CFLAGS) -march=z13 -DS390_TEST_COUNT=4
 vector_float_CFLAGS    = $(AM_CFLAGS) -march=z13 -DS390_TEST_COUNT=4
 vec2_CFLAGS      = $(AM_CFLAGS) -march=z13
 vec2_float_CFLAGS = $(AM_CFLAGS) -march=z13
+vec3_CFLAGS       = $(AM_CFLAGS) -march=z13
 bfp_arith_CFLAGS   = $(AM_CFLAGS) -mlong-double-128
 bfp_compare_CFLAGS = $(AM_CFLAGS) -mlong-double-128
 bfp_convert_CFLAGS = $(AM_CFLAGS) -mlong-double-128
