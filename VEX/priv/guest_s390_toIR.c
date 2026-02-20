@@ -18079,7 +18079,7 @@ static void
 s390_irgen_VDx(UChar v1, UChar v2, UChar v3, UChar m4, UChar m5,
                Bool is_signed, Bool do_remainder)
 {
-   s390_insn_assert((m5 & 7) == 0 && m4 >= 2 && m4 <= 4);
+   s390_insn_assert(m4 >= 2 && m4 <= 4);
 
    IRTemp  op1 = newTemp(Ity_V128);
    IRTemp  op2 = newTemp(Ity_V128);
