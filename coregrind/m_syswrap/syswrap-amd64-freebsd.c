@@ -859,7 +859,7 @@ PRE(sys_posix_fallocate)
                  int, fd, vki_off_t, offset,
                  vki_off_t, len);
    if (!ML_(fd_allowed)(ARG1, "posix_fallocate", tid, False))
-      SET_STATUS_Failure(VKI_EBADF);
+      SET_STATUS_FailureErrorCode(VKI_EBADF);
 }
 
 // SYS_posix_fadvise 531
@@ -873,7 +873,7 @@ PRE(sys_posix_fadvise)
                  off_t, len,
                  int, advice);
    if (!ML_(fd_allowed)(ARG1, "posix_fadvise", tid, False))
-      SET_STATUS_Failure(VKI_EBADF);
+      SET_STATUS_FailureErrorCode(VKI_EBADF);
 }
 
 // SYS_wait6   532

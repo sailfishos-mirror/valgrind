@@ -1258,7 +1258,7 @@ PRE(sys_posix_fallocate)
                  vki_uint32_t, MERGE64_FIRST(len),
                  vki_uint32_t, MERGE64_SECOND(len));
    if (!ML_(fd_allowed)(ARG1, "posix_fallocate", tid, False))
-      SET_STATUS_Failure(VKI_EBADF);
+      SET_STATUS_FailureErrorCode(VKI_EBADF);
 }
 
 // SYS_posix_fadvise 531
@@ -1274,7 +1274,7 @@ PRE(sys_posix_fadvise)
                  vki_uint32_t, MERGE64_SECOND(len),
                  int, advice);
    if (!ML_(fd_allowed)(ARG1, "posix_fadvise", tid, False))
-      SET_STATUS_Failure(VKI_EBADF);
+      SET_STATUS_FailureErrorCode(VKI_EBADF);
 }
 
 // SYS_wait6   532
