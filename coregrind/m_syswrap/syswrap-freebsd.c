@@ -6724,7 +6724,7 @@ PRE(sys_copy_file_range)
       valgrind itself uses some, so make sure someone didn't
       put in one of our own...  */
    if (!ML_(fd_allowed)(ARG1, "copy_file_range(infd)", tid, False) ||
-       !ML_(fd_allowed)(ARG3, "copy_file_range(infd)", tid, False))
+       !ML_(fd_allowed)(ARG3, "copy_file_range(outfd)", tid, False))
       SET_STATUS_Failure( VKI_EBADF );
 
    /* Now see if the offsets are defined. PRE_MEM_READ will

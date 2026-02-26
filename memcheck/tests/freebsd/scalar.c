@@ -2184,6 +2184,10 @@ int main(void)
    GO(SYS_fhreadlink, "3s 2m");
    SY(SYS_fhreadlink, x0+1, x0+1, x0+10);
 
+   /* SYS_copy_file_range         569 */
+   GO(SYS_copy_file_range, "6s 2m");
+   SY(SYS_copy_file_range, x0-1, x0+1, x0-1, x0+1, x0+2, x0+12345);
+
    // __FreeBSD_version 1201522
    // __FreeBSD_version 1300045
    /* SYS___sysctlbyname          570 */
