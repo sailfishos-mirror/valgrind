@@ -1025,6 +1025,18 @@ PRE(sys_cpuset_setdomain)
    PRE_MEM_READ( "cpuset_getdomain(mask)", ARG5, ARG4 );
 }
 
+// SYS_kexec_load  599
+// int kexec_load(uint64_t entry, unsigned long count,
+//                struct kexec_segment *segments, unsigned long flags);
+PRE(sys_kexec_load)
+{
+   PRINT("sys_kexec_load (  %" FMT_REGWORD "x, %" FMT_REGWORD "u, %" FMT_REGWORD "x, %" FMT_REGWORD "u )", ARG1, ARG2, ARG3, ARG4);
+   PRE_REG_READ4(int, "kexec_load", vki_uint64_t, entry,
+                 unsigned long, count, struct kexec_segment*, segments, unsigned long, flag);
+   PRE_MEM_READ("kexec_load(segments)", ARG3, ARG2*(sizeof(struct vki_kexec_segment)));
+   // FIXME PJF should check the buf and bufsz fields
+}
+
 PRE(sys_fake_sigreturn)
 {
    ThreadState* tst;

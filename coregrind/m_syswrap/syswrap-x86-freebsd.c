@@ -1434,6 +1434,18 @@ PRE(sys_cpuset_setdomain)
    PRE_MEM_READ( "cpuset_getdomain(mask)", ARG6, ARG5 );
 }
 
+// SYS_kexec_load  599
+// int kexec_load(uint64_t entry, unsigned long count,
+//                struct kexec_segment *segments, unsigned long flags);
+PRE(sys_kexec_load)
+{
+   PRINT("sys_kexec_load (  %llx, %" FMT_REGWORD "u, %" FMT_REGWORD "x, %" FMT_REGWORD "u )", MERGE64(ARG1, ARG2), ARG3, ARG4, ARG5);
+   PRE_REG_READ5(int, "kexec_load", vki_uint32_t, MERGE64_FIRST(entry), vki_uint32_t, MERMERGE64_SECOND(entry),
+                 unsigned long, count, struct kexec_segment*, segments, unsigned long, flag);
+   PRE_MEM_READ("kexec_load(segments)", ARG4, ARG3*(sizeof(struct vki_kexec_segment)));
+   // FIXME PJF should check the buf and bufsz fields
+}
+
 PRE(sys_fake_sigreturn)
 {
    /* See comments on PRE(sys_rt_sigreturn) in syswrap-amd64-linux.c for

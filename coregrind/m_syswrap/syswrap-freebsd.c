@@ -8077,6 +8077,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
 
     BSDX_(__NR_jail_attach_jd,  sys_jail_attach_jd),    // 597
     BSDX_(__NR_jail_remove_jd,  sys_jail_remove_jd),    // 598
+    BSDX_(__NR_kexec_load,      sys_kexec_load),        // 599
 
    BSDX_(__NR_freebsd_fake_sigreturn,   sys_fake_sigreturn), // 1000, fake sigreturn
 

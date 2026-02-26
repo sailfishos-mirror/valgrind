@@ -2601,6 +2601,30 @@ int main(void)
    FAKE_SY("\n");
 #endif
 
+   /* SYS_kexec_load              599 */
+#if defined(SYS_kexec_load)
+   GO(SYS_kexec_load, "4s 1m");
+   SY(SYS_kexec_load, x0+1, x0+1, x0+1, x0+1); FAIL;
+#else
+   FAKE_GO("599:          SYS_kexec_load 4s 1m");
+   FAKE_SY("Syscall param kexec_load(entry) contains uninitialised byte(s)\n")
+   FAKE_SY("   ...\n");
+   FAKE_SY("\n");
+   FAKE_SY("Syscall param kexec_load(count) contains uninitialised byte(s)\n");
+   FAKE_SY("   ...\n");
+   FAKE_SY("\n");
+   FAKE_SY("Syscall param kexec_load(segments) contains uninitialised byte(s)\n");
+   FAKE_SY("   ...\n");
+   FAKE_SY("\n");
+   FAKE_SY("Syscall param kexec_load(flag) contains uninitialised byte(s)\n")
+   FAKE_SY("   ...\n");
+   FAKE_SY("\n");
+   FAKE_SY("Syscall param kexec_load(segments) points to unaddressable byte(s)\n");
+   FAKE_SY("   ...\n");
+   FAKE_SY(" Address 0x........ is not stack'd, malloc'd or (recently) free'd\n");
+   FAKE_SY("\n");
+#endif
+
    // no such syscall...
    GO(9999, "1e");
    SY(9999); FAIL;

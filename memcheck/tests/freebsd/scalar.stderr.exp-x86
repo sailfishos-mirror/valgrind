@@ -5945,6 +5945,25 @@ Syscall param setgroups(list) points to unaddressable byte(s)
  Address 0x........ is not stack'd, malloc'd or (recently) free'd
 
 ---------------------------------------------------------
+599:          SYS_kexec_load 4s 1m
+---------------------------------------------------------
+Syscall param kexec_load(entry) contains uninitialised byte(s)
+   ...
+
+Syscall param kexec_load(count) contains uninitialised byte(s)
+   ...
+
+Syscall param kexec_load(segments) contains uninitialised byte(s)
+   ...
+
+Syscall param kexec_load(flag) contains uninitialised byte(s)
+   ...
+
+Syscall param kexec_load(segments) points to unaddressable byte(s)
+   ...
+ Address 0x........ is not stack'd, malloc'd or (recently) free'd
+
+---------------------------------------------------------
 9999:                    9999 1e
 ---------------------------------------------------------
 WARNING: unhandled x86-freebsd syscall: 9999
