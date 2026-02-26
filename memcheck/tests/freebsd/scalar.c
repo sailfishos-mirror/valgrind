@@ -26,7 +26,7 @@ int main(void)
 {
    /* Uninitialised, but we know px[0] is 0x0. */
    long *px = malloc(2*sizeof(long));
-   x0 = px[0];
+   x0 = px[0]; x0 -= x0;
    const char* running_in_vgtest = getenv("RUNNING_IN_VGTEST");
 
    /* SYS_syscall                 0 */
@@ -2005,17 +2005,15 @@ int main(void)
     /* SYS_posix_fallocate        530 */
 #if defined(VGP_amd64_freebsd) || defined(VGP_arm64_freebsd)
     GO(SYS_posix_fallocate, "3s 0m");
-    SY(SYS_posix_fallocate, x0+99999, x0+10, x0+20); SUCC;
+    SY(SYS_posix_fallocate, x0+99999, x0+10, x0+20); FAIL_ERRORCODE(EBADF);
 #else
     GO(SYS_posix_fallocate, "5s 0m");
-    SY(SYS_posix_fallocate, x0+9999, x0, x0+10, x0, x0+20); SUCC;
+    SY(SYS_posix_fallocate, x0+9999, x0, x0+10, x0, x0+20); FAIL_ERRORCODE(EBADF);
 #endif
-    assert(res == EBADF);
 
     /* SYS_posix_fadvise          531 */
     GO(SYS_posix_fadvise, "4s 0m");
-    SY(SYS_posix_fadvise, x0+9999, x0+10, x0+20, x0); SUCC;
-    assert(res == EBADF);
+    SY(SYS_posix_fadvise, x0+9999, x0+10, x0+20, x0); FAIL_ERRORCODE(EBADF);
 
     /* SYS_wait6                  532 */
     GO(SYS_wait6, "6s 3m");
