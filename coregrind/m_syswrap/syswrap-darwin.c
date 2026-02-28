@@ -3801,6 +3801,8 @@ static void pre_argv_envp(Addr a, ThreadId tid, const HChar* s1, const HChar* s2
       Addr a_deref;
       Addr* a_p = (Addr*)a;
       PRE_MEM_READ( s1, (Addr)a_p, sizeof(Addr) );
+      if (!ML_(safe_to_deref)(a_p, sizeof(char*)))
+         return;
       a_deref = *a_p;
       if (0 == a_deref)
          break;
@@ -4009,7 +4011,7 @@ PRE(posix_spawn)
    // are omitted.
    //
    if (!trace_this_child) {
-      argv = (HChar**)ARG6;
+      argv = (HChar**)ARG5;
    } else {
       vg_assert( VG_(args_for_valgrind) );
       vg_assert( VG_(args_for_valgrind_noexecpass) >= 0 );
