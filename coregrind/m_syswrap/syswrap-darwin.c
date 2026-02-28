@@ -3834,6 +3834,40 @@ static SysRes simple_pre_exec_check ( const HChar* exe_name,
    }
    return VG_(mk_SysRes_Success)(0);
 }
+
+/*
+ * FIXME PJF
+ * From the man page
+ *
+ * "The argument file_actions is either NULL, or it is a pointer to a file actions object that
+ * was initialized by a call to posix_spawn_file_actions_init(3) and represents zero or more
+ * file actions.
+ *
+ * File descriptors open in the calling process image remain open in the new process image,
+ * except for those for which the close-on-exec flag is set (see close(2) and fcntl(2)).
+ * Descriptors that remain open are unaffected by posix_spawn() unless their behaviour is
+ * modified by particular spawn flags or a file action; see posix_spawnattr_setflags(3) and
+ * posix_spawn_file_actions_init(3) for additional information."
+ *
+ * If file_arguments is non-NULL and --trace-children=yes is specified then we chould call
+ *  VG_(unimplemented)().
+ *
+ * file_actions and attrp are both pointers to types that are typedef'd to void*
+ * in userland headers. That means they are black bloxed in userland and only the
+ * kernel knows the type. We'll need to copy the type into Valgrind if we want to
+ * peek at what these arguments point to.
+ *
+ * To properly implement posix_spawn we would need a mechanism for a traced
+ * child process to "inherit" a list of opened files. I guess that would
+ * involve some way of passing info about filenanme, fd, open mode, offset,
+ * attributes to so that the child could open them before the child code runs.
+ */
+
+// __NR_posix_spawn    VG_DARWIN_SYSCALL_CONSTRUCT_UNIX(244)
+// int posix_spawn(pid_t *restrict pid, const char *restrict path,
+//                 const posix_spawn_file_actions_t *file_actions,
+//                 const posix_spawnattr_t *restrict attrp, char *const argv[restrict],
+//                 char *const envp[restrict]);
 PRE(posix_spawn)
 {
    HChar*       path = NULL;       /* path to executable */
@@ -3846,33 +3880,37 @@ PRE(posix_spawn)
    Bool         trace_this_child;
 
    /* args: pid_t* pid
-            char*  path
-            posix_spawn_file_actions_t* file_actions
+            const char* path
+            const posix_spawn_file_actions_t* file_actions
+            const posix_spawnattr_t* attr
             char** argv
             char** envp
+      (ignoring restrict)
    */
-   PRINT("posix_spawn( %#lx, %#lx(%s), %#lx, %#lx, %#lx )",
-         ARG1, ARG2, ARG2 ? (HChar*)ARG2 : "(null)", ARG3, ARG4, ARG5 );
+   PRINT("posix_spawn( %#lx, %#lx(%s), %#lx, %#lx, %#lx, %#lx )",
+         ARG1, ARG2, ARG2 ? (HChar*)ARG2 : "(null)", ARG3, ARG4, ARG5, ARG6 );
 
    /* Standard pre-syscall checks */
 
-   PRE_REG_READ5(int, "posix_spawn", vki_pid_t*, pid, char*, path,
-                 void*, file_actions, char**, argv, char**, envp );
+   PRE_REG_READ6(int, "posix_spawn", vki_pid_t*, pid, char*, path,
+                 vki_posix_spawn_file_actions_t*, file_actions,
+                 vki_posix_spawnattr_t*, attrp,
+                 char**, argv, char**, envp );
    if (ARG1 != 0) {
       PRE_MEM_WRITE("posix_spawn(pid)", ARG1, sizeof(vki_pid_t) );
    }
    PRE_MEM_RASCIIZ("posix_spawn(path)", ARG2);
    // DDD: check file_actions
-   if (ARG4 != 0)
-      pre_argv_envp( ARG4, tid, "posix_spawn(argv)",
-                                "posix_spawn(argv[i])" );
    if (ARG5 != 0)
-      pre_argv_envp( ARG5, tid, "posix_spawn(envp)",
+      pre_argv_envp( ARG5, tid, "posix_spawn(argv)",
+                                "posix_spawn(argv[i])" );
+   if (ARG6 != 0)
+      pre_argv_envp( ARG6, tid, "posix_spawn(envp)",
                                 "posix_spawn(envp[i])" );
 
    if (0)
-   VG_(printf)("posix_spawn( %#lx, %#lx(%s), %#lx, %#lx, %#lx )\n",
-         ARG1, ARG2, ARG2 ? (HChar*)ARG2 : "(null)", ARG3, ARG4, ARG5 );
+   VG_(printf)("posix_spawn( %#lx, %#lx(%s), %#lx, %#lx, %#lx, %#lx )\n",
+         ARG1, ARG2, ARG2 ? (HChar*)ARG2 : "(null)", ARG3, ARG4, ARG5, ARG6 );
 
    /* Now follows a bunch of logic copied from PRE(sys_execve) in
       syswrap-generic.c. */
@@ -3887,7 +3925,7 @@ PRE(posix_spawn)
    // Decide whether or not we want to follow along
    { // Make 'child_argv' be a pointer to the child's arg vector
      // (skipping the exe name)
-     const HChar** child_argv = (const HChar**)ARG4;
+     const HChar** child_argv = (const HChar**)ARG5;
      if (child_argv && child_argv[0] == NULL)
         child_argv = NULL;
      trace_this_child = VG_(should_we_trace_this_child)( (HChar*)ARG2, child_argv );
@@ -3949,21 +3987,21 @@ PRE(posix_spawn)
    //
    // Then, if tracing the child, set VALGRIND_LIB for it.
    //
-   if (ARG5 == 0) {
+   if (ARG6 == 0) {
       envp = NULL;
    } else {
-      envp = VG_(env_clone)( (HChar**)ARG5 );
+      envp = VG_(env_clone)( (HChar**)ARG6 );
       vg_assert(envp);
       VG_(env_remove_valgrind_env_stuff)( envp, /* ro_strings */ False, NULL);
    }
 
    if (trace_this_child) {
-      // Set VALGRIND_LIB in ARG5 (the environment)
+      // Set VALGRIND_LIB in ARG6 (the environment)
       VG_(env_setenv)( &envp, VALGRIND_LIB, VG_(libdir));
    }
 
    // Set up the child's args.  If not tracing it, they are
-   // simply ARG4.  Otherwise, they are
+   // simply ARG5.  Otherwise, they are
    //
    // [launcher_basename] ++ VG_(args_for_valgrind) ++ [ARG2] ++ ARG4[1..]
    //
@@ -3971,7 +4009,7 @@ PRE(posix_spawn)
    // are omitted.
    //
    if (!trace_this_child) {
-      argv = (HChar**)ARG4;
+      argv = (HChar**)ARG6;
    } else {
       vg_assert( VG_(args_for_valgrind) );
       vg_assert( VG_(args_for_valgrind_noexecpass) >= 0 );
@@ -3986,7 +4024,7 @@ PRE(posix_spawn)
       // name of client exe
       tot_args++;
       // args for client exe, skipping [0]
-      arg2copy = (HChar**)ARG4;
+      arg2copy = (HChar**)ARG5;
       if (arg2copy && arg2copy[0]) {
          for (i = 1; arg2copy[i]; i++)
             tot_args++;
@@ -4027,12 +4065,13 @@ PRE(posix_spawn)
    /* Let the call go through as usual.  However, we have to poke
       the altered arguments back into the argument slots. */
    ARG2 = (UWord)path;
-   ARG4 = (UWord)argv;
-   ARG5 = (UWord)envp;
+   ARG5 = (UWord)argv;
+   ARG6 = (UWord)envp;
 
    /* not to mention .. */
    *flags |= SfMayBlock;
 }
+
 POST(posix_spawn)
 {
    vg_assert(SUCCESS);
