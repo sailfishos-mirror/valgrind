@@ -6168,13 +6168,13 @@ POST(sys_rctl_remove_rule)
 }
 
 // SYS_posix_fallocate  530
-// x86/amd64
+// x86/amd64/arm64
 
 // SYS_posix_fadvise 531
-// x86/amd64
+// x86/amd64/arm64
 
 // SYS_wait6   532
-// amd64 / x86
+// x86/amd64/arm64
 
 // SYS_cap_rights_limit 533
 //int cap_rights_limit(int fd, const cap_rights_t *rights);
@@ -7360,6 +7360,39 @@ PRE(sys_jail_remove_jd)
        SET_STATUS_Failure(VKI_EBADF);
 }
 
+// SYS_pdwait   601
+// pid_t pdwait(int fd, int *status, int options,
+//              struct __wrusage *wrusage, siginfo_t *infop);
+PRE(sys_pdwait)
+{
+   PRINT("sys_pdwait ( %" FMT_REGWORD "d, %#" FMT_REGWORD "x, %" FMT_REGWORD "d, %#" FMT_REGWORD "x, %#" FMT_REGWORD "x )",
+         SARG1, ARG2, SARG3, ARG4, ARG5);
+   PRE_REG_READ5(pid_t, "pdwait", int, fd, int *, status, int, options,
+                 struct vki___wrusage *, wrusage, vki_siginfo_t *,infop);
+   PRE_MEM_WRITE("pdwait(status)", ARG2, sizeof(int));
+   if (ARG5) {
+      PRE_MEM_WRITE("pdwait(wrusage)", ARG4, sizeof(struct vki___wrusage));
+   }
+   if (ARG6) {
+      PRE_MEM_WRITE("pdwait(infop)", ARG5, sizeof(vki_siginfo_t));
+   }
+   if (!ML_(fd_allowed)(ARG1, "pdwait", tid, False)) {
+      SET_STATUS_Failure(VKI_EBADF);
+   }
+}
+
+POST(sys_pdwait)
+{
+   POST_MEM_WRITE(ARG2, sizeof(int));
+   if (ARG5) {
+      POST_MEM_WRITE(ARG4, sizeof(struct vki___wrusage));
+   }
+
+   if (ARG6) {
+      POST_MEM_WRITE(ARG5, sizeof(vki_siginfo_t));
+   }
+}
+
 #undef PRE
 #undef POST
 
@@ -8075,12 +8108,13 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    GENXY(__NR_getgroups,        sys_getgroups),         // 596
 #endif
 
-    BSDX_(__NR_jail_attach_jd,  sys_jail_attach_jd),    // 597
-    BSDX_(__NR_jail_remove_jd,  sys_jail_remove_jd),    // 598
-    BSDX_(__NR_kexec_load,      sys_kexec_load),        // 599
-    // we only have partial support for rfork, so mark pdrfork
-    // as not implemented for the moment
-    GENX_(__NR_pdrfork,         sys_ni_syscall),        // 600
+   BSDX_(__NR_jail_attach_jd,  sys_jail_attach_jd),    // 597
+   BSDX_(__NR_jail_remove_jd,  sys_jail_remove_jd),    // 598
+   BSDX_(__NR_kexec_load,      sys_kexec_load),        // 599
+   // we only have partial support for rfork, so mark pdrfork
+   // as not implemented for the moment
+   GENX_(__NR_pdrfork,         sys_ni_syscall),        // 600
+   BSDXY(__NR_pdwait,          sys_pdwait),            // 601
 
    BSDX_(__NR_freebsd_fake_sigreturn,   sys_fake_sigreturn), // 1000, fake sigreturn
 
