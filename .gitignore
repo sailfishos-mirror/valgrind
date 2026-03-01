@@ -1462,6 +1462,8 @@
 /memcheck/tests/freebsd/kqueue
 /memcheck/tests/freebsd/kqueuex
 /memcheck/tests/freebsd/linkat
+/memcheck/tests/freebsd/lsframe1
+/memcheck/tests/freebsd/lsframe2
 /memcheck/tests/freebsd/memalign
 /memcheck/tests/freebsd/misc
 /memcheck/tests/freebsd/openpty

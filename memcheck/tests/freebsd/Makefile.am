@@ -79,6 +79,8 @@ EXTRA_DIST = \
 	leak-autofreepool-7.stderr.exp \
 	linkat.vgtest \
 	linkat.stderr.exp \
+	lsframe1.vgtest lsframe1.stderr.exp \
+	lsframe2.vgtest lsframe2.stderr.exp \
         memalign.vgtest memalign.stderr.exp \
 	memalign_supp.vgtest memalign_supp.stderr.exp \
 	memalign_supp.supp \
@@ -155,7 +157,7 @@ check_PROGRAMS = \
 	file_locking_wait6 \
 	get_set_context get_set_login getfh \
 	kenv \
-	kqueue linkat memalign misc \
+	kqueue linkat lsframe1 lsframe2 memalign misc \
 	openpty \
 	pdfork_pdkill getfsstat inlinfo inlinfo_nested.so \
 	revoke scalar \
