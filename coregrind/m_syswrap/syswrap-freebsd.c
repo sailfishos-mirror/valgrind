@@ -7026,15 +7026,7 @@ PRE(sys_aio_readv)
          SET_STATUS_Failure( VKI_EBADF );
       } else {
          SizeT vec_count = (SizeT)iocb->aio_nbytes;
-#if defined(__clang__)
-#pragma clang diagnostic push
-         // yes, I know it is volatile
-#pragma clang diagnostic ignored "-Wcast-qual"
-#endif
-         struct vki_iovec* p_iovec  = (struct vki_iovec*)iocb->aio_buf;
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
+         struct vki_iovec* p_iovec  = (struct vki_iovec*)(uintptr_t)iocb->aio_buf;
          PRE_MEM_READ("aio_readv(iocb->aio_iov)", (Addr)p_iovec,  vec_count*sizeof(struct vki_iovec));
          if (ML_(safe_to_deref)(p_iovec, vec_count*sizeof(struct vki_iovec))) {
             for (SizeT i = 0U; i < vec_count; ++i) {
