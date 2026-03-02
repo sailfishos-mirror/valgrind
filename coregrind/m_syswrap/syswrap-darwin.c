@@ -2638,25 +2638,21 @@ POST(__pthread_sigmask)
 
 
 // SYS___sigwait 330
-// int  sigwait(const sigset_t * __restrict, int * __restrict) __DARWIN_ALIAS_C(sigwait);
+// int  __sigwait(const sigset_t * __restrict, int * __restrict) __DARWIN_ALIAS_C(sigwait);
 PRE(__sigwait)
 {
     *flags |= SfMayBlock;
     PRINT("__sigwait ( %#" FMT_REGWORD "x, %#" FMT_REGWORD "x )",
           ARG1,ARG2);
-    PRE_REG_READ2(int, "sigwait",
+    PRE_REG_READ2(int, "__sigwait",
                   const vki_sigset_t *, set, int *, sig);
-    if (ARG1 != 0) {
-        PRE_MEM_READ(  "sigwait(set)",  ARG1, sizeof(vki_sigset_t));
-    }
-    if (ARG2 != 0) {
-        PRE_MEM_WRITE( "sigwait(sig)", ARG2, sizeof(int));
-    }
+    PRE_MEM_READ(  "__sigwait(set)",  ARG1, sizeof(vki_sigset_t));
+    PRE_MEM_WRITE( "__sigwait(sig)", ARG2, sizeof(int));
 }
 
 POST(__sigwait)
 {
-    if (ARG2 != 0) {
+    if (RES == 0) {
         POST_MEM_WRITE( ARG2, sizeof(int));
     }
 }
