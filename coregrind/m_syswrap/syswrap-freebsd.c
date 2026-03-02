@@ -4211,11 +4211,8 @@ PRE(sys_sigwait)
    PRE_REG_READ2(int, "sigwait",
                  const vki_sigset_t *, set, int *, sig);
    PRE_MEM_READ(  "sigwait(set)",  ARG1, sizeof(vki_sigset_t));
-   vki_sigset_t* set = (vki_sigset_t*)ARG1;
-   if (ML_(safe_to_deref)(set, sizeof(vki_sigset_t))) {
-      *flags |= SfMayBlock;
-   }
    PRE_MEM_WRITE( "sigwait(sig)", ARG2, sizeof(int));
+   *flags |= SfMayBlock;
 }
 
 // sigwait doesn't follow the norm of returning -1 on error
