@@ -2647,9 +2647,7 @@ void VG_(post_syscall) (ThreadId tid)
    */
    ent = get_syscall_entry(canonical_sysno);
    if (ent->after
-       && ((!sr_isError(sci->status.sres))
-           || (sr_isError(sci->status.sres)
-               && (sci->flags & SfPostOnFail) ))) {
+       && (!sr_isError(sci->status.sres) || (sci->flags & SfPostOnFail))) {
 
       (ent->after)( tid, &sci->args, &sci->status );
    }
