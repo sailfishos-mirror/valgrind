@@ -475,7 +475,7 @@
 #define __NR_kqueue_from_portset_np VG_DARWIN_SYSCALL_CONSTRUCT_UNIX(214)
 #define __NR_kqueue_portset_np VG_DARWIN_SYSCALL_CONSTRUCT_UNIX(215)
 #endif
-#define	__NR_mkcomplex      VG_DARWIN_SYSCALL_CONSTRUCT_UNIX(216)
+#define	__NR_open_dprotected_np VG_DARWIN_SYSCALL_CONSTRUCT_UNIX(216)
 #define	__NR_statv          VG_DARWIN_SYSCALL_CONSTRUCT_UNIX(217)
 #define	__NR_lstatv         VG_DARWIN_SYSCALL_CONSTRUCT_UNIX(218)
 #define	__NR_fstatv         VG_DARWIN_SYSCALL_CONSTRUCT_UNIX(219)

@@ -3626,6 +3626,43 @@ static void set1attr(ThreadId tid, void *attrData, SizeT attrDataSize)
    PRE_MEM_READ("setattrlist(attrBuf value)", (Addr)attrData, attrDataSize);
 }
 
+// __NR_open_dprotected_np    VG_DARWIN_SYSCALL_CONSTRUCT_UNIX(216)
+// int open_dprotected_np(const char *path, int flags, int dpclass,
+//                                int dpflags, int mode);
+PRE(open_dprotected_np)
+{
+    if (ARG2 & VKI_O_CREAT) {
+        // versiion that uses mode
+        PRINT("open_dprotected_np(path:%#lx(%s), flags:%#lx, "
+              "dpclass:%#lx, dpflags:%#lx, mode:%#lx)",
+            ARG1, (HChar*)ARG1, ARG2, ARG3, ARG4, ARG5);
+        PRE_REG_READ5(int, "open_dprotected_np", const char*, path,
+                      int, flags, int, dpclass, int, dpflags,
+                      int, mode);
+    } else {
+        // version that does not use mode
+        PRINT("open_dprotected_np(path:%#lx(%s), flags:%#lx, "
+              "dpclass:%#lx, dpflags:%#lx)",
+              ARG1, (HChar*)ARG1, ARG2, ARG3, ARG4);
+        PRE_REG_READ4(int, "open_dprotected_np", const char*, path,
+                      int, flags, int, dpclass, int, dpflags);
+    }
+    PRE_MEM_RASCIIZ("open_dprotected_np(path)", ARG1);
+}
+
+POST(open_dprotected_np)
+{
+    vg_assert(SUCCESS);
+    POST_newFd_RES;
+    if (!ML_(fd_allowed)(RES, "open_dprotected_np", tid, True)) {
+        VG_(close)(RES);
+        SET_STATUS_Failure( VKI_EMFILE );
+    } else {
+        if (VG_(clo_track_fds))
+            ML_(record_fd_open_with_given_name)(tid, RES, (HChar*)(Addr)ARG1);
+     }
+}
+
 PRE(getattrlist)
 {
    PRINT("getattrlist(%#lx(%s), %#lx, %#lx, %lu, %lu)", 
@@ -10445,12 +10482,45 @@ POST(csrctl)
    }
 }
 
+// __NR_guarded_open_dprotected_np    VG_DARWIN_SYSCALL_CONSTRUCT_UNIX(484)
+// int guarded_open_dprotected_np(const char *path, const void *guard,
+//                                u_int guardflags, int flags, int dpclass,
+//                                int dpflags, int mode);
 PRE(guarded_open_dprotected_np)
 {
-    PRINT("guarded_open_dprotected_np("
-        "path:%#lx(%s), guard:%#lx, guardflags:%#lx, flags:%#lx, "
-        "dpclass:%#lx, dpflags: %#lx) FIXME",
-        ARG1, (HChar*)ARG1, ARG2, ARG3, ARG4, ARG5, ARG6);
+    if (ARG4 & VKI_O_CREAT) {
+        // versiion that uses mode
+        PRINT("guarded_open_dprotected_np("
+            "path:%#lx(%s), guard:%#lx, guardflags:%#lx, flags:%#lx, "
+            "dpclass:%#lx, dpflags:%#lx, mode:%#lx)",
+            ARG1, (HChar*)ARG1, ARG2, ARG3, ARG4, ARG5, ARG6, ARG7);
+        PRE_REG_READ7(int, "guarded_open_dprotected_np", const char*, path,
+                      const void*, guard, u_int, guardflags, int, flags,
+                      int, dpclass, int, dpflags, int, mode);
+    } else {
+        // version that does not use mode
+        PRINT("guarded_open_dprotected_np("
+            "path:%#lx(%s), guard:%#lx, guardflags:%#lx, flags:%#lx, "
+            "dpclass:%#lx, dpflags:%#lx)",
+            ARG1, (HChar*)ARG1, ARG2, ARG3, ARG4, ARG5, ARG6);
+        PRE_REG_READ6(int, "guarded_open_dprotected_np", const char*, path,
+                      const void*, guard, u_int, guardflags, int, flags,
+                      int, dpclass, int, dpflags);
+    }
+    PRE_MEM_RASCIIZ("guarded_open_dprotected_np(path)", ARG1);
+}
+
+POST(guarded_open_dprotected_np)
+{
+    vg_assert(SUCCESS);
+    POST_newFd_RES;
+    if (!ML_(fd_allowed)(RES, "guarded_open_dprotected_np", tid, True)) {
+        VG_(close)(RES);
+        SET_STATUS_Failure( VKI_EMFILE );
+    } else {
+        if (VG_(clo_track_fds))
+            ML_(record_fd_open_with_given_name)(tid, RES, (HChar*)(Addr)ARG1);
+     }
 }
 
 PRE(guarded_write_np)
@@ -11524,7 +11594,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
 // _____(__NR_kqueue_from_portset_np), 
 // _____(__NR_kqueue_portset_np), 
 #endif
-// _____(__NR_mkcomplex), 
+    MACXY(__NR_open_dprotected_np, open_dprotected_np),   // 216
 // _____(__NR_statv), 
 // _____(__NR_lstatv), 
 // _____(__NR_fstatv), 
@@ -11830,7 +11900,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    MACX_(__NR_mkdirat,             mkdirat),            // 475
    MACX_(__NR_bsdthread_ctl,       bsdthread_ctl),      // 478
    MACXY(__NR_csrctl,              csrctl),             // 483
-   MACX_(__NR_guarded_open_dprotected_np, guarded_open_dprotected_np),  // 484
+   MACXY(__NR_guarded_open_dprotected_np, guarded_open_dprotected_np),  // 484
    MACX_(__NR_guarded_write_np, guarded_write_np),      // 485
    MACX_(__NR_guarded_pwrite_np, guarded_pwrite_np),    // 486
    MACX_(__NR_guarded_writev_np, guarded_writev_np),    // 487

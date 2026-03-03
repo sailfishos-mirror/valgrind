@@ -274,7 +274,7 @@ DECL_TEMPLATE(darwin, __sysctl);                // 202
 // 213  Reserved for AppleTalk
 // NYI kqueue_from_portset_np 214
 // NYI kqueue_portset_np 215
-// NYI mkcomplex 216
+DECL_TEMPLATE(darwin, open_dprotected_np)       // 216
 // NYI statv 217
 // NYI lstatv 218
 // NYI fstatv 219

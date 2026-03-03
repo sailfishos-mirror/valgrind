@@ -54,6 +54,7 @@ are not entered into bugzilla tend to get forgotten about or ignored.
 233298  MEMPOOL_FREE not reflected in heap summary
 253436  vex amd64->IR: unhandled instruction bytes: 0xF2 0xA6 (repne cmps)
 258140  Valgrind on OS X always reports some memory "still reachable"
+390754  unhandled amd64-darwin syscall: unix:216 (open_dprotected_np)
 406674  False positive when reading bitfield value on code compiled with
         clang 7.0
 413369  unhandled amd64-darwin syscall: unix:151 (getpgid)
