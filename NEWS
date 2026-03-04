@@ -125,6 +125,9 @@ X86/macOS 10.13, AMD64/macOS 10.13 and nanoMIPS/Linux.
   documentation.  all, builds all documentation. html, builds HTML
   docs but skips building PDFs. See also README_DEVELOPERS.
 
+* Control generation of files that are only useful for post-processing
+  with bunsen. make regtest BUNSEN=no inhibits generating those files.
+
 * New VEX API function LibVEX_set_VexControl
 
 * The deprecated IROps: Iop_Clz32/64 and Iop_Ctz32/64 have been removed
