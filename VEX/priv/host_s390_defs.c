@@ -41,6 +41,9 @@
 #include "s390_disasm.h"
 #include "guest_s390_defs.h"    /* S390X_GUEST_OFFSET */
 
+/* Whether or not names of guest registers should be written symbolically. */
+#define SYMBOLIC_REGNAMES 1
+
 /*------------------------------------------------------------*/
 /*--- Forward declarations                                 ---*/
 /*------------------------------------------------------------*/
@@ -48,6 +51,7 @@
 static void s390_insn_map_regs(HRegRemap *, s390_insn *);
 static void s390_insn_get_reg_usage(HRegUsage *u, const s390_insn *);
 static UInt s390_tchain_load64_len(void);
+static const HChar *s390_guest_regname(UInt);
 
 
 /*------------------------------------------------------------*/
@@ -293,15 +297,26 @@ s390_amode_as_string(const s390_amode *am)
    switch (am->tag) {
    case S390_AMODE_B12:
    case S390_AMODE_B20:
-      vex_sprintf(p, "%d(%s)", am->d, s390_hreg_as_string(am->b));
+      if (SYMBOLIC_REGNAMES &&
+          hregNumber(am->b) == S390_REGNO_GUEST_STATE_POINTER) {
+         vex_sprintf(p, "%s", s390_guest_regname(am->d));
+      } else {
+         vex_sprintf(p, "%d(%s)", am->d, s390_hreg_as_string(am->b));
+      }
       break;
 
    case S390_AMODE_BX12:
    case S390_AMODE_BX20:
-      /* s390_hreg_as_string returns pointer to local buffer. Need to
-         split this into two printfs */
-      p += vex_sprintf(p, "%d(%s,", am->d, s390_hreg_as_string(am->x));
-      vex_sprintf(p, "%s)", s390_hreg_as_string(am->b));
+      if (SYMBOLIC_REGNAMES &&
+          hregNumber(am->b) == S390_REGNO_GUEST_STATE_POINTER &&
+          hregNumber(am->x) == 0) {
+         vex_sprintf(p, "%s", s390_guest_regname(am->d));
+      } else {
+         /* s390_hreg_as_string returns a pointer to a static buffer.
+            Need to split this into two printfs */
+         p += vex_sprintf(p, "%d(%s,", am->d, s390_hreg_as_string(am->x));
+         vex_sprintf(p, "%s)", s390_hreg_as_string(am->b));
+      }
       break;
 
    default:
@@ -5887,6 +5902,111 @@ s390_insn_vec_replicate(UChar size, HReg dst, HReg op1, UChar idx)
 /*---------------------------------------------------------------*/
 /*--- Debug print                                             ---*/
 /*---------------------------------------------------------------*/
+
+/* Convenience macro to test whether OFFSET lies within the interval
+   [FROM, TO] */
+#define in_range(offset, from, to) \
+   ((offset) >= S390X_GUEST_OFFSET(from) && \
+    (offset) <= S390X_GUEST_OFFSET(to))
+
+static const HChar *
+s390_guest_regname_WRK(UInt offset, const HChar *prefix)
+{
+   static HChar buf[30];  /* large enough */
+   UInt regno;
+
+   vassert(vex_strlen(prefix) < 10); /* precaution against buffer overflow */
+
+   if (vex_streq(prefix, "spill")) {
+      vex_sprintf(buf, "%s_%u", prefix, offset);
+   } else if (in_range(offset, guest_a0, guest_a15)) {
+      regno = (offset - S390X_GUEST_OFFSET(guest_a0)) / 4;
+      vex_sprintf(buf, "%s_a%u",  prefix, regno);
+   } else if (in_range(offset, guest_r0, guest_r15)) {
+      regno = (offset - S390X_GUEST_OFFSET(guest_r0)) / 8;
+      vex_sprintf(buf, "%s_r%u",  prefix, regno);
+   } else if (in_range(offset, guest_v0, guest_v31)) {
+      regno = (offset - S390X_GUEST_OFFSET(guest_v0)) / 16;
+      vex_sprintf(buf, "%s_v%u",  prefix, regno);
+   } else if (vex_streq(prefix, "spill")) {
+      vex_sprintf(buf, "%s_%u", prefix, offset);
+   } else {
+
+#define NUM_SPECIAL_REGS (sizeof special_regs / sizeof special_regs[0])
+#define SPECIAL_REG_NAME(prefix,name) #name
+#define SPECIAL_REG_OFFSET(prefix,name) S390X_GUEST_OFFSET(prefix##_##name)
+#define SPECIAL_REG_NBYTES(prefix,name) (sizeof((VexGuestS390XState *)0)->prefix##_##name)
+
+#define SPECIAL_REG(prefix,name)              \
+            SPECIAL_REG_NAME(prefix, name),   \
+            SPECIAL_REG_OFFSET(prefix, name), \
+            SPECIAL_REG_NBYTES(prefix, name)
+      static const struct {
+         const HChar *name;
+         const UInt  offset;
+         const UInt  nbytes;
+      } special_regs[] = {
+         { SPECIAL_REG(guest, counter) },
+         { SPECIAL_REG(guest, fpc)     },
+         { SPECIAL_REG(guest, IA)      },
+         { SPECIAL_REG(guest, SYSNO)   },
+         { SPECIAL_REG(guest, CC_OP)   },
+         { SPECIAL_REG(guest, CC_DEP1) },
+         { SPECIAL_REG(guest, CC_DEP2) },
+         { SPECIAL_REG(guest, CC_NDEP) },
+         { SPECIAL_REG(guest, NRADDR)  },
+         { SPECIAL_REG(guest, CMSTART) },
+         { SPECIAL_REG(guest, CMLEN)   },
+         { SPECIAL_REG(guest, IP_AT_SYSCALL) },
+         { SPECIAL_REG(guest, EMNOTE) },
+         { SPECIAL_REG(host, EvC_COUNTER)  },
+         { SPECIAL_REG(host, EvC_FAILADDR) },
+      };
+
+      Int found = 0;
+      for (UInt i = 0; i < NUM_SPECIAL_REGS; ++i) {
+         if (offset >= special_regs[i].offset &&
+            offset < special_regs[i].offset + special_regs[i].nbytes ) {
+            vex_sprintf(buf, "%s_%s", prefix, special_regs[i].name);
+            found = 1;
+            break;
+         }
+      }
+      if (! found)
+         vex_sprintf(buf, "%s_%u ???", prefix, offset);
+   }
+
+   return buf;
+}
+
+
+/* Construct a symbolic name for a guest register. The name is constructed
+   in a static array which will be overwritten on every invocation. You
+   have been warned. */
+static const HChar *
+s390_guest_regname(UInt offset)
+{
+   if (offset < sizeof(VexGuestS390XState))
+      return s390_guest_regname_WRK(offset, "guest");
+
+   if (offset >= sizeof(VexGuestS390XState) &&
+       offset < 2*sizeof(VexGuestS390XState)) {
+      offset -= sizeof(VexGuestS390XState);
+      return s390_guest_regname_WRK(offset, "shadow1");
+   }
+   if (offset >= 2*sizeof(VexGuestS390XState) &&
+       offset < 3*sizeof(VexGuestS390XState)) {
+      offset -= 2*sizeof(VexGuestS390XState);
+      return s390_guest_regname_WRK(offset, "shadow2");
+   }
+   if (offset >= 3*sizeof(VexGuestS390XState) &&
+       offset < 3*sizeof(VexGuestS390XState) + LibVEX_N_SPILL_BYTES) {
+      offset -= 3*sizeof(VexGuestS390XState);
+      return s390_guest_regname_WRK(offset, "spill");
+   }
+   vpanic("s390_guest_regname");
+}
+
 
 static const HChar *
 s390_cc_as_string(s390_cc_t cc)
