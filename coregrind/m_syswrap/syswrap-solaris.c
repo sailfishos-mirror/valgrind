@@ -5010,7 +5010,7 @@ PRE(sys_getsetcontext)
 
          /* The thread is setting the ustack pointer.  It is a good time to get
             information about its stack. */
-         if (tst->os_state.ustack->ss_flags == 0) {
+         if (tst->os_state.ustack->ss_flags == 0 && tid != 1) {
             /* If the sanity check of ss_flags passed set the stack. */
             set_stack(tid, tst->os_state.ustack);
 
