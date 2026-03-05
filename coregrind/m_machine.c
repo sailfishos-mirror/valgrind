@@ -1572,7 +1572,7 @@ Bool VG_(machine_get_hwcaps)( void )
         UInt installed;
         const UInt facility_bit;
         const UInt hwcaps_bit;
-        const HChar name[5];   // may need adjustment for new facility names
+        const HChar name[6];   // may need adjustment for new facility names
      } fac_hwcaps[] = {
         { False, 129,  VEX_HWCAPS_S390X_VX,    "VX"    },
         { False,  57,  VEX_HWCAPS_S390X_MSA5,  "MSA5"  },
@@ -1587,6 +1587,7 @@ Bool VG_(machine_get_hwcaps)( void )
         { False, 155,  VEX_HWCAPS_S390X_MSA9,  "MSA9"  },
         { False,  61,  VEX_HWCAPS_S390X_MI3,   "MI3"   },
         { False, 198,  VEX_HWCAPS_S390X_VXE3,  "VXE3"  },
+        { False,  86,  VEX_HWCAPS_S390X_MSA12, "MSA12" },
      };
 
      /* Set hwcaps according to the detected facilities */
