@@ -28,7 +28,11 @@ for nanoMIPS/Linux. macOS is supported up to version 12 Monterey (amd64 only).
 
 * ================== PLATFORM CHANGES =================
 
-s390x: Machine models older than z196 are no longer supported.
+* s390x: Machine models older than z196 are no longer supported.
+
+* s390x: Support new z/Architecture features from the 15th edition.  In
+  particular this enables running binaries compiled with `-march=arch15'
+  or `-march=z17' and exploiting the new MSA extensions 10-13.
 
 Support for the following macOS versions has been added
 10.13 High Sierra (bug fixes)
@@ -59,6 +63,9 @@ are not entered into bugzilla tend to get forgotten about or ignored.
         clang 7.0
 413369  unhandled amd64-darwin syscall: unix:151 (getpgid)
 487055  memcheck/tests/x86-linux/scalar fails running in Docker
+503238  s390x: Support miscellaneous-instruction-extensions facility 4
+503239  s390x: Support vector-enhancements facility 3
+503240  s390x: Support MSA extensions 10, 11, and 12
 509562  s390x: Define minimum required machine model
 510416  Missing syswraps for file_getattr and file_setattr
 510563  Add missing syswraps for lsm_get_self_attr and lsm_set_self_attr
