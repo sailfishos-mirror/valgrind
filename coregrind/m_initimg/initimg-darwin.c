@@ -74,6 +74,10 @@ static void load_client ( /*OUT*/ExeInfo* info,
 
    VG_(memset)(info, 0, sizeof(*info));
    ret = VG_(do_exec)(exe_name, info);
+   if (ret < 0) {
+      VG_(printf)("valgrind: could not execute '%s'\n", exe_name);
+      VG_(exit)(1);
+   }
 
    // The client was successfully loaded!  Continue.
 
@@ -473,19 +477,16 @@ Addr setup_client_stack( void*  init_sp,
    *ptr++ = 0;
 
    /* --- executable_path --- */
-   if (info->executable_path) {
+   vg_assert(info->executable_path);
 #if SDK_VERS >= SDK_10_14_6
-       Int executable_path_len = VG_(strlen)(info->executable_path) + 16 + 1;
-       HChar *executable_path = VG_(malloc)("initimg-darwin.scs.1", executable_path_len);
-       VG_(snprintf)(executable_path, executable_path_len, "executable_path=%s", info->executable_path);
-       *ptr++ = (Addr)copy_str(&strtab, executable_path);
-       VG_(free)(executable_path);
+   Int executable_path_len = VG_(strlen)(info->executable_path) + 16 + 1;
+   HChar *executable_path = VG_(malloc)("initimg-darwin.scs.1", executable_path_len);
+   VG_(snprintf)(executable_path, executable_path_len, "executable_path=%s", info->executable_path);
+   *ptr++ = (Addr)copy_str(&strtab, executable_path);
+   VG_(free)(executable_path);
 #else
-      *ptr++ = (Addr)copy_str(&strtab, info->executable_path);
+   *ptr++ = (Addr)copy_str(&strtab, info->executable_path);
 #endif
-   }
-   // FIXME PJF there was an extra  *ptr++ = 0; in an else here
-   // there is a good chance that executable_path is never NULL so itr was nevwer used
 
 #if defined(VGA_arm64)
    *ptr++ = (Addr)copy_str(&strtab, EXTRA_APPLE_ARG);
