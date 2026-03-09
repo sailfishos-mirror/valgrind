@@ -782,10 +782,12 @@
 
 # I suppose that this is deliberate
 # and that Apple know what they are doing?
+# On macOS 12 at least this seems to have changed name to ___chkstk_darwin
+# this matches both
 {
    macOS1015:__chkstk_darwin_probe
    Memcheck:Addr8
-   fun:__chkstk_darwin_probe
+   fun:__*chkstk_darwin*
 }
 
 {
@@ -815,7 +817,7 @@
 {
    macOS1100:__chkstk_darwin_probe
    Memcheck:Addr1
-   fun:__chkstk_darwin_probe
+   fun:__*chkstk_darwin*
 }
 
 {
