@@ -62,6 +62,7 @@ are not entered into bugzilla tend to get forgotten about or ignored.
 406674  False positive when reading bitfield value on code compiled with
         clang 7.0
 413369  unhandled amd64-darwin syscall: unix:151 (getpgid)
+413410  unhandled amd64-darwin syscall: mach:50 (on macOS 10.15)
 487055  memcheck/tests/x86-linux/scalar fails running in Docker
 503238  s390x: Support miscellaneous-instruction-extensions facility 4
 503239  s390x: Support vector-enhancements facility 3

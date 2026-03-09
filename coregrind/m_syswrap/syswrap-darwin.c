@@ -11116,16 +11116,20 @@ POST(kevent_id)
    }
 }
 
-PRE(thread_get_special_reply_port)
-{
-   PRINT("thread_get_special_reply_port()");
-}
 
 POST(thread_get_special_reply_port)
 {
    record_named_port(tid, RES, MACH_PORT_RIGHT_RECEIVE, "special-reply-%p");
    PRINT("special reply port %s", name_for_port(RES));
 }
+
+PRE(thread_get_special_reply_port)
+{
+   PRINT("thread_get_special_reply_port()");
+   AFTER = POST_FN(thread_get_special_reply_port);
+
+}
+
 #endif /* DARWIN_VERS >= DARWIN_10_13 */
 
 
