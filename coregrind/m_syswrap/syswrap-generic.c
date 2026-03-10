@@ -3123,6 +3123,10 @@ PRE(sys_madvise)
                         ARG1, ARG2, SARG3);
    PRE_REG_READ3(long, "madvise",
                  unsigned long, start, vki_size_t, length, int, advice);
+}
+
+POST(sys_madvise)
+{
 #ifdef VKI_MADV_GUARD_INSTALL
    if (ARG3 == VKI_MADV_GUARD_INSTALL) {
       // SET_STATUS_Failure( VKI_EINVAL );

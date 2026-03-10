@@ -11436,7 +11436,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    _____(VG_DARWIN_SYSCALL_CONSTRUCT_UNIX(72)),    // old vadvise
    GENXY(__NR_munmap,      sys_munmap), 
    GENXY(__NR_mprotect,    sys_mprotect), 
-   GENX_(__NR_madvise,     sys_madvise), 
+   GENXY(__NR_madvise,     sys_madvise), 
    _____(VG_DARWIN_SYSCALL_CONSTRUCT_UNIX(76)),    // old vhangup
    _____(VG_DARWIN_SYSCALL_CONSTRUCT_UNIX(77)),    // old vlimit
    GENXY(__NR_mincore,     sys_mincore), 

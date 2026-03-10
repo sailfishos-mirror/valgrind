@@ -7488,7 +7488,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    // freebsd11 vadvise                                    72
    GENXY(__NR_munmap,           sys_munmap),            // 73
    GENXY(__NR_mprotect,         sys_mprotect),          // 74
-   GENX_(__NR_madvise,          sys_madvise),           // 75
+   GENXY(__NR_madvise,          sys_madvise),           // 75
 
    // obsol vhangup                                        76
    // obsol vlimit                                         77
