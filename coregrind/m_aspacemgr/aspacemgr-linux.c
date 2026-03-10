@@ -297,6 +297,26 @@
 static NSegment nsegments[VG_N_SEGMENTS];
 static Int      nsegments_used = 0;
 
+/* TODO --- reformulate ---
+   Currently, on x86_64, a new madvise(MADV_GUARD_INSTALL ... ) guard
+   page is installed for each new thread. This is per glibc upstream
+   commit a6fbe36b7f31.  In the future, some arches are expected to use
+   guard pages for DSOs that have compiled-in support for multiple
+   kernel page sizes.  That is expected to raise the guard count
+   roughly by ~ 3 * DSO count.
+   To start with something reasonable, assume that maximum count of
+   guard pages we're going to be able to track is VG_N_THREADS aka
+   VG_(clo_max_threads).  On one hand, processes not using threads
+   may use no guard pages at all.  OTOH, thread heavy processes such
+   as browsers might use up to 1000-ish threads with a ton tabs
+   having complex content in active use.  Let's work with something in
+   between. The guardpages array is going to list start addresses of
+   guard pages.  Bug 514297. */
+
+#define VG_N_THREADS 498
+static Addr     guardpages[VG_N_THREADS];
+static Int      nguardpages_used = 0;
+
 #define Addr_MIN ((Addr)0)
 #define Addr_MAX ((Addr)(-1ULL))
 
@@ -1061,6 +1081,78 @@ void ML_(am_do_sanity_check)( void )
    AM_SANITY_CHECK;
 }
 
+/*-----------------------------------------------------------------*/
+/*---                                                           ---*/
+/*--- Low level access / modification of the guardpages array.  ---*/
+/*---                                                           ---*/
+/*-----------------------------------------------------------------*/
+
+static void guard_page_install ( Addr addr ) {
+   Addr addr_aligned = addr & ~(VKI_PAGE_SIZE - 1);
+   if (nguardpages_used >= VG_N_THREADS) {
+      VG_(debugLog)(0,"aspacem","ERROR: nguardpages_used limit reached\n");
+      return;
+   }
+   Int i = nguardpages_used;
+   while ((i > 0) && (guardpages[i-1] > addr_aligned)) {
+      guardpages[i] = guardpages[i-1];
+      i--;
+   }
+   guardpages[i] = addr_aligned;
+   nguardpages_used++;
+}
+
+inline static void guard_pages_install ( Addr addr, SizeT len ) {
+   Int pages = (len - 1) / VKI_PAGE_SIZE + 1;
+   for (Int i=0; i < pages; i++)
+      guard_page_install(addr + i * VKI_PAGE_SIZE);
+}
+
+static void guard_page_remove ( Addr addr ) {
+   Int i = 0;
+   Bool found = False;
+   Addr addr_aligned = addr & ~(VKI_PAGE_SIZE - 1);
+   while (i < nguardpages_used)
+   {
+      if (guardpages[i] == addr_aligned)
+         found = True;
+      if (found)
+         guardpages[i] = guardpages[i+1];
+      i++;
+   }
+   if(found)
+      nguardpages_used--;
+}
+
+inline static void guard_pages_remove ( Addr addr, SizeT len ) {
+   Int pages = (len - 1) / VKI_PAGE_SIZE + 1;
+   for (Int i=0; i < pages; i++)
+      guard_page_remove (addr + i * VKI_PAGE_SIZE);
+}
+
+__attribute__((unused))
+static void show_guard_pages () {
+   VG_(debugLog)(0, "aspacem", "vvvvvvv\n");
+   for (Int i=0; i<nguardpages_used; i++)
+      VG_(debugLog)(0,"aspacem","guard page: %lu\n", guardpages[i]);
+   VG_(debugLog)(0, "aspacem", "^^^^^^^\n");
+}
+
+static Bool is_guarded ( Addr addr ) {
+   Addr addr_aligned = addr & ~(VKI_PAGE_SIZE - 1);
+   Int mid, 
+       lo = 0,
+       hi = nguardpages_used - 1;
+   while (True) {
+      if (lo > hi) {
+         return False;
+      }
+      mid = (lo + hi) / 2;
+      if (addr_aligned < guardpages[mid]) { hi = mid - 1; continue; }
+      if (addr_aligned > guardpages[mid]) { lo = mid + 1; continue; }
+      return True;
+   }
+}
 
 /*-----------------------------------------------------------------*/
 /*---                                                           ---*/
@@ -1237,6 +1329,7 @@ Bool is_valid_for( UInt kinds, Addr start, SizeT len, UInt prot )
 {
    Int  i, iLo, iHi;
    Bool needR, needW, needX;
+   Bool needGuardPageCheck = False;
 
    if (len == 0)
       return True; /* somewhat dubious case */
@@ -1267,10 +1360,21 @@ Bool is_valid_for( UInt kinds, Addr start, SizeT len, UInt prot )
            && (needW ? nsegments[i].hasW : True)
            && (needX ? nsegments[i].hasX : True) ) {
          /* ok */
+#if defined(VGO_linux)
+           if ( nsegments[i].hasGuardPages ) {
+              needGuardPageCheck = True;
+           }
+#endif
       } else {
          return False;
       }
    }
+
+#if defined(VKI_MADV_GUARD_INSTALL)
+   if (needGuardPageCheck && is_guarded(start)) {
+      return False;
+   }
+#endif
 
    return True;
 }
@@ -2434,6 +2538,52 @@ Bool VG_(am_notify_mprotect)( Addr start, SizeT len, UInt prot )
    return needDiscard;
 }
 
+/* Notifiy aspacem about madvise(MADV_GUARD_INSTALL), bug 514297 */
+Bool VG_(am_notify_madv_guard)( Addr start, SizeT len, Bool install )
+{
+   Int  i, iLo, iHi;
+
+   aspacem_assert(VG_IS_PAGE_ALIGNED(start));
+   aspacem_assert(VG_IS_PAGE_ALIGNED(len));
+
+   if (len == 0)
+      return False;
+
+   iLo = find_nsegment_idx(start);
+   iHi = find_nsegment_idx(start + len - 1);
+
+   for (i = iLo; i <= iHi; i++) {
+      /* Apply the permissions to all relevant segments. */
+      switch (nsegments[i].kind) {
+         case SkAnonC: case SkAnonV: case SkFileC: case SkFileV: case SkShmC:
+            nsegments[i].hasGuardPages = install;
+            aspacem_assert(sane_NSegment(&nsegments[i]));
+            break;
+         default:
+            break;
+      }
+   }
+
+   AM_SANITY_CHECK;
+
+   /* Register the guard page(s) installation */
+   if (install) {
+      VG_(debugLog)(1, "aspacem",
+                    "installing guard pages (addr=0x%lx, len=0x%lx)\n",
+                    start, len);
+      guard_pages_install(start, len);
+   } else {
+      VG_(debugLog)(1, "aspacem",
+                    "removing guard pages (addr=0x%lx, len=0x%lx)\n",
+                    start, len);
+      guard_pages_remove(start, len);
+   }
+
+   // The return val determines whether translations will be
+   // discarded or not.  Discarding translations only makes
+   // sense when installing a guard page, not when removing it.
+   return install;
+}
 
 /* Notifies aspacem that an munmap completed successfully.  The
    segment array is updated accordingly.  As with

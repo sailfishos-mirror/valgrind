@@ -351,7 +351,7 @@ void do_syscall_for_client ( Int syscallno,
                              ThreadState* tst,
                              const vki_sigset_t* syscall_mask )
 {
-   vki_sigset_t saved;
+   vki_sigset_t saved = (vki_sigset_t){0};
    UWord err;
 #  if defined(VGO_linux)
    err = ML_(do_syscall_for_client_WRK)(

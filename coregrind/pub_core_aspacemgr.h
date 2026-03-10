@@ -187,6 +187,10 @@ extern Bool VG_(am_notify_client_shmat)( Addr a, SizeT len, UInt prot );
    range. */
 extern Bool VG_(am_notify_mprotect)( Addr start, SizeT len, UInt prot );
 
+/* Bug 514297: Notifies aspacem about madvise(MADV_GUARD_*) */
+extern Bool VG_(am_notify_madv_guard) ( Addr start, SizeT len, Bool install );
+
+
 /* Notifies aspacem that an munmap completed successfully.  The
    segment array is updated accordingly.  As with
    VG_(am_notify_mprotect), we merely record the given info, and don't
