@@ -1432,6 +1432,12 @@ Int valgrind_main ( Int argc, HChar **argv, HChar **envp )
    }
 #endif
 
+   //--------------------------------------------------------------
+   // setup file descriptors
+   //   p: n/a
+   //--------------------------------------------------------------
+   VG_(debugLog)(1, "main", "Setup file descriptors\n");
+   setup_file_descriptors();
 
    //--------------------------------------------------------------
    // Start up the address space manager, and determine the
@@ -1656,13 +1662,6 @@ Int valgrind_main ( Int argc, HChar **argv, HChar **envp )
    // Finished loading/setting up the client address space.
    //
    //==============================================================
-
-   //--------------------------------------------------------------
-   // setup file descriptors
-   //   p: n/a
-   //--------------------------------------------------------------
-   VG_(debugLog)(1, "main", "Setup file descriptors\n");
-   setup_file_descriptors();
 
    //--------------------------------------------------------------
    // create fake /proc/<pid>/cmdline and /proc/<pid>/auxv files
