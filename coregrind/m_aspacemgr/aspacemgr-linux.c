@@ -308,6 +308,7 @@ static Int      nsegments_used = 0;
 #define VG_N_THREADS 498
 static Addr     guardpages[VG_N_THREADS];
 static Int      nguardpages_used = 0;
+static Int      VG_(cl_pagemap_fd);
 
 #define Addr_MIN ((Addr)0)
 #define Addr_MAX ((Addr)(-1ULL))
@@ -1130,20 +1131,39 @@ static void show_guard_pages () {
    VG_(debugLog)(0, "aspacem", "^^^^^^^\n");
 }
 
-static Bool is_guarded ( Addr addr ) {
-   Addr addr_aligned = addr & ~(VKI_PAGE_SIZE - 1);
-   Int mid, 
-       lo = 0,
-       hi = nguardpages_used - 1;
-   while (True) {
-      if (lo > hi) {
-         return False;
-      }
-      mid = (lo + hi) / 2;
-      if (addr_aligned < guardpages[mid]) { hi = mid - 1; continue; }
-      if (addr_aligned > guardpages[mid]) { lo = mid + 1; continue; }
+// static Bool is_guarded ( Addr addr ) {
+//    Addr addr_aligned = addr & ~(VKI_PAGE_SIZE - 1);
+//    Int mid, 
+//        lo = 0,
+//        hi = nguardpages_used - 1;
+//    while (True) {
+//       if (lo > hi) {
+//          return False;
+//       }
+//       mid = (lo + hi) / 2;
+//       if (addr_aligned < guardpages[mid]) { hi = mid - 1; continue; }
+//       if (addr_aligned > guardpages[mid]) { lo = mid + 1; continue; }
+//       return True;
+//    }
+// }
+
+static Bool is_guarded ( Addr addr )
+{
+   Addr addr_page_aligned = addr & ~(VKI_PAGE_SIZE - 1);
+   vki_off_t offset = ((vki_uint64_t)addr_page_aligned / VKI_PAGE_SIZE) * sizeof(vki_uint64_t);
+   Int ret = ML_(am_lseek) (VG_(cl_pagemap_fd), offset, VKI_SEEK_SET);
+   if (ret == -1)
+      ML_(am_barf)("failed lseek in pagemap\n");
+   // https://docs.kernel.org/admin-guide/mm/pagemap.html
+   vki_uint64_t entry; // one 64-bit value for each virtual page
+   ret = ML_(am_read) (VG_(cl_pagemap_fd), &entry, sizeof(vki_uint64_t));
+   if (ret == -1)
+      ML_(am_barf)("failed reading pagemap\n");
+   if (((entry >> 58) & 1) == 1) {
+      VG_(debugLog)(1, "aspacem", "madvise guard page hit at addr 0x%010lx\n", addr);
       return True;
    }
+   return False;
 }
 
 /*-----------------------------------------------------------------*/
@@ -2064,6 +2084,13 @@ Addr VG_(am_startup) ( Addr sp_at_startup )
       segment all along.  Sigh. */
 
    VG_(am_show_nsegments)(2, "With contents of /proc/self/maps");
+
+   VG_(cl_pagemap_fd) = -1;
+#if defined(VGO_linux)
+   VG_(cl_pagemap_fd) = sr_Res(ML_(am_open)("/proc/self/pagemap", VKI_O_RDONLY, 0 ));
+      if(VG_(cl_pagemap_fd) == -1)
+         ML_(am_barf)("I/O error on /proc/self/pagemap");
+#endif
 
    AM_SANITY_CHECK;
    return suggested_clstack_end;
