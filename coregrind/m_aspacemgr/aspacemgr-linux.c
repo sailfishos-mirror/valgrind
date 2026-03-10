@@ -297,22 +297,14 @@
 static NSegment nsegments[VG_N_SEGMENTS];
 static Int      nsegments_used = 0;
 
-/* TODO --- reformulate ---
-   Currently, on x86_64, a new madvise(MADV_GUARD_INSTALL ... ) guard
-   page is installed for each new thread. This is per glibc upstream
-   commit a6fbe36b7f31.  In the future, some arches are expected to use
-   guard pages for DSOs that have compiled-in support for multiple
-   kernel page sizes.  That is expected to raise the guard count
-   roughly by ~ 3 * DSO count.
-   To start with something reasonable, assume that maximum count of
-   guard pages we're going to be able to track is VG_N_THREADS aka
-   VG_(clo_max_threads).  On one hand, processes not using threads
-   may use no guard pages at all.  OTOH, thread heavy processes such
-   as browsers might use up to 1000-ish threads with a ton tabs
-   having complex content in active use.  Let's work with something in
-   between. The guardpages array is going to list start addresses of
-   guard pages.  Bug 514297. */
-
+/* With glibc upstream commit a6fbe36b7f31 and others, on x86_64,
+   a new madvise(MADV_GUARD_INSTALL ... ) guard page is installed for
+   each new thread. In the future, MADV_GUARD_INSTALL is likely to
+   be used with DSOs supporting multiple kernel page sizes.  A rough
+   estimation of max madvise guard page count is Nthreads + 3 * DSOcnt.
+   Madvise guard pages are tracked in the guardpages array below.
+   To set its size, use VG_N_THREADS, which is VG_(clo_max_threads).
+   Related bug 514297. */
 #define VG_N_THREADS 498
 static Addr     guardpages[VG_N_THREADS];
 static Int      nguardpages_used = 0;
