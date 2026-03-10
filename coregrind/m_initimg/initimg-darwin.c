@@ -50,6 +50,35 @@
 #include "pub_core_pathscan.h"        /* find_executable */
 #include "pub_core_initimg.h"         /* self */
 
+// change this to one to see the env/apple pointer area that Darwin gives us
+// and also the env and apple pointer area that we pass on to the guest
+#define DEBUG_ENV_APPLE 0
+
+#if (DEBUG_ENV_APPLE)
+static void print_env_apple(HChar** envp, const HChar* where)
+{
+   int i;
+   int j;
+   HChar** apple;
+   VG_(printf)("Start env and apple pointer strings at %s\n", where);
+
+   for (i = 0; envp[i]; ++i) {
+      VG_(printf)("i %d &envp[i] %p envp[i] %s\n", i, &envp[i], envp[i]);
+   }
+   // should be NULL
+   VG_(printf)("i %d &envp[i] %p envp[i] %s\n", i, &envp[i], envp[i]);
+
+   apple = &envp[i];
+   ++apple;
+
+   for (j = 0; apple[j]; ++j) {
+      VG_(printf)("j %d &apple[j] %p apple[j] %s\n", j, &apple[j], apple[j]);
+   }
+   VG_(printf)("j %d &apple[j] %p apple[j] %s\n", j, &apple[j], apple[j]);
+   VG_(printf)("End env and apple pointer strings at %s\n", where);
+}
+#endif
+
 
 /*====================================================================*/
 /*=== Loading the client                                           ===*/
@@ -514,6 +543,10 @@ Addr setup_client_stack( void*  init_sp,
       }
    }
 
+#if (DEBUG_ENV_APPLE)
+   print_env_apple(VG_(client_envp), "final envp");
+#endif
+
    /* client_SP is pointing at client's argc/argv */
 
    if (0) VG_(printf)("startup SP = %#lx\n", client_SP);
@@ -614,6 +647,10 @@ IIFinaliseImageInfo VG_(ii_create_image)( IICreateImageInfo iicii,
       VG_(err_missing_prog)();
 
    load_client(&info, &iifii.initial_client_IP);
+
+#if (DEBUG_ENV_APPLE)
+   print_env_apple(iicii.envp, "original envp");
+#endif
 
    //--------------------------------------------------------------
    // Set up client's environment
