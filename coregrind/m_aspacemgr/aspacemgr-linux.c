@@ -1132,23 +1132,7 @@ static void show_guard_pages () {
    VG_(debugLog)(0, "aspacem", "^^^^^^^\n");
 }
 
-// static Bool is_guarded ( Addr addr ) {
-//    Addr addr_aligned = addr & ~(VKI_PAGE_SIZE - 1);
-//    Int mid, 
-//        lo = 0,
-//        hi = nguardpages_used - 1;
-//    while (True) {
-//       if (lo > hi) {
-//          return False;
-//       }
-//       mid = (lo + hi) / 2;
-//       if (addr_aligned < guardpages[mid]) { hi = mid - 1; continue; }
-//       if (addr_aligned > guardpages[mid]) { lo = mid + 1; continue; }
-//       return True;
-//    }
-// }
-
-static Bool is_guarded ( Addr addr )
+static Bool is_guarded_sanity ( Addr addr )
 {
    Addr addr_page_aligned = addr & ~(VKI_PAGE_SIZE - 1);
    vki_off_t offset = ((vki_uint64_t)addr_page_aligned / VKI_PAGE_SIZE) * sizeof(vki_uint64_t);
@@ -1161,10 +1145,43 @@ static Bool is_guarded ( Addr addr )
    if (ret == -1)
       ML_(am_barf)("failed reading pagemap\n");
    if (((entry >> 58) & 1) == 1) {
-      VG_(debugLog)(1, "aspacem", "madvise guard page hit at addr 0x%010lx\n", addr);
+      VG_(debugLog)(1, "aspacem",
+                    "madvise guard page hit at addr 0x%010lx\n", addr);
       return True;
    }
    return False;
+}
+
+static Bool is_guarded ( Addr addr ) {
+   Addr addr_aligned = addr & ~(VKI_PAGE_SIZE - 1);
+   Int mid, 
+       lo = 0,
+       hi = nguardpages_used - 1;
+   while (True) {
+      if (lo > hi) {
+         if (LIKELY(VG_(clo_sanity_level) < 3)) {
+            /* do nothing */
+         } else {
+            if (is_guarded_sanity ( addr ) == True)
+               VG_(debugLog)(1, "aspacem",
+                             "is_guarded() failed (not guarded 0x%lx)\n",
+                             addr);
+         }
+         return False;
+      }
+      mid = (lo + hi) / 2;
+      if (addr_aligned < guardpages[mid]) { hi = mid - 1; continue; }
+      if (addr_aligned > guardpages[mid]) { lo = mid + 1; continue; }
+      if (LIKELY(VG_(clo_sanity_level) < 3)) {
+         /* do nothing */
+      } else {
+         if (is_guarded_sanity ( addr ) == False)
+            VG_(debugLog)(1, "aspacem",
+                          "is_guarded() failed (guarded 0x%lx)\n",
+                          addr);
+      }
+      return True;
+   }
 }
 
 /*-----------------------------------------------------------------*/
