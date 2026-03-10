@@ -40,6 +40,7 @@
 
 #include "priv_aspacemgr.h"
 #include "config.h"
+#include "../pub_core_libcfile.h" // For VG_(safe_fd)()
 
 
 /* Note: many of the exported functions implemented below are
@@ -2090,6 +2091,7 @@ Addr VG_(am_startup) ( Addr sp_at_startup )
    VG_(cl_pagemap_fd) = sr_Res(ML_(am_open)("/proc/self/pagemap", VKI_O_RDONLY, 0 ));
       if(VG_(cl_pagemap_fd) == -1)
          ML_(am_barf)("I/O error on /proc/self/pagemap");
+   VG_(cl_pagemap_fd) = VG_(safe_fd)(VG_(cl_pagemap_fd));
 #endif
 
    AM_SANITY_CHECK;
