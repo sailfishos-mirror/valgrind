@@ -444,7 +444,7 @@ Addr setup_client_stack( void*  init_sp,
       rounding up stringsize to a multiple of sizeof(Word) plus rounding of the whole
       from a multiple of sizeof(Word) to a multiple of 16. Need to keep both of these
       in order to calculate stringbase. */
-   size_t pointer_slop = stacksize % 16;
+   size_t pointer_slop = VG_ROUNDUP(stacksize, 16) - stacksize;
    stacksize = VG_ROUNDUP(stacksize, 16);
 
    if (0) VG_(printf)("stacksize = %u\n", stacksize);
