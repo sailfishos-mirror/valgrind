@@ -63,18 +63,18 @@ static void print_env_apple(HChar** envp, const HChar* where)
    VG_(printf)("Start env and apple pointer strings at %s\n", where);
 
    for (i = 0; envp[i]; ++i) {
-      VG_(printf)("i %d &envp[i] %p envp[i] %s\n", i, &envp[i], envp[i]);
+      VG_(printf)("initimg-darwin: i %d &envp[i] %p envp[i] %s\n", i, &envp[i], envp[i]);
    }
    // should be NULL
-   VG_(printf)("i %d &envp[i] %p envp[i] %s\n", i, &envp[i], envp[i]);
+   VG_(printf)("initimg-darwin: i %d &envp[i] %p envp[i] %s\n", i, &envp[i], envp[i]);
 
    apple = &envp[i];
    ++apple;
 
    for (j = 0; apple[j]; ++j) {
-      VG_(printf)("j %d &apple[j] %p apple[j] %s\n", j, &apple[j], apple[j]);
+      VG_(printf)("initimg-darwin: j %d &apple[j] %p apple[j] %s\n", j, &apple[j], apple[j]);
    }
-   VG_(printf)("j %d &apple[j] %p apple[j] %s\n", j, &apple[j], apple[j]);
+   VG_(printf)("initimg-darwin: j %d &apple[j] %p apple[j] %s\n", j, &apple[j], apple[j]);
    VG_(printf)("End env and apple pointer strings at %s\n", where);
 }
 #endif
@@ -349,7 +349,7 @@ static HChar *copy_str(HChar **tab, const HChar *str)
 
 static 
 Addr setup_client_stack( void*  init_sp,
-                         HChar** orig_envp, 
+                         HChar** envp,
                          const ExeInfo* info,
                          Addr   clstack_end,
                          SizeT  clstack_max_size,
@@ -404,7 +404,7 @@ Addr setup_client_stack( void*  init_sp,
 
    /* ...and the environment */
    envc = 0;
-   for (cpp = orig_envp; cpp && *cpp; cpp++) {
+   for (cpp = envp; cpp && *cpp; cpp++) {
       envc++;
       stringsize += VG_(strlen)(*cpp) + 1;
    }
@@ -419,10 +419,10 @@ Addr setup_client_stack( void*  init_sp,
    }
 
 #if defined(VGA_arm64)
-    // This is required so that dyld can load our dylib specified in DYLD_INSERT_LIBRARIES
+   // This is required so that dyld can load our dylib specified in DYLD_INSERT_LIBRARIES
 #define EXTRA_APPLE_ARG "arm64e_abi=all"
-    stringsize += VG_(strlen)(EXTRA_APPLE_ARG) + 1;
-    auxsize += sizeof(Word);
+   stringsize += VG_(strlen)(EXTRA_APPLE_ARG) + 1;
+   auxsize += sizeof(Word);
 #endif
 
    /* Darwin mach_header */
@@ -438,17 +438,26 @@ Addr setup_client_stack( void*  init_sp,
       sizeof(HChar **)*envc +                 /* envp */
       sizeof(HChar **) +                      /* terminal NULL */
       auxsize +                               /* auxv */
-      VG_ROUNDUP(stringsize, sizeof(Word));   /* strings (aligned) */
+      VG_ROUNDUP(stringsize, sizeof(Word));   /* strings (Word aligned) */
+
+   /* The stacksize will be rounded to 16. Any rounding could come from a combination of
+      rounding up stringsize to a multiple of sizeof(Word) plus rounding of the whole
+      from a multiple of sizeof(Word) to a multiple of 16. Need to keep both of these
+      in order to calculate stringbase. */
+   size_t pointer_slop = stacksize % 16;
+   stacksize = VG_ROUNDUP(stacksize, 16);
 
    if (0) VG_(printf)("stacksize = %u\n", stacksize);
 
    /* client_SP is the client's stack pointer */
+   vg_assert(stacksize % 16 == 0);
+   vg_assert((clstack_end + 1) % 16 == 0);
    client_SP = clstack_end + 1 - stacksize;
-   client_SP = VG_ROUNDDN(client_SP, 32); /* make stack 32 byte aligned */
+   vg_assert(client_SP % 16 == 0);
 
    /* base of the string table (aligned) */
-   stringbase = strtab = (HChar *)clstack_end + 1
-                         - VG_ROUNDUP(stringsize, sizeof(int));
+   stringbase = strtab = (HChar *)clstack_end + 1 - VG_ROUNDUP(stringsize, sizeof(Word)) - pointer_slop;
+   vg_assert((Addr)stringbase % sizeof(Word) == 0);
 
    /* The max stack size */
    clstack_max_size = VG_PGROUNDUP(clstack_max_size);
@@ -501,7 +510,7 @@ Addr setup_client_stack( void*  init_sp,
 
    /* --- envp --- */
    VG_(client_envp) = (HChar **)ptr;
-   for (cpp = orig_envp; cpp && *cpp; ptr++, cpp++)
+   for (cpp = envp; cpp && *cpp; ptr++, cpp++)
       *ptr = (Addr)copy_str(&strtab, *cpp);
    *ptr++ = 0;
 
@@ -525,7 +534,10 @@ Addr setup_client_stack( void*  init_sp,
 
    vg_assert((strtab-stringbase) == stringsize);
 
-   vg_assert((HChar*)ptr <= stringbase);
+#if (DEBUG_ENV_APPLE)
+   VG_(printf)("initimg-darwin: ptr %p stringbase %p\n", ptr, stringbase);
+#endif
+   vg_assert((HChar*)ptr == stringbase);
 
    if (VG_(resolved_exename) == NULL) {
       const HChar *exe_name = VG_(find_executable)(VG_(args_the_exename));

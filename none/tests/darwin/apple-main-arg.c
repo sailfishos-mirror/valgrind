@@ -22,23 +22,29 @@ int main(int argc, char *argv[], char *envp[], char *apple[])
 
    for (i = 0; envp[i]; i++) {
 #if defined(DEBUG_ENV)
-      fprintf(stderr, "i %d &envp[i] %p envp[i] %s\n", i, &envp[i], envp[i]);
+      fprintf(stderr, "apple-main-arg: i %d &envp[i] %p envp[i] %s\n", i, &envp[i], envp[i]);
 #endif
    }
 
 #if defined(DEBUG_ENV)
    fprintf(stderr, "2 slots after envp\n");
-   fprintf(stderr, "i %d &envp[i] %p envp[i] %s\n", i, &envp[i], envp[i]);
-   fprintf(stderr, "i %d &envp[i] %p envp[i] %s\n", i+1, &envp[i+1], envp[i+1]);
-   fprintf(stderr, "i %d &envp[i] %p envp[i] %s\n", i+2, &envp[i+2], envp[i+2]);
+   fprintf(stderr, "apple-main-arg: i %d &envp[i] %p envp[i] %s\n", i, &envp[i], envp[i]);
+   fprintf(stderr, "apple-main-arg: i %d &envp[i] %p envp[i] %s\n", i+1, &envp[i+1], envp[i+1]);
+   fprintf(stderr, "apple-main-arg: i %d &envp[i] %p envp[i] %s\n", i+2, &envp[i+2], envp[i+2]);
    fprintf(stderr, "apple %p\n", apple);
    int j = 0;
    while (apple[j]) {
-      fprintf(stderr, "j %d &apple[j] %p apple[j] %s\n", j, &apple[j], apple[j]);
+      fprintf(stderr, "apple-main-arg: j %d &apple[j] %p apple[j] %s\n", j, &apple[j], apple[j]);
       ++j;
    }
-   fprintf(stderr, "1 slot after apple\n");
-   fprintf(stderr, "j %d &apple[j] %p apple[j] %s\n", j, &apple[j], apple[j]);
+   if (j == 0) {
+      fprintf(stderr, "apple-main-arg: j %d &apple[j] %p apple[j] %s\n", j, &apple[j], apple[j]);
+      fprintf(stderr, "apple-main-arg: 1 slot after apple\n");
+      fprintf(stderr, "apple-main-arg: j %d &apple[j] %p apple[j] %s\n", j+1, &apple[j+1], apple[j+1]);
+   } else {
+      fprintf(stderr, "apple-main-arg: 1 slot after apple\n");
+      fprintf(stderr, "apple-main-arg: j %d &apple[j] %p apple[j] %s\n", j, &apple[j], apple[j]);
+   }
 #endif
 
    // envp[i]==NULL; envp[i+1]==apple[0]==executable_path
