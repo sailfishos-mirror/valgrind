@@ -13242,6 +13242,14 @@ DisResult disInstr_X86_WRK (
      goto decode_success;
    }
 
+   /* 66 0F 38 29 = PCMPEQQ
+      64x2 equality comparison */
+   if (sz == 2 && insn[0] == 0x0F && insn[1] == 0x38 && insn[2] == 0x29) {
+      delta = dis_SSEint_E_to_G( sorb, delta+3, "pcmpeqq",
+                                 Iop_CmpEQ64x2, False);
+      goto decode_success;
+   }
+
    /* 66 0F 38 38 /r  - PMINSB xmm1, xmm2/m128
       66 0F 38 3C /r  - PMAXSB xmm1, xmm2/m128
       Minimum/Maximum of Packed Signed Byte Integers (XMM)

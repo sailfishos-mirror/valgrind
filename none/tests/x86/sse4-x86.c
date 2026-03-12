@@ -163,6 +163,7 @@ int main(void)
    test_BLENDVPD();
    test_BLENDVPS();
    test_PTEST();
+   test_PCMPEQQ();
 
    return 0;
 }

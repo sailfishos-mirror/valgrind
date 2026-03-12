@@ -1005,26 +1005,6 @@ void test_PACKUSDW ( void )
 }
 
 
-void test_PCMPEQQ ( void )
-{
-   V128 src, dst;
-   Int i;
-   for (i = 0; i < 10; i++) {
-      randV128(&src);
-      randV128(&dst);
-      switch (i - 6) {
-         case 0: memset(&src[0], 0x55, 8);
-                 memset(&dst[0], 0x55, 8); break;
-         case 1: memset(&src[8], 0x55, 8);
-                 memset(&dst[8], 0x55, 8); break;
-         default:
-            break;
-      }
-      DO_mandr_r("pcmpeqq", src, dst);
-   }
-}
-
-
 void test_PEXTRB ( void )
 {
    V128 src;

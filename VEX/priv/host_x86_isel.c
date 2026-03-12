@@ -3861,6 +3861,9 @@ static HReg iselVecExpr_wrk ( ISelEnv* env, const IRExpr* e )
          return dst;
       }
 
+      case Iop_CmpEQ64x2:
+         fn = (HWord)h_generic_calc_CmpEQ64x2;
+         goto do_SseAssistedBinary;
       case Iop_NarrowBin32to16x8:
          fn = (HWord)h_generic_calc_NarrowBin32to16x8;
          goto do_SseAssistedBinary;
