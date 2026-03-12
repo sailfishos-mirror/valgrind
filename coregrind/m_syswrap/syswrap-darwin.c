@@ -8884,9 +8884,7 @@ PRE(mach_msg)
 {
    mach_msg_header_t *mh = (mach_msg_header_t *)ARG1;
    mach_msg_option_t option = (mach_msg_option_t)ARG2;
-   // mach_msg_size_t send_size = (mach_msg_size_t)ARG3;
    mach_msg_size_t rcv_size = (mach_msg_size_t)ARG4;
-   // mach_port_t rcv_name = (mach_port_t)ARG5;
    size_t complex_header_size = 0;
 
    PRE_REG_READ7(long, "mach_msg",
@@ -9136,6 +9134,149 @@ POST(mach_msg)
       (*AFTER)(tid, arrghs, status);
    }
 }
+
+#if DARWIN_VERS >= DARWIN_13_00
+
+#define MACH64_MSG_VECTOR 0x0000000100000000ull
+
+typedef uint64_t mach_msg_option64_t;
+
+typedef struct {
+	/* a mach_msg_header_t* or mach_msg_aux_header_t* */
+	mach_vm_address_t               msgv_data;
+	/* if msgv_rcv_addr is non-zero, use it as rcv address instead */
+	mach_vm_address_t               msgv_rcv_addr;
+	mach_msg_size_t                 msgv_send_size;
+	mach_msg_size_t                 msgv_rcv_size;
+} mach_msg_vector_t;
+
+PRE(mach_msg2)
+{
+#define MACH_MSG2_UNSHIFT_HIGH(x) ((x) >> 32)
+#define MACH_MSG2_UNSHIFT_LOW(x) ((x) & 0xffffffff)
+
+  UWord msgh_bits = MACH_MSG2_UNSHIFT_LOW(ARG3);
+  UWord send_size = MACH_MSG2_UNSHIFT_HIGH(ARG3);
+  Word msgh_remote_port = MACH_MSG2_UNSHIFT_LOW(ARG4);
+  Word msgh_local_port = MACH_MSG2_UNSHIFT_HIGH(ARG4);
+  Word msgh_voucher = MACH_MSG2_UNSHIFT_LOW(ARG5);
+  UWord msgh_id = MACH_MSG2_UNSHIFT_HIGH(ARG5);
+  UWord desc_count = MACH_MSG2_UNSHIFT_LOW(ARG6);
+  Word rcv_name = MACH_MSG2_UNSHIFT_HIGH(ARG6);
+  UWord rcv_size = MACH_MSG2_UNSHIFT_LOW(ARG7);
+  UWord priority = MACH_MSG2_UNSHIFT_HIGH(ARG7);
+
+#undef MACH_MSG2_UNSHIFT_HIGH
+#undef MACH_MSG2_UNSHIFT_LOW
+
+  mach_msg_header_t *mh = (mach_msg_header_t *)ARG1;
+  mach_msg_option64_t options = (mach_msg_option64_t)ARG2;
+
+  PRINT(
+    "mach_msg2(%#lx "
+    "{id: %d, bits: %#x, size: %u, voucher: %s, local: %s, remote: %s}, "
+    "options %#llx, "
+    "%#lx (msgh_bits %#lx | send_size %lu), %#lx (remote %s | local %s), "
+    "%#lx (voucher %s | id %#lx), %#lx (desc_count %lu | rcv_name %s), "
+    "%#lx (rcv_size %lu | priority %lu), timeout %lu) ",
+    ARG1,
+    mh->msgh_id, mh->msgh_bits, mh->msgh_size, name_for_port(mh->msgh_voucher_port), name_for_port(mh->msgh_local_port), name_for_port(mh->msgh_remote_port),
+    options,
+    ARG3, msgh_bits, send_size, ARG4, name_for_port(msgh_remote_port), name_for_port(msgh_local_port),
+    ARG5, name_for_port(msgh_voucher), msgh_id, ARG6, desc_count, name_for_port(rcv_name),
+    ARG7, rcv_size, priority, ARG8
+  );
+  PRE_REG_READ8(kern_return_t, "mach_msg2",
+    void *, data,
+    mach_msg_option64_t, options,
+    uint64_t, msgh_bits_and_send_size,
+    uint64_t, msgh_remote_and_local_port,
+    uint64_t, msgh_voucher_and_id,
+    uint64_t, desc_count_and_rcv_name,
+    uint64_t, rcv_size_and_priority,
+    uint64_t, timeout);
+  SizeT size = sizeof(mach_msg_header_t);
+  SizeT trailer_size = 0;
+  if (options & MACH_SEND_MSG && msgh_bits & MACH_SEND_TRAILER) {
+    trailer_size = REQUESTED_TRAILER_SIZE(options);
+  }
+// FIXME: loads of issues on macOS 13 and no computer to test on
+// disabled for now
+#if DARWIN_VERS != DARWIN_13_00
+  if (options & MACH64_MSG_VECTOR) {
+    mach_msg_vector_t *msgv = (mach_msg_vector_t *)mh;
+    PRE_MEM_READ("mach_msg2(msgv)", (Addr)mh, sizeof(mach_msg_vector_t));
+    if (options & MACH_SEND_MSG) {
+      PRE_MEM_READ("mach_msg2(msgv->data)", (Addr)msgv->msgv_data, msgv->msgv_send_size);
+    }
+    if (options & MACH_RCV_MSG) {
+      if (msgv->msgv_rcv_addr != 0) {
+        PRE_MEM_WRITE("mach_msg2(msgv->rcv_addr)", (Addr)msgv->msgv_rcv_addr, msgv->msgv_rcv_size);
+      } else {
+        PRE_MEM_WRITE("mach_msg2(msgv->data)", (Addr)msgv->msgv_data, msgv->msgv_rcv_size);
+      }
+    }
+  } else {
+    if (send_size > size) {
+      size = send_size;
+    }
+    if (options & MACH_SEND_MSG) {
+      PRE_MEM_READ("mach_msg2(msg)", (Addr)mh, size + trailer_size);
+    }
+    if (rcv_size > size) {
+      size = rcv_size;
+    }
+    if (options & MACH_RCV_MSG) {
+      PRE_MEM_WRITE("mach_msg2(msg)", (Addr)mh, size);
+    }
+  }
+#endif
+
+  // Assume call may block unless specified otherwise
+  *flags |= SfMayBlock;
+
+  AFTER = NULL;
+
+  if (options & MACH_SEND_MSG) {
+    MACH_REMOTE = msgh_remote_port;
+    MACH_MSGH_ID = msgh_id;
+  }
+
+  // Call a PRE handler. The PRE handler may set an AFTER handler.
+  if (!(options & MACH_SEND_MSG)) {
+    // no message sent, receive only
+    CALL_PRE(mach_msg_receive);
+    return;
+  } else if (msgh_local_port == vg_host_port) {
+    // message sent to mach_host_self()
+    CALL_PRE(mach_msg_host);
+    return;
+  } else if (is_task_port(msgh_local_port)) {
+    // message sent to a task
+    CALL_PRE(mach_msg_task);
+    return;
+  } else if (msgh_local_port == vg_bootstrap_port) {
+    // message sent to bootstrap port
+    CALL_PRE(mach_msg_bootstrap);
+    return;
+  } else if (is_thread_port(msgh_local_port)) {
+    // message sent to one of this process's threads
+    CALL_PRE(mach_msg_thread);
+    return;
+  } else {
+    AFTER = POST_FN(mach_msg_unhandled);
+    return;
+  }
+}
+
+POST(mach_msg2)
+{
+  // Call handler chosen by PRE(mach_msg2)
+  if (AFTER) {
+    (*AFTER)(tid, arrghs, status);
+  }
+}
+#endif
 
 
 POST(mach_msg_unhandled)
@@ -11337,6 +11478,53 @@ PRE(objc_bp_assist_cfg_np)
 
 #endif /* DARWIN_VERS >= DARWIN_12_00 */
 
+
+/* ---------------------------------------------------------------------
+ Added for macOS 13.0 (Ventura)
+ ------------------------------------------------------------------ */
+
+#if DARWIN_VERS >= DARWIN_13_00
+
+struct mwl_region {
+	int                  mwlr_fd;
+	vm_prot_t            mwlr_protections;
+	uint64_t             mwlr_file_offset;
+	mach_vm_address_t    mwlr_address;
+	mach_vm_size_t       mwlr_size;
+};
+
+struct mwl_info_hdr {
+	uint32_t        mwli_version;
+	uint16_t        mwli_page_size;
+	uint16_t        mwli_pointer_format;
+	uint32_t        mwli_binds_offset;
+	uint32_t        mwli_binds_count;
+	uint32_t        mwli_chains_offset;
+	uint32_t        mwli_chains_size;
+	uint64_t        mwli_slide;
+	uint64_t        mwli_image_address;
+};
+
+#define MWL_MAX_REGION_COUNT 5  /* data, const, data auth, auth const, objc const */
+
+PRE(map_with_linking_np)
+{
+  PRINT("map_with_linking_np(%#lx, %lu, %#lx, %lu)", ARG1, ARG2, ARG3, ARG4);
+  PRE_REG_READ4(long, "map_with_linking_np",
+    void*, regions, uint32_t, region_count,
+    void*, link_info, uint32_t, link_info_size);
+  if (ARG2 == 0 || ARG2 > MWL_MAX_REGION_COUNT)
+  if (ARG1) {
+    PRE_MEM_READ( "map_with_linking_np(regions)", ARG1, sizeof(struct mwl_region) * ARG2 );
+  }
+  if (ARG3) {
+    PRE_MEM_READ( "map_with_linking_np(link_info)", ARG3, ARG4 );
+  }
+}
+
+#endif /* DARWIN_VERS >= DARWIN_13_00 */
+
+
 /* ---------------------------------------------------------------------
    syscall tables
    ------------------------------------------------------------------ */
@@ -11992,6 +12180,16 @@ const SyscallTableEntry ML_(syscall_table)[] = {
 // _____(__NR_tracker_action),                          // 546
 // _____(__NR_debug_syscall_reject),                    // 547
 #endif
+#if DARWIN_VERS >= DARWIN_13_00
+// _____(__NR_sys_debug_syscall_reject_config),         // 548
+// _____(__NR_graftdmg),                                // 549
+   MACX_(__NR_map_with_linking_np, map_with_linking_np), // 550
+// _____(__NR_freadlink),                               // 551
+// _____(__NR_sys_record_system_event),                 // 552
+// _____(__NR_mkfifoat),                                // 553
+// _____(__NR_mknodat),                                 // 554
+// _____(__NR_ungraftdmg),                              // 555
+#endif
    MACX_(__NR_darwin_fake_sigreturn, fake_sigreturn)
 };
 
@@ -12111,7 +12309,11 @@ const SyscallTableEntry ML_(mach_trap_table)[] = {
    MACXY(__NR_task_name_for_pid, task_name_for_pid),
    MACXY(__NR_task_for_pid, task_for_pid),
    MACXY(__NR_pid_for_task, pid_for_task),
+#if DARWIN_VERS >= DARWIN_13_00
+   MACXY(__NR_mach_msg2_trap, mach_msg2),
+#else
    _____(VG_DARWIN_SYSCALL_CONSTRUCT_MACH(47)),
+#endif
 #if defined(VGA_x86)
 // _____(__NR_macx_swapon),
 // _____(__NR_macx_swapoff),

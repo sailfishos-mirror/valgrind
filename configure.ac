@@ -558,6 +558,10 @@ case "${host_os}" in
 		  AC_MSG_RESULT([Darwin 21.x (${kernel}) / macOS 12 Monterey])
 		  DARWIN_VERS=$DARWIN_12_00
 		  ;;
+	     22.*)
+		  AC_MSG_RESULT([Darwin 22.x (${kernel}) / macOS 13 Ventura])
+		  DARWIN_VERS=$DARWIN_13_00
+		  ;;
 	     *)
 		  AC_MSG_RESULT([unsupported (${darwin_platform} ${kernel})])
 		  AC_MSG_ERROR([Valgrind works on Darwin 12.x-19.x (Mac OS X 10.8-10.11, macOS 10.12-10.15)])
@@ -691,17 +695,19 @@ esac
 
 case "$ARCH_MAX-$VGCONF_OS" in
      amd64-linux|ppc64be-linux|arm64-linux|amd64-solaris|amd64-darwin|amd64-freebsd)
-        AC_MSG_CHECKING([for 32 bit build support])
+        AC_MSG_CHECKING([for 32 bit build and execution support])
         safe_CFLAGS=$CFLAGS
         CFLAGS="-m32"
-        AC_LINK_IFELSE([AC_LANG_PROGRAM([[]], [[
+        AC_RUN_IFELSE([AC_LANG_PROGRAM([[]], [[
           return 0;
         ]])], [
         AC_MSG_RESULT([yes])
         ], [
         vg_cv_only64bit="yes"
         AC_MSG_RESULT([no])
-        ])
+        ] , [
+        AC_MSG_RESULT([cross compiling, assuming no])
+        vg_cv_only64bit="yes"])
         CFLAGS=$safe_CFLAGS;;
     mips64-linux)
         AC_MSG_CHECKING([for 32 bit build support])

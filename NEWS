@@ -6,7 +6,7 @@ PPC32/Linux, PPC64BE/Linux, PPC64LE/Linux, S390X/Linux, MIPS32/Linux,
 MIPS64/Linux, RISCV64/Linux, ARM/Android, ARM64/Android, MIPS32/Android,
 X86/Android, X86/Solaris, AMD64/Solaris, X86/macOS, AMD64/macOS. 
 X86/FreeBSD, AMD64/FreeBSD and ARM64/FreeBSD. There is preliminary support
-for nanoMIPS/Linux. macOS is supported up to version 12 Monterey (amd64 only).
+for nanoMIPS/Linux. macOS is supported up to version 13 Ventura (amd64 only).
 
 * ==================== CORE CHANGES ===================
 
@@ -40,6 +40,7 @@ Support for the following macOS versions has been added
 10.15 Catalina
 11.0  Big Sur (Intel only)
 12.0  Monterey (Intel only)
+13.0  Ventura (Intel only, preliminary)
 
 * ==================== TOOL CHANGES ===================
 
