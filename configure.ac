@@ -2962,6 +2962,48 @@ CFLAGS=$safe_CFLAGS
 
 AC_SUBST(FLAG_FINLINE_FUNCTIONS)
 
+# does this compiler support -fno-diagnostics-show-caret ?
+AC_MSG_CHECKING([if gcc accepts -fno-diagnostics-show-caret])
+
+safe_CFLAGS=$CFLAGS
+CFLAGS="-fno-diagnostics-show-caret -Werror"
+
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]], [[
+  return 0;
+]])], [
+no_diagnostics_show_caret=yes
+FLAG_FNO_DIAGNOSTICS_SHOW_CARET="-fno-diagnostics-show-caret"
+AC_MSG_RESULT([yes])
+], [
+no_diagnostics_show_caret=no
+FLAG_FNO_DIAGNOSTICS_SHOW_CARET=""
+AC_MSG_RESULT([no])
+])
+CFLAGS=$safe_CFLAGS
+
+AC_SUBST(FLAG_FNO_DIAGNOSTICS_SHOW_CARET)
+
+# does this compiler support -ftrack-macro-expansion=0 ?
+AC_MSG_CHECKING([if gcc accepts -ftrack-macro-expansion=0])
+
+safe_CFLAGS=$CFLAGS
+CFLAGS="-ftrack-macro-expansion=0 -Werror"
+
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]], [[
+  return 0;
+]])], [
+track_macro_expansion=yes
+FLAG_FTRACK_MACRO_EXPANSION="-ftrack-macro-expansion=0"
+AC_MSG_RESULT([yes])
+], [
+track_macro_expansion=no
+FLAG_FTRACK_MACRO_EXPANSION=""
+AC_MSG_RESULT([no])
+])
+CFLAGS=$safe_CFLAGS
+
+AC_SUBST(FLAG_FTRACK_MACRO_EXPANSION)
+
 # Does GCC support disabling Identical Code Folding?
 # We want to disabled Identical Code Folding for the
 # tools preload shared objects to get better backraces.
