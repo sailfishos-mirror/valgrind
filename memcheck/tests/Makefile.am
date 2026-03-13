@@ -629,8 +629,10 @@ check_PROGRAMS += cxx17_aligned_new sized_aligned_new_delete_args \
 	new_aligned_delete_default \
 	sized_aligned_new_delete_misaligned1 \
 	sized_aligned_new_delete_misaligned2 \
-	sized_aligned_new_delete_misaligned3 \
-	xmas_tree
+	sized_aligned_new_delete_misaligned3
+if HAVE_FSIZED_DEALLOCATION
+check_PROGRAMS += xmas_tree
+endif
 endif
 
 if HAVE_CLOSE_RANGE
@@ -981,4 +983,4 @@ writev1_CFLAGS		= $(AM_CFLAGS) @FLAG_W_NO_STRINGOP_OVERFLOW@ @FLAG_W_NO_STRINGOP
 xml1_CFLAGS             = $(AM_CFLAGS) -D_GNU_SOURCE @FLAG_W_NO_UNINITIALIZED@ @FLAG_W_NO_USE_AFTER_FREE@
 
 xmas_tree_SOURCES	= xmas_tree.cpp
-xmas_tree_CXXFLAGS	= ${AM_CXXFLAGS} -std=c++17 @FLAG_W_NO_UNINITIALIZED@ @FLAG_W_NO_MISMATCHED_NEW_DELETE@ @FLAG_W_ALLOC_SIZE_LARGER_THAN@
+xmas_tree_CXXFLAGS	= ${AM_CXXFLAGS} -std=c++17 @FLAG_W_NO_UNINITIALIZED@ @FLAG_W_NO_MISMATCHED_NEW_DELETE@ @FLAG_W_ALLOC_SIZE_LARGER_THAN@ @FLAG_FSIZED_DEALLOCATION@
