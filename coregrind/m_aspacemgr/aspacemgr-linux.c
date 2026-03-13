@@ -309,7 +309,6 @@ static Int      nsegments_used = 0;
 #define VG_N_THREADS 498
 static Addr     guardpages[VG_N_THREADS];
 static Int      nguardpages_used = 0;
-static Int      VG_(cl_pagemap_fd);
 
 #define Addr_MIN ((Addr)0)
 #define Addr_MAX ((Addr)(-1ULL))
@@ -1132,8 +1131,18 @@ static void show_guard_pages () {
    VG_(debugLog)(0, "aspacem", "^^^^^^^\n");
 }
 
+#if defined(VGO_linux)
 static Bool is_guarded_sanity ( Addr addr )
 {
+   static Int      VG_(cl_pagemap_fd) = -1;
+   if (LIKELY(VG_(cl_pagemap_fd) != -1)) {
+      // do nothing
+   } else {
+      VG_(cl_pagemap_fd) = sr_Res(ML_(am_open)("/proc/self/pagemap", VKI_O_RDONLY, 0 ));
+         if(VG_(cl_pagemap_fd) == -1)
+            ML_(am_barf)("I/O error on /proc/self/pagemap");
+      VG_(cl_pagemap_fd) = VG_(safe_fd)(VG_(cl_pagemap_fd));
+   }
    Addr addr_page_aligned = addr & ~(VKI_PAGE_SIZE - 1);
    vki_off_t offset = ((vki_uint64_t)addr_page_aligned / VKI_PAGE_SIZE) * sizeof(vki_uint64_t);
    Int ret = ML_(am_lseek) (VG_(cl_pagemap_fd), offset, VKI_SEEK_SET);
@@ -1151,6 +1160,7 @@ static Bool is_guarded_sanity ( Addr addr )
    }
    return False;
 }
+#endif
 
 static Bool is_guarded ( Addr addr ) {
    Addr addr_aligned = addr & ~(VKI_PAGE_SIZE - 1);
@@ -2102,14 +2112,6 @@ Addr VG_(am_startup) ( Addr sp_at_startup )
       segment all along.  Sigh. */
 
    VG_(am_show_nsegments)(2, "With contents of /proc/self/maps");
-
-   VG_(cl_pagemap_fd) = -1;
-#if defined(VGO_linux)
-   VG_(cl_pagemap_fd) = sr_Res(ML_(am_open)("/proc/self/pagemap", VKI_O_RDONLY, 0 ));
-      if(VG_(cl_pagemap_fd) == -1)
-         ML_(am_barf)("I/O error on /proc/self/pagemap");
-   VG_(cl_pagemap_fd) = VG_(safe_fd)(VG_(cl_pagemap_fd));
-#endif
 
    AM_SANITY_CHECK;
    return suggested_clstack_end;
