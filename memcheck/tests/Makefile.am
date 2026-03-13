@@ -235,7 +235,7 @@ EXTRA_DIST = \
 		fprw.stderr.exp-freebsd-x86 \
 	fwrite.stderr.exp fwrite.vgtest fwrite.stderr.exp-kfail \
 	gone_abrt_xml.vgtest gone_abrt_xml.stderr.exp gone_abrt_xml.stderr.exp-solaris \
-		gone_abrt_xml.stderr.exp-freebsd \
+		gone_abrt_xml.stderr.exp-freebsd gone_abrt_xml.stderr.exp-darwin \
 	holey_buffer_too_small.vgtest holey_buffer_too_small.stderr.exp \
 	inits.stderr.exp inits.vgtest \
 	inline.stderr.exp inline.stdout.exp inline.vgtest \
