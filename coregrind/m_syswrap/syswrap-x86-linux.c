@@ -1628,9 +1628,9 @@ static SyscallTableEntry syscall_table[] = {
    LINXY(__NR_semctl,            sys_semctl),           // 394
 
    LINX_(__NR_shmget,            sys_shmget),           // 395
-   LINX_(__NR_shmctl,            sys_shmctl),           // 396
-   LINX_(__NR_shmat,             sys_shmat),            // 397
-   LINX_(__NR_shmdt,             sys_shmdt),            // 398
+   LINXY(__NR_shmctl,            sys_shmctl),           // 396
+   LINXY(__NR_shmat,             sys_shmat),            // 397
+   LINXY(__NR_shmdt,             sys_shmdt),            // 398
 
    LINX_(__NR_msgget,            sys_msgget),           // 399
    LINX_(__NR_msgsnd,            sys_msgsnd),           // 400
