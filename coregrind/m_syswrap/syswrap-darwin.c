@@ -11611,7 +11611,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
 // _____(__NR_reboot), 
 // _____(__NR_revoke), 
    GENX_(__NR_symlink,     sys_symlink),   // 57
-   GENX_(__NR_readlink,    sys_readlink), 
+   GENXY(__NR_readlink,    sys_readlink),
    GENX_(__NR_execve,      sys_execve), 
    GENX_(__NR_umask,       sys_umask),     // 60
    GENX_(__NR_chroot,      sys_chroot), 
@@ -11799,7 +11799,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    GENX_(__NR_delete,      sys_unlink), 
 // _____(__NR_copyfile), 
 #if DARWIN_VERS >= DARWIN_10_6
-   MACX_(__NR_fgetattrlist, fgetattrlist), // 228
+   MACXY(__NR_fgetattrlist, fgetattrlist), // 228
 // _____(__NR_fsetattrlist),
 #else
    _____(VG_DARWIN_SYSCALL_CONSTRUCT_UNIX(228)),   // ?? 
@@ -11940,7 +11940,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    _____(VG_DARWIN_SYSCALL_CONSTRUCT_UNIX(326)),   // ???
    MACX_(__NR_issetugid,               issetugid), 
    MACX_(__NR___pthread_kill,          __pthread_kill),
-   MACX_(__NR___pthread_sigmask,       __pthread_sigmask),
+   MACXY(__NR___pthread_sigmask,       __pthread_sigmask),
    MACXY(__NR___sigwait,               __sigwait),  // 330
    MACX_(__NR___disable_threadsignal,  __disable_threadsignal),
    MACX_(__NR___pthread_markcancel,    __pthread_markcancel),
@@ -12072,7 +12072,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
 // _____(__NR_memorystatus_control),                    // 440
     MACX_(__NR_guarded_open_np, guarded_open_np),
     MACX_(__NR_guarded_close_np, guarded_close_np),
-    MACX_(__NR_guarded_kqueue_np, guarded_kqueue_np),
+    MACXY(__NR_guarded_kqueue_np, guarded_kqueue_np),
     MACX_(__NR_change_fdguard_np, change_fdguard_np),
     MACX_(__NR_connectx, connectx),
     MACX_(__NR_disconnectx, disconnectx),
@@ -12242,7 +12242,7 @@ const SyscallTableEntry ML_(mach_trap_table)[] = {
 #  if DARWIN_VERS >= DARWIN_10_8
    MACXY(VG_DARWIN_SYSCALL_CONSTRUCT_MACH(16), kernelrpc_mach_port_allocate_trap),
    MACX_(VG_DARWIN_SYSCALL_CONSTRUCT_MACH(17), kernelrpc_mach_port_destroy_trap),
-   MACX_(VG_DARWIN_SYSCALL_CONSTRUCT_MACH(18), kernelrpc_mach_port_deallocate_trap),
+   MACXY(VG_DARWIN_SYSCALL_CONSTRUCT_MACH(18), kernelrpc_mach_port_deallocate_trap),
    MACX_(VG_DARWIN_SYSCALL_CONSTRUCT_MACH(19), kernelrpc_mach_port_mod_refs_trap),
    MACX_(VG_DARWIN_SYSCALL_CONSTRUCT_MACH(20), kernelrpc_mach_port_move_member_trap),
    MACX_(VG_DARWIN_SYSCALL_CONSTRUCT_MACH(21), kernelrpc_mach_port_insert_right_trap),

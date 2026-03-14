@@ -7769,7 +7769,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
    GENX_(__NR_mlockall,         sys_mlockall),          // 324
    BSDX_(__NR_munlockall,       sys_munlockall),        // 325
    BSDXY(__NR___getcwd,         sys___getcwd),          // 326
-   BSDX_(__NR_sched_setparam,   sys_sched_setparam),    // 327
+   BSDXY(__NR_sched_setparam,   sys_sched_setparam),    // 327
    BSDXY(__NR_sched_getparam,   sys_sched_getparam),    // 328
    BSDX_(__NR_sched_setscheduler, sys_sched_setscheduler), // 329
    BSDX_(__NR_sched_getscheduler, sys_sched_getscheduler), // 330
