@@ -1645,7 +1645,7 @@ static Bool handle_auxv_open(SyscallStatus *status, const HChar *filename,
 
    /* Opening /proc/<pid>/auxv or /proc/self/auxv? */
    VG_(sprintf)(name, "/proc/%d/auxv", VG_(getpid)());
-   if (!VG_STREQ(filename, name) && !VG_STREQ(filename, "/proc/self/auxv"))
+   if ((VG_(strcmp)(filename, name)!=0) && (VG_(strcmp)(filename, "/proc/self/auxv")!=0))
       return False;
 
    /* Allow to open the file only for reading. */
@@ -1682,7 +1682,7 @@ static Bool handle_psinfo_open(SyscallStatus *status,
    HChar name[VKI_PATH_MAX];    // large enough
    VG_(sprintf)(name, "/proc/%d/psinfo", VG_(getpid)());
 
-   if (!VG_STREQ(filename, name) && !VG_STREQ(filename, "/proc/self/psinfo"))
+   if ((VG_(strcmp)(filename, name)!=0) && (VG_(strcmp)(filename, "/proc/self/psinfo")!=0))
       return False;
 
    /* Use original arguments to open() or openat(). */
