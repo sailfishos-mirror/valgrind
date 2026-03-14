@@ -1525,8 +1525,6 @@ Bool VG_(machine_get_hwcaps)( void )
 
 #elif defined(VGA_s390x)
 
-#  include "libvex_s390x_common.h"
-
    {
      Int i, model;
 
