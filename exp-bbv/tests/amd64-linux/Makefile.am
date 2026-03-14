@@ -41,9 +41,10 @@ check_PROGRAMS += ll
 ll_SOURCES      = ll.S
 endif
 
-clone_test_CFLAGS	= $(AM_CFLAGS) @FLAG_NO_PIE@
-complex_rep_CFLAGS	= $(AM_CFLAGS) @FLAG_NO_PIE@
-fldcw_check_CFLAGS	= $(AM_CFLAGS) @FLAG_NO_PIE@
-ll_CFLAGS		= $(AM_CFLAGS) @FLAG_NO_PIE@
-million_CFLAGS		= $(AM_CFLAGS) @FLAG_NO_PIE@
-rep_prefix_CFLAGS	= $(AM_CFLAGS) @FLAG_NO_PIE@
+clone_test_LDFLAGS	= @LDFLAG_NO_PIE@
+complex_rep_LDFLAGS	= @LDFLAG_NO_PIE@
+fldcw_check_LDFLAGS	= @LDFLAG_NO_PIE@
+ll_LDFLAGS		= @LDFLAG_NO_PIE@
+million_LDFLAGS		= @LDFLAG_NO_PIE@
+rep_prefix_LDFLAGS	= @LDFLAG_NO_PIE@
+

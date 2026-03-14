@@ -3242,26 +3242,25 @@ AM_CONDITIONAL([HAVE_ANSI], [test x$ac_have_ansi = xyes])
 CFLAGS=$safe_CFLAGS
 
 
-# Does this compiler support -no-pie?
+# Does this linker support -no-pie?
 # On Ubuntu 16.10+, gcc produces position independent executables (PIE) by
 # default. However this gets in the way with some tests, we use -no-pie
 # for these.
-
 AC_MSG_CHECKING([if gcc accepts -no-pie])
 
-safe_CFLAGS=$CFLAGS
-CFLAGS="-no-pie -Werror"
+safe_LDFLAGS=$LDFLAGS
+LDFLAGS="-Wl,-no-pie"
 
-AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[ ]], [[
+AC_LINK_IFELSE([AC_LANG_PROGRAM([[ ]], [[
   return 0;
 ]])], [
-AC_SUBST([FLAG_NO_PIE], ["-no-pie"])
+AC_SUBST([LDFLAG_NO_PIE], ["-Wl,-no-pie"])
 AC_MSG_RESULT([yes])
 ], [
-AC_SUBST([FLAG_NO_PIE], [""])
+AC_SUBST([LDFLAG_NO_PIE], [""])
 AC_MSG_RESULT([no])
 ])
-CFLAGS=$safe_CFLAGS
+LDFLAGS=$safe_LDFLAGS
 
 
 # We want to use use the -Ttext-segment option to the linker.
