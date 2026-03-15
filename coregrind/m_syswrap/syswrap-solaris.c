@@ -10992,7 +10992,7 @@ static SyscallTableEntry syscall_table[] = {
    SOLXY(__NR_lwp_mutex_wakeup,     sys_lwp_mutex_wakeup),      /* 168 */
    SOLXY(__NR_lwp_cond_wait,        sys_lwp_cond_wait),         /* 170 */
    SOLXY(__NR_lwp_cond_signal,      sys_lwp_cond_signal),       /* 171 */
-   SOLX_(__NR_lwp_cond_broadcast,   sys_lwp_cond_broadcast),    /* 172 */
+   SOLXY(__NR_lwp_cond_broadcast,   sys_lwp_cond_broadcast),    /* 172 */
    SOLXY(__NR_pread,                sys_pread),                 /* 173 */
    SOLX_(__NR_pwrite,               sys_pwrite),                /* 174 */
 #if defined(VGP_x86_solaris)
