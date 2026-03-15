@@ -25,7 +25,7 @@ EXTRA_DIST = \
 
 AM_CCASFLAGS += -ffreestanding
 
-AM_LDFLAGS = -nostartfiles -nodefaultlibs
+AM_LDFLAGS = -nostartfiles -nodefaultlibs @LDFLAG_NO_PIE@
 
 clone_test_SOURCES = clone_test.S
 complex_rep_SOURCES = complex_rep.S
@@ -40,11 +40,3 @@ AM_CCASFLAGS   += -Xassembler -I$(top_srcdir)/exp-bbv/tests
 check_PROGRAMS += ll
 ll_SOURCES      = ll.S
 endif
-
-clone_test_LDFLAGS	= @LDFLAG_NO_PIE@
-complex_rep_LDFLAGS	= @LDFLAG_NO_PIE@
-fldcw_check_LDFLAGS	= @LDFLAG_NO_PIE@
-ll_LDFLAGS		= @LDFLAG_NO_PIE@
-million_LDFLAGS		= @LDFLAG_NO_PIE@
-rep_prefix_LDFLAGS	= @LDFLAG_NO_PIE@
-
