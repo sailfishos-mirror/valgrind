@@ -1621,7 +1621,7 @@ static SyscallTableEntry syscall_table[] = {
    /* Explicitly not supported on i386 yet. */
    GENX_(__NR_arch_prctl,        sys_ni_syscall),       // 384
 
-   LINX_(__NR_io_pgetevents,     sys_io_pgetevents),    // 385
+   LINXY(__NR_io_pgetevents,     sys_io_pgetevents),    // 385
    GENX_(__NR_rseq,              sys_ni_syscall),       // 386
 
    LINX_(__NR_semget,            sys_semget),           // 393
