@@ -8,7 +8,7 @@
 
 // used for debugging apple pointer issues, see
 // https://bugs.kde.org/show_bug.cgi?id=517304
-#define DEBUG_ENV
+//#define DEBUG_ENV
 
 // On Darwin there's this secret fourth argument, 'apple'.
 // That's kind of like a cut down obfuscated version of auxv.
