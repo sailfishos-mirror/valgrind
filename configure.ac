@@ -2645,13 +2645,14 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]], [[
 ]])], [
 ac_compiler_supports_mlong_double_128=yes
 AC_MSG_RESULT([yes])
+FLAG_MLONG_DOUBLE_128="-mlong-double-128"
 ], [
 ac_compiler_supports_mlong_double_128=no
 AC_MSG_RESULT([no])
+FLAG_MLONG_DOUBLE_128=""
 ])
 CFLAGS=$safe_CFLAGS
 AM_CONDITIONAL(HAS_MLONG_DOUBLE_128, test x$ac_compiler_supports_mlong_double_128 = xyes)
-FLAG_MLONG_DOUBLE_128="-mlong-double-128"
 AC_SUBST(FLAG_MLONG_DOUBLE_128)
 
 # does this toolchain support lto ?
