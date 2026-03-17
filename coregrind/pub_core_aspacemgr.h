@@ -119,6 +119,10 @@ extern void VG_(am_show_nsegments) ( Int logLevel, const HChar* who );
 extern Bool VG_(am_do_sync_check) ( const HChar* fn, 
                                     const HChar* file, Int line );
 
+/* VG_(is_guarded) checks if address is part of a madvise
+   MADV_GUARD_INSTALL guard page */
+extern Bool VG_(is_guarded) ( Addr addr );
+
 //--------------------------------------------------------------
 // Functions pertaining to the central query-notify mechanism
 // used to handle mmap/munmap/mprotect resulting from client

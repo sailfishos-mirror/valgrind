@@ -1160,7 +1160,7 @@ static Bool is_guarded_sanity ( Addr addr )
 }
 #endif
 
-static Bool is_guarded ( Addr addr ) {
+Bool VG_(is_guarded) ( Addr addr ) {
    Addr addr_aligned = addr & ~(VKI_PAGE_SIZE - 1);
    Int mid, 
        lo = 0,
@@ -1172,7 +1172,7 @@ static Bool is_guarded ( Addr addr ) {
          } else {
             if (is_guarded_sanity ( addr ) == True)
                VG_(debugLog)(1, "aspacem",
-                             "is_guarded() failed (not guarded 0x%lx)\n",
+                             "VG_(is_guarded)() failed (not guarded 0x%lx)\n",
                              addr);
          }
          return False;
@@ -1185,7 +1185,7 @@ static Bool is_guarded ( Addr addr ) {
       } else {
          if (is_guarded_sanity ( addr ) == False)
             VG_(debugLog)(1, "aspacem",
-                          "is_guarded() failed (guarded 0x%lx)\n",
+                          "VG_(is_guarded)() failed (guarded 0x%lx)\n",
                           addr);
       }
       return True;
