@@ -484,21 +484,21 @@ static void show_nsegment ( Int logLevel, Int segNo, const NSegment* seg )
       case SkFree:
          VG_(debugLog)(
             logLevel, "aspacem",
-            "%3d: %s %010lx-%010lx %s\n",
+            "%3d: %s %010lx-%010lx %s (%s)\n",
             segNo, show_SegKind(seg->kind),
-            seg->start, seg->end, len_buf
+            seg->start, seg->end, len_buf, seg->hasGuardPages ? "G" : "g"
          );
          break;
 
       case SkAnonC: case SkAnonV: case SkShmC:
          VG_(debugLog)(
             logLevel, "aspacem",
-            "%3d: %s %010lx-%010lx %s %c%c%c%c%c\n",
+            "%3d: %s %010lx-%010lx %s %c%c%c%c%c (%s)\n",
             segNo, show_SegKind(seg->kind),
             seg->start, seg->end, len_buf,
             seg->hasR ? 'r' : '-', seg->hasW ? 'w' : '-', 
             seg->hasX ? 'x' : '-', seg->hasT ? 'T' : '-',
-            seg->isCH ? 'H' : '-'
+            seg->isCH ? 'H' : '-', seg->hasGuardPages ? "G" : "g"
          );
          break;
 
@@ -506,27 +506,29 @@ static void show_nsegment ( Int logLevel, Int segNo, const NSegment* seg )
          VG_(debugLog)(
             logLevel, "aspacem",
             "%3d: %s %010lx-%010lx %s %c%c%c%c%c d=0x%03llx "
-            "i=%-7llu o=%-7lld (%d,%d)\n",
+            "i=%-7llu o=%-7lld (%d,%d) (%s)\n",
             segNo, show_SegKind(seg->kind),
             seg->start, seg->end, len_buf,
             seg->hasR ? 'r' : '-', seg->hasW ? 'w' : '-', 
             seg->hasX ? 'x' : '-', seg->hasT ? 'T' : '-', 
             seg->isCH ? 'H' : '-',
             seg->dev, seg->ino, seg->offset,
-            ML_(am_segname_get_seqnr)(seg->fnIdx), seg->fnIdx
+            ML_(am_segname_get_seqnr)(seg->fnIdx), seg->fnIdx,
+            seg->hasGuardPages ? "G" : "g"
          );
          break;
 
       case SkResvn:
          VG_(debugLog)(
             logLevel, "aspacem",
-            "%3d: %s %010lx-%010lx %s %c%c%c%c%c %s\n",
+            "%3d: %s %010lx-%010lx %s %c%c%c%c%c %s (%s)\n",
             segNo, show_SegKind(seg->kind),
             seg->start, seg->end, len_buf,
             seg->hasR ? 'r' : '-', seg->hasW ? 'w' : '-', 
             seg->hasX ? 'x' : '-', seg->hasT ? 'T' : '-', 
             seg->isCH ? 'H' : '-',
-            show_ShrinkMode(seg->smode)
+            show_ShrinkMode(seg->smode),
+            seg->hasGuardPages ? "G" : "g"
          );
          break;
 
@@ -1125,7 +1127,8 @@ __attribute__((unused))
 static void show_guard_pages () {
    VG_(debugLog)(0, "aspacem", "vvvvvvv\n");
    for (Int i=0; i<nguardpages_used; i++)
-      VG_(debugLog)(0,"aspacem","guard page: %lu\n", guardpages[i]);
+      VG_(debugLog)(0,"aspacem","guard page: %d 0x%lx\n",
+                    find_nsegment_idx(guardpages[i]), guardpages[i]);
    VG_(debugLog)(0, "aspacem", "^^^^^^^\n");
 }
 
