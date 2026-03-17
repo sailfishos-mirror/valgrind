@@ -62,6 +62,9 @@
 #include "pub_core_mach.h"       // macos support
 #endif
 
+#if defined(VGO_linux)
+#include "../pub_core_libcfile.h" // VG_(safe_fd)
+#endif
 
 /* --------------- Implemented in aspacemgr-common.c ---------------*/
 

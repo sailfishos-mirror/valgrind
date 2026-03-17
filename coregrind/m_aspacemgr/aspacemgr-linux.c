@@ -40,8 +40,6 @@
 
 #include "priv_aspacemgr.h"
 #include "config.h"
-#include "../pub_core_libcfile.h" // For VG_(safe_fd)()
-
 
 /* Note: many of the exported functions implemented below are
    described more fully in comments in pub_core_aspacemgr.h.
