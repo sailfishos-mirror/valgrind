@@ -1915,6 +1915,7 @@ static const HChar* show_hwcaps_s390x ( UInt hwcaps )
       { VEX_HWCAPS_S390X_VXD,   "vxd" },
       { VEX_HWCAPS_S390X_MSA8,  "msa8" },
       { VEX_HWCAPS_S390X_MSA9,  "msa9" },
+      { VEX_HWCAPS_S390X_MI3,   "mi3" },
       { VEX_HWCAPS_S390X_VXE3,  "vxe3" },
       { VEX_HWCAPS_S390X_MSA12, "msa12" },
    };
