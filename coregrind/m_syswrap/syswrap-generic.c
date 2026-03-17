@@ -109,12 +109,21 @@ Bool ML_(valid_client_addr)(Addr start, SizeT size, ThreadId tid,
                                    const HChar *syscallname)
 {
    Bool ret;
+   Bool madv = True;
 
    if (size == 0)
       return True;
 
+   /* Munmap may remove a guard page per man 2 madvise.
+      More syscalls might need handling here, such as
+      possibly mmap() with MAP_FIXED, mremap() or
+      mprotect. */
+   if (VG_(strcmp)(syscallname, "munmap") == 0) {
+      madv = False;
+   }
+
    ret = VG_(am_is_valid_for_client_or_free_or_resvn)
-            (start,size,VKI_PROT_NONE);
+            (start,size,VKI_PROT_NONE, madv);
 
    if (0)
       VG_(printf)("%s: test=%#lx-%#lx ret=%d\n",
@@ -245,6 +254,8 @@ ML_(notify_core_and_tool_of_munmap) ( Addr a, SizeT len )
    Bool d;
 
    page_align_addr_and_len(&a, &len);
+   // munmap() may remove guard page per man 2 madvise:
+   VG_(am_notify_madv_guard)(a, len, False);
    d = VG_(am_notify_munmap)(a, len);
    VG_TRACK( die_mem_munmap, a, len );
    VG_(di_notify_munmap)( a, len );
@@ -4757,7 +4768,6 @@ POST(sys_munmap)
 {
    Addr  a   = ARG1;
    SizeT len = ARG2;
-
    ML_(notify_core_and_tool_of_munmap)( a, len );
 }
 

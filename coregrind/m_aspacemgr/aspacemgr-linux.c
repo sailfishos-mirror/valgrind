@@ -1363,7 +1363,7 @@ ULong VG_(am_get_anonsize_total)( void )
    belong to in order to be considered "valid".
 */
 static
-Bool is_valid_for( UInt kinds, Addr start, SizeT len, UInt prot )
+Bool is_valid_for( UInt kinds, Addr start, SizeT len, UInt prot, Bool madv )
 {
    Int  i, iLo, iHi;
    Bool needR, needW, needX;
@@ -1409,7 +1409,7 @@ Bool is_valid_for( UInt kinds, Addr start, SizeT len, UInt prot )
    }
 
 #if defined(VKI_MADV_GUARD_INSTALL)
-   if (needGuardPageCheck && is_guarded(start)) {
+   if (madv && needGuardPageCheck && is_guarded(start)) {
       return False;
    }
 #endif
@@ -1425,7 +1425,7 @@ Bool VG_(am_is_valid_for_client)( Addr start, SizeT len,
 {
    const UInt kinds = SkFileC | SkAnonC | SkShmC;
 
-   return is_valid_for(kinds, start, len, prot);
+   return is_valid_for(kinds, start, len, prot, True);
 }
 
 /* Variant of VG_(am_is_valid_for_client) which allows free areas to
@@ -1433,11 +1433,11 @@ Bool VG_(am_is_valid_for_client)( Addr start, SizeT len,
    considers reservations to be allowable, since from the client's
    point of view they don't exist. */
 Bool VG_(am_is_valid_for_client_or_free_or_resvn)
-   ( Addr start, SizeT len, UInt prot )
+   ( Addr start, SizeT len, UInt prot, Bool madv )
 {
    const UInt kinds = SkFileC | SkAnonC | SkShmC | SkFree | SkResvn;
 
-   return is_valid_for(kinds, start, len, prot);
+   return is_valid_for(kinds, start, len, prot, madv);
 }
 
 /* Checks if a piece of memory consists of either free or reservation
@@ -1446,7 +1446,7 @@ Bool VG_(am_is_free_or_resvn)( Addr start, SizeT len )
 {
    const UInt kinds = SkFree | SkResvn;
 
-   return is_valid_for(kinds, start, len, 0);
+   return is_valid_for(kinds, start, len, 0, True);
 }
 
 
@@ -1454,7 +1454,7 @@ Bool VG_(am_is_valid_for_valgrind) ( Addr start, SizeT len, UInt prot )
 {
    const UInt kinds = SkFileV | SkAnonV;
 
-   return is_valid_for(kinds, start, len, prot);
+   return is_valid_for(kinds, start, len, prot, True);
 }
 
 
@@ -3168,7 +3168,7 @@ SysRes am_munmap_both_wrk ( /*OUT*/Bool* need_discard,
 
    if (forClient) {
       if (!VG_(am_is_valid_for_client_or_free_or_resvn)
-            ( start, len, VKI_PROT_NONE ))
+            ( start, len, VKI_PROT_NONE, False ))
          goto eINVAL;
    } else {
       if (!VG_(am_is_valid_for_valgrind)

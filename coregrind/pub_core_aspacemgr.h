@@ -90,7 +90,7 @@ extern Bool VG_(am_is_valid_for_valgrind)
    considers reservations to be allowable, since from the client's
    point of view they don't exist. */
 extern Bool VG_(am_is_valid_for_client_or_free_or_resvn)
-   ( Addr start, SizeT len, UInt prot );
+   ( Addr start, SizeT len, UInt prot, Bool madv );
 
 /* Checks if a piece of memory consists of either free or reservation
    segments. */
