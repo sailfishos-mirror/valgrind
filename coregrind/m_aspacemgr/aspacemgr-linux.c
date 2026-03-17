@@ -1412,7 +1412,7 @@ Bool is_valid_for( UInt kinds, Addr start, SizeT len, UInt prot, Bool madv )
    }
 
 #if defined(VKI_MADV_GUARD_INSTALL)
-   if (madv && needGuardPageCheck && is_guarded(start)) {
+   if (madv && needGuardPageCheck && VG_(is_guarded)(start)) {
       return False;
    }
 #endif
