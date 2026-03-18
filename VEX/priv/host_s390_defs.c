@@ -4176,21 +4176,21 @@ s390_emit_RISBG(UChar *p, UChar r1, UChar r2, UChar i3, Char i4, UChar i5)
 static __inline__ Bool
 uint_fits_signed_16bit(UInt val)
 {
-   return val <= 0x7FFFu;
+   return val + 0x8000 <= 0xFFFF;
 }
 
 
 static __inline__ Bool
 ulong_fits_signed_16bit(ULong val)
 {
-   return val <= 0x7FFFu;
+   return val + 0x8000 <= 0xFFFF;
 }
 
 
 static __inline__ Bool
 ulong_fits_signed_32bit(ULong val)
 {
-   return val <= 0x7FFFFFFFu;
+   return val + 0x80000000 <= 0xFFFFFFFF;
 }
 
 
