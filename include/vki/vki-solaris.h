@@ -1529,6 +1529,14 @@ struct sysv_ucontext {
 #define VKI_SETCONTEXT SETCONTEXT
 #define VKI_GETUSTACK GETUSTACK
 #define VKI_SETUSTACK SETUSTACK
+#ifdef CLRSSONSTACK
+/* New in Oracle Solaris 11.4 SRU 30 */
+#define VKI_CLRSSONSTACK CLRSSONSTACK
+#endif
+#ifdef SETUJMPBUF
+/* New in Oracle Solaris 11.4 SRU 81 */
+#define VKI_SETUJMPBUF SETUJMPBUF
+#endif
 
 #define VKI_UC_SIGMASK UC_SIGMASK
 #define VKI_UC_STACK UC_STACK

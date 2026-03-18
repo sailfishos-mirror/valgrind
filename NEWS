@@ -110,6 +110,7 @@ are not entered into bugzilla tend to get forgotten about or ignored.
 516289  illumos lsframe2 regtest fails
 516748  Incorrect use of SET_STATUS_Failure for syscall wrappers that return
         error codes rather than -1 on error
+517697  Implement CLRSSONSTACK and SETUJMPBUF handling on Solaris.
 
 To see details of a given bug, visit
   https://bugs.kde.org/show_bug.cgi?id=XXXXXX

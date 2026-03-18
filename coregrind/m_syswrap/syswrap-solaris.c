@@ -5031,6 +5031,18 @@ PRE(sys_getsetcontext)
          SET_STATUS_Success(0);
       }
       break;
+#ifdef VKI_CLRSSONSTACK
+   case VKI_CLRSSONSTACK:
+      /* Libc: int clrssonstack(void); */
+      SET_STATUS_Success(0);
+      break;
+#endif
+#ifdef VKI_SETUJMPBUF
+   case VKI_SETUJMPBUF:
+      /* Libc: int setujmpbuf(void *buf, void *func); */
+      SET_STATUS_Success(0);
+      break;
+#endif
    default:
       VG_(unimplemented)("Syswrap of the context call with flag %ld.", SARG1);
       /*NOTREACHED*/
