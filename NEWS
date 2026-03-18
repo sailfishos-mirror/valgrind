@@ -116,6 +116,7 @@ are not entered into bugzilla tend to get forgotten about or ignored.
         error codes rather than -1 on error
 517697  Implement CLRSSONSTACK and SETUJMPBUF handling on Solaris.
 517748  Add ability to redirect global functions to Darwin
+517840  Add PTEST SSE4.1 support for x86
 518076  FreeBSD: add syscall wrapper for renameat2
 518078  Configure should accept names for GDB other than "gdb"
 518159  pth_once issues on Darwin
