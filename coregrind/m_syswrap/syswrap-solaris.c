@@ -1251,7 +1251,7 @@ PRE(sys_spawn)
                   VKI_POSIX_SPAWN_WAITPID_NP    | VKI_POSIX_SPAWN_NOEXECERR_NP);
                if (rem != 0) {
                   VG_(unimplemented)("Support for spawn() with attributes flag "
-                                     "%#x.", sap->sa_psflags);
+                                     "%#x.", (unsigned)sap->sa_psflags);
                }
             }
          }
@@ -1619,7 +1619,7 @@ PRE(sys_spawn)
    VG_(free)(argenv);
 
    if (SUCCESS) {
-      PRINT("   spawn: process %d spawned child %ld\n", VG_(getpid)(), RES);
+      PRINT("   spawn: process %d spawned child %lu\n", VG_(getpid)(), RES);
    }
 
 exit:
@@ -1758,7 +1758,7 @@ static Bool handle_cmdline_open(SyscallStatus *status, const HChar *filename)
    HChar name[VKI_PATH_MAX];    // large enough
    VG_(sprintf)(name, "/proc/%d/cmdline", VG_(getpid)());
 
-   if (!VG_STREQ(filename, name) && !VG_STREQ(filename, "/proc/self/cmdline"))
+   if ((VG_(strcmp)(filename, name)!=0) && (VG_(strcmp)(filename, "/proc/self/cmdline")!=0))
       return False;
 
    SysRes sres = VG_(dup)(VG_(cl_cmdline_fd));
