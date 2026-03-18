@@ -4053,6 +4053,14 @@ fi
 if test "$VGCONF_OS" = "solaris" ; then
 AC_CHECK_HEADERS([sys/lgrp_user_impl.h])
 
+AC_CHECK_HEADER([sys/crypto/ioctl.h], [
+    AC_DEFINE([HAVE_SYS_CRYPTO_IOCTL_H], [1], [Define to 1 if sys/crypto/ioctl.h is available.])
+    ac_have_sys_crypto_ioctl_h=yes
+], [
+    ac_have_sys_crypto_ioctl_h=no
+])
+AM_CONDITIONAL(SOLARIS_HAVE_SYS_CRYPTO_IOCTL_H, test x$ac_have_sys_crypto_ioctl_h = xyes )
+
 # Solaris-specific check determining if the Sun Studio Assembler is used to
 # build Valgrind.  The test checks if the x86/amd64 assembler understands the
 # cmovl.l instruction, if yes then it's Sun Assembler.

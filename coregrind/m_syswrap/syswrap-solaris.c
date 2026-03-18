@@ -3305,6 +3305,7 @@ PRE(sys_ioctl)
       PRE_MEM_WRITE("ioctl(FIOGETOWN)", ARG3, sizeof(vki_pid_t));
       break;
 
+#if defined(HAVE_SYS_CRYPTO_IOCTL_H)
    /* CRYPTO */
    case VKI_CRYPTO_GET_PROVIDER_LIST:
       {
@@ -3322,7 +3323,8 @@ PRE(sys_ioctl)
             when we know pre-handler succeeded.
           */
       }
-      break; 
+      break;
+#endif
 
    /* dtrace */
    case VKI_DTRACEHIOC_REMOVE:
@@ -3354,9 +3356,13 @@ PRE(sys_ioctl)
    /* Be strict. */
    if (!ML_(fd_allowed)(ARG1, "ioctl", tid, False)) {
       SET_STATUS_Failure(VKI_EBADF);
-   } else if (ARG2 == VKI_CRYPTO_GET_PROVIDER_LIST) {
-      /* Save the requested count to unused ARG4 now. */
-      ARG4 = ARG3;
+   } else {
+#if defined(HAVE_SYS_CRYPTO_IOCTL_H)
+       if (ARG2 == VKI_CRYPTO_GET_PROVIDER_LIST) {
+         /* Save the requested count to unused ARG4 now. */
+         ARG4 = ARG3;
+       }
+#endif
    }
 }
 
@@ -3554,6 +3560,7 @@ POST(sys_ioctl)
       POST_MEM_WRITE(ARG3, sizeof(vki_pid_t));
       break;
 
+#if defined(HAVE_SYS_CRYPTO_IOCTL_H)
    /* CRYPTO */
    case VKI_CRYPTO_GET_PROVIDER_LIST:
       {
@@ -3568,6 +3575,7 @@ POST(sys_ioctl)
                            sizeof(vki_crypto_provider_entry_t));
       }
       break;
+#endif
 
    /* dtrace */
    case VKI_DTRACEHIOC_REMOVE:

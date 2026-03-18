@@ -82,6 +82,8 @@ are not entered into bugzilla tend to get forgotten about or ignored.
         '-Wno-alloc-size-larger-than=18446744073709551615'
 512030  s390x: bfp-convert testcase fails
 512037  malloc trace does not print free size or alignment
+512291  Valgrind on Solaris should drop support for long gone /dev/crypto
+        framework
 512571  regtest problems with darwin dsymutil
 512873  Add SSE4.1 min/max instructions for x86 32 bit
 513257  Add missing syswraps for lsm_list_modules

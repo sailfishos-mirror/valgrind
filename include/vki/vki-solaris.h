@@ -335,14 +335,16 @@ typedef struct vki_kcf_door_arg_s {
    } vki_da_u;
 } vki_kcf_door_arg_t;
 
-
+// https://bugs.kde.org/show_bug.cgi?id=512291
+// crypto ioctl removed from Solaris late 2025
+#if defined(HAVE_SYS_CRYPTO_IOCTL_H)
 #include <sys/crypto/ioctl.h>
 #define VKI_CRYPTO_SUCCESS CRYPTO_SUCCESS
 #define VKI_CRYPTO_GET_PROVIDER_LIST CRYPTO_GET_PROVIDER_LIST
 #define vki_crypto_provider_id_t crypto_provider_id_t
 #define vki_crypto_provider_entry_t crypto_provider_entry_t
 #define vki_crypto_get_provider_list_t crypto_get_provider_list_t
-
+#endif
 
 #include <sys/dditypes.h>
 #include <sys/devinfo_impl.h>

@@ -1315,6 +1315,7 @@
 /memcheck/tests/solaris/pkcs11
 /memcheck/tests/solaris/scalar
 /memcheck/tests/solaris/scalar_auditon_stat
+/memcheck/tests/solaris/scalar_crypto
 /memcheck/tests/solaris/scalar_frealpathat
 /memcheck/tests/solaris/scalar_getrandom
 /memcheck/tests/solaris/scalar_ioctl
