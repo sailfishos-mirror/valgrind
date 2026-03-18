@@ -7517,17 +7517,35 @@ s390_insn_alu_emit(UChar *buf, const s390_insn *insn)
             return s390_emit_MSGR(buf, dst, R0);
 
             /* Do it in two steps: upper half [0:31] and lower half [32:63] */
-         case S390_ALU_AND:
-            buf  = s390_emit_NIHF(buf, dst, value >> 32);
-            return s390_emit_NILF(buf, dst, value & 0xFFFFFFFF);
+         case S390_ALU_AND: {
+            UInt high = value >> 32;
+            UInt low  = value & 0xffffffff;
+            if (high != 0xffffffff)
+               buf = s390_emit_NIHF(buf, dst, high);
+            if (low != 0xffffffff)
+               buf = s390_emit_NILF(buf, dst, low);
+            return buf;
+         }
 
-         case S390_ALU_OR:
-            buf  = s390_emit_OIHF(buf, dst, value >> 32);
-            return s390_emit_OILF(buf, dst, value & 0xFFFFFFFF);
+         case S390_ALU_OR: {
+            UInt high = value >> 32;
+            UInt low  = value & 0xffffffff;
+            if (high != 0)
+               buf = s390_emit_OIHF(buf, dst, high);
+            if (low != 0)
+               buf = s390_emit_OILF(buf, dst, low);
+            return buf;
+         }
 
-         case S390_ALU_XOR:
-            buf  = s390_emit_XIHF(buf, dst, value >> 32);
-            return s390_emit_XILF(buf, dst, value & 0xFFFFFFFF);
+         case S390_ALU_XOR: {
+            UInt high = value >> 32;
+            UInt low  = value & 0xffffffff;
+            if (high != 0)
+               buf = s390_emit_XIHF(buf, dst, high);
+            if (low != 0)
+               buf = s390_emit_XILF(buf, dst, low);
+            return buf;
+         }
 
             /* No special considerations for long displacement here. Only the six
                least significant bits of VALUE will be taken; all other bits are
