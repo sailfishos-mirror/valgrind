@@ -2671,6 +2671,9 @@ Bool VG_(am_notify_munmap)( Addr start, SizeT len )
 #endif
    add_segment( &seg );
 
+   /* Unmapping drops guard pages (if present) */
+   guard_pages_remove( start, len );
+
    /* Unmapping could create two adjacent free segments, so a preen is
       needed.  add_segment() will do that, so no need to here. */
    AM_SANITY_CHECK;

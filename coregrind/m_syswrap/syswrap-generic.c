@@ -254,8 +254,6 @@ ML_(notify_core_and_tool_of_munmap) ( Addr a, SizeT len )
    Bool d;
 
    page_align_addr_and_len(&a, &len);
-   // munmap() may remove guard page per man 2 madvise:
-   VG_(am_notify_madv_guard)(a, len, False);
    d = VG_(am_notify_munmap)(a, len);
    VG_TRACK( die_mem_munmap, a, len );
    VG_(di_notify_munmap)( a, len );
