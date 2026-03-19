@@ -13,6 +13,6 @@ vgopts: --ignore-fn=_objc_init --ignore-fn-"objc::DenseMap<char const*, objc::de
 # Darwin ignore functions, for macOS 12
 vgopts: --ignore-fn=_xpc_alloc
 # Darwin ignore functions, for macOS 13
-vgopts: --ignore-fn=_xpc_strdup --ignore-fn=_vasprintf --ignore-fn="_fetchInitializingClassList(bool)" --ignore-fn="cache_t::allocateBuckets(unsigned int)"
+vgopts: --ignore-fn=strdup --ignore-fn=_vasprintf --ignore-fn="_fetchInitializingClassList(bool)" --ignore-fn="cache_t::allocateBuckets(unsigned int)"
 post: perl ../../massif/ms_print massif.out | sed 's/gcc[0-9]*/gcc/' | ./filter_new_aligned | ./filter_ignore_fn
 cleanup: rm massif.out

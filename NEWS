@@ -111,6 +111,7 @@ are not entered into bugzilla tend to get forgotten about or ignored.
 516748  Incorrect use of SET_STATUS_Failure for syscall wrappers that return
         error codes rather than -1 on error
 517697  Implement CLRSSONSTACK and SETUJMPBUF handling on Solaris.
+517748  Add ability to redirect global functions to Darwin
 
 To see details of a given bug, visit
   https://bugs.kde.org/show_bug.cgi?id=XXXXXX
