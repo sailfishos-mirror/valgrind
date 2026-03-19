@@ -51,7 +51,7 @@
                                  // VG_(mk_SysRes_Error)
                                  // VG_(mk_SysRes_Success)
 
-#include "pub_core_options.h"    // VG_(clo_sanity_level)
+#include "pub_core_options.h"    // VG_(clo_sanity_level), VG_(clo_max_guard_pages)
 
 #if defined(VGO_freebsd)
 #include "pub_core_libcproc.h"   // VG_(sysctlbyname)

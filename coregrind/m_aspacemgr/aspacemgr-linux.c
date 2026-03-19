@@ -2114,6 +2114,8 @@ Addr VG_(am_startup) ( Addr sp_at_startup )
 
    VG_(am_show_nsegments)(2, "With contents of /proc/self/maps");
 
+   VG_(debugLog)(1, "aspacem", "VG_(clo_max_guard_pages)=%u\n", VG_(clo_max_guard_pages));
+
    AM_SANITY_CHECK;
    return suggested_clstack_end;
 }
