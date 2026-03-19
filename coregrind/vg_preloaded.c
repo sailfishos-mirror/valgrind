@@ -248,7 +248,6 @@ static void vg_cleanup_env(void)  __attribute__((constructor));
 static void vg_cleanup_env(void)
 {
     HChar **envp = (HChar**)*_NSGetEnviron();
-    env_unsetenv(envp, "VALGRIND_LAUNCHER");
     env_unsetenv(envp, "DYLD_SHARED_REGION");
     // GrP fixme should be more like mash_colon_env()
     env_unsetenv(envp, "DYLD_INSERT_LIBRARIES");
