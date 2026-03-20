@@ -80,9 +80,9 @@ typedef
       /* 176 */ ULong  guest_DFLAG;
       /* 184 */ ULong  guest_RIP;
       /* Bit 18 (AC) of eflags stored here, as either 0 or 1. */
-      /* ... */ ULong  guest_ACFLAG;
+      /* 192 */ ULong  guest_ACFLAG;
       /* Bit 21 (ID) of eflags stored here, as either 0 or 1. */
-      /* 192 */ ULong guest_IDFLAG;
+      /* 200 */ ULong guest_IDFLAG;
       /* Probably a lot more stuff too. 
          D,ID flags
          16  128-bit SSE registers
@@ -99,8 +99,8 @@ typedef
          consecutively in order that the SSE4.2 PCMP{E,I}STR{I,M}
          helpers can treat them as an array.  YMM16 is a fake reg used
          as an intermediary in handling aforementioned insns. */
-      /* 208 */ULong guest_SSEROUND;
-      /* 216 */U256  guest_YMM0;
+      /* 216 */ULong guest_SSEROUND;
+      /* 224 */U256  guest_YMM0;
       U256  guest_YMM1;
       U256  guest_YMM2;
       U256  guest_YMM3;

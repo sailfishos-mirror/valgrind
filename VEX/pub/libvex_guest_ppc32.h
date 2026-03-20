@@ -238,7 +238,7 @@ typedef
       /* Needed for Darwin (but mandated for all guest architectures):
          CIA at the last SC insn.  Used when backing up to restart a
          syscall that has been interrupted by a signal. */
-      /* 134C */ UInt guest_IP_AT_SYSCALL;
+      /* 1352 */ UInt guest_IP_AT_SYSCALL;
 
       /* SPRG3, which AIUI is readonly in user space.  Needed for
          threading on AIX. */
