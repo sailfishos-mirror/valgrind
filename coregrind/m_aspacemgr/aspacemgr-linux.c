@@ -1124,7 +1124,7 @@ inline static void guard_pages_remove ( Addr addr, SizeT len ) {
 }
 
 __attribute__((unused))
-static void show_guard_pages () {
+static void show_guard_pages (void) {
    VG_(debugLog)(0, "aspacem", "vvvvvvv\n");
    for (Int i=0; i<nguardpages_used; i++)
       VG_(debugLog)(0,"aspacem","guard page: %d 0x%lx\n",
