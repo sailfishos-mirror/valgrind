@@ -1360,6 +1360,7 @@ Int valgrind_main ( Int argc, HChar **argv, HChar **envp )
                                                    &errmsg))
             VG_(fmsg_bad_option)(argv[i], "%s\n", errmsg);
       }
+      if VG_INT_CLOM(cloE, argv[i], "--max-threads", VG_(clo_max_threads)) {}
       if VG_INT_CLOM(cloE, argv[i], "--max-guard-pages", VG_(clo_max_guard_pages)) {}
    }
 

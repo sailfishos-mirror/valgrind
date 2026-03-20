@@ -296,16 +296,9 @@
 static NSegment nsegments[VG_N_SEGMENTS];
 static Int      nsegments_used = 0;
 
-/* With glibc upstream commit a6fbe36b7f31 and others, on x86_64,
-   a new madvise(MADV_GUARD_INSTALL ... ) guard page is installed for
-   each new thread. In the future, MADV_GUARD_INSTALL is likely to
-   be used with DSOs supporting multiple kernel page sizes.  A rough
-   estimation of max madvise guard page count is Nthreads + 3 * DSOcnt.
-   Madvise guard pages are tracked in the guardpages array below.
-   To set its size, use VG_N_THREADS, which is VG_(clo_max_threads).
-   Related bug 514297. */
-#define VG_N_THREADS 498
-static Addr     guardpages[VG_N_THREADS];
+/* bookkeeping for madvise() guard pages, bug 514297 */
+static UInt     VG_N_GUARDS;
+static Addr     *guardpages;
 static Int      nguardpages_used = 0;
 
 #define Addr_MIN ((Addr)0)
@@ -1082,7 +1075,7 @@ void ML_(am_do_sanity_check)( void )
 
 static void guard_page_install ( Addr addr ) {
    Addr addr_aligned = addr & ~(VKI_PAGE_SIZE - 1);
-   if (nguardpages_used >= VG_N_THREADS) {
+   if (nguardpages_used >= VG_N_GUARDS) {
       VG_(debugLog)(0,"aspacem","ERROR: nguardpages_used limit reached\n");
       return;
    }
@@ -2114,7 +2107,18 @@ Addr VG_(am_startup) ( Addr sp_at_startup )
 
    VG_(am_show_nsegments)(2, "With contents of /proc/self/maps");
 
-   VG_(debugLog)(1, "aspacem", "VG_(clo_max_guard_pages)=%u\n", VG_(clo_max_guard_pages));
+   /* With glibc upstream commit a6fbe36b7f31 and others, on x86_64,
+      a new madvise(MADV_GUARD_INSTALL ... ) guard page is installed for
+      each new thread. In the future, MADV_GUARD_INSTALL is likely to
+      be used with DSOs supporting multiple kernel page sizes.  A rough
+      estimation of max madvise guard page count is Nthreads + 3 * DSOcnt.
+      Madvise guard pages are tracked in the guardpages array below. The
+      array size is set via --max-guard-pages or --max-threads: */
+   VG_N_GUARDS =
+      (VG_(clo_max_guard_pages) == MAX_GUARDS_DEFAULT)
+         ? VG_(clo_max_threads)
+         : VG_(clo_max_guard_pages);
+   guardpages = VG_(calloc)("aspacem.guardpages", VG_N_GUARDS, sizeof(Addr));
 
    AM_SANITY_CHECK;
    return suggested_clstack_end;

@@ -64,6 +64,7 @@
 
 #if defined(VGO_linux)
 #include "../pub_core_libcfile.h" // VG_(safe_fd)
+#include "pub_tool_mallocfree.h"  // VG_(calloc)
 #endif
 
 /* --------------- Implemented in aspacemgr-common.c ---------------*/
