@@ -2825,7 +2825,6 @@ void LibVEX_GuestPPC32_initialise ( /*OUT*/VexGuestPPC32State* vex_state )
    for (i = 0; i < VEX_GUEST_PPC32_REDIR_STACK_SIZE; i++)
       vex_state->guest_REDIR_STACK[i] = 0;
 
-   vex_state->guest_IP_AT_SYSCALL = 0;
    vex_state->guest_SPRG3_RO = 0;
    vex_state->guest_PPR = 0x4ULL << 50;  // medium priority
    vex_state->guest_PSPB = 0x100;  // an arbitrary non-zero value to start with
@@ -3002,7 +3001,6 @@ void LibVEX_GuestPPC64_initialise ( /*OUT*/VexGuestPPC64State* vex_state )
    for (i = 0; i < VEX_GUEST_PPC64_REDIR_STACK_SIZE; i++)
       vex_state->guest_REDIR_STACK[i] = 0;
 
-   vex_state->guest_IP_AT_SYSCALL = 0;
    vex_state->guest_SPRG3_RO = 0;
    vex_state->guest_TFHAR  = 0;
    vex_state->guest_TFIAR  = 0;
@@ -3149,7 +3147,6 @@ VexGuestLayout
 	      /*  7 */ ALWAYSDEFD32(guest_NRADDR_GPR2),
 	      /*  8 */ ALWAYSDEFD32(guest_REDIR_SP),
 	      /*  9 */ ALWAYSDEFD32(guest_REDIR_STACK),
-	      /* 10 */ ALWAYSDEFD32(guest_IP_AT_SYSCALL),
 	      /* 11 */ ALWAYSDEFD32(guest_C_FPCC)
             }
         };
@@ -3191,7 +3188,6 @@ VexGuestLayout
 	      /*  7 */ ALWAYSDEFD64(guest_NRADDR_GPR2),
 	      /*  8 */ ALWAYSDEFD64(guest_REDIR_SP),
 	      /*  9 */ ALWAYSDEFD64(guest_REDIR_STACK),
-	      /* 10 */ ALWAYSDEFD64(guest_IP_AT_SYSCALL),
 	      /* 11 */ ALWAYSDEFD64(guest_C_FPCC)
             }
         };

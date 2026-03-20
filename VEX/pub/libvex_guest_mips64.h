@@ -184,10 +184,12 @@ typedef
       /* 1144 */ UInt guest_MSACSR;
 
       /* 1148 */ UInt _padding2;
-      /* 1152 */ ULong guest_IP_AT_SYSCALL;
-      /* 1160 */ ULong _padding3;
 
 } VexGuestMIPS64State;
+
+#if defined(__LP64__)
+LIBVEX_STATIC_ASSERT(sizeof(VexGuestMIPS64State)%16 == 0);
+#endif
 
 /*---------------------------------------------------------------*/
 /*--- Utility functions for MIPS64 guest stuff.               ---*/

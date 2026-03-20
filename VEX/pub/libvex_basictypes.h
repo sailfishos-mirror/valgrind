@@ -205,6 +205,8 @@ typedef  unsigned long HWord;
 #   error "Vex: Fatal: Can't establish the host architecture"
 #endif
 
+#define LIBVEX_STATIC_ASSERT(x)  extern int vex__unused_array[(x) ? 1 : -1] \
+    __attribute__((unused))
 
 #endif /* ndef __LIBVEX_BASICTYPES_H */
 

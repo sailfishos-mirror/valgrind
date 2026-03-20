@@ -131,10 +131,9 @@ VexGuestLayout s390xGuest_layout = {
       /*  2 */ ALWAYSDEFD(guest_EMNOTE),    /* generic */
       /*  3 */ ALWAYSDEFD(guest_CMSTART),   /* generic */
       /*  4 */ ALWAYSDEFD(guest_CMLEN),     /* generic */
-      /*  5 */ ALWAYSDEFD(guest_IP_AT_SYSCALL), /* generic */
-      /*  6 */ ALWAYSDEFD(guest_IA),        /* control reg */
-      /*  7 */ ALWAYSDEFD(guest_fpc),       /* control reg */
-      /*  8 */ ALWAYSDEFD(guest_counter),   /* internal usage register */
+      /*  5 */ ALWAYSDEFD(guest_IA),        /* control reg */
+      /*  6 */ ALWAYSDEFD(guest_fpc),       /* control reg */
+      /*  7 */ ALWAYSDEFD(guest_counter),   /* internal usage register */
    }
 };
 
