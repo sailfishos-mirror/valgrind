@@ -123,6 +123,10 @@ extern Bool VG_(am_do_sync_check) ( const HChar* fn,
    MADV_GUARD_INSTALL guard page */
 extern Bool VG_(is_guarded) ( Addr addr );
 
+/* VG_(is_guarded_addr_len) checks if interval of addresses
+   containa MADV_GUARD_INSTALL guard page */
+extern Bool VG_(is_guarded_addr_len) ( Addr addr, SizeT len );
+
 //--------------------------------------------------------------
 // Functions pertaining to the central query-notify mechanism
 // used to handle mmap/munmap/mprotect resulting from client

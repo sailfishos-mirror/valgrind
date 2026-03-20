@@ -1074,17 +1074,31 @@ void ML_(am_do_sanity_check)( void )
 /*-----------------------------------------------------------------*/
 
 static void guard_page_install ( Addr addr ) {
-   Addr addr_aligned = addr & ~(VKI_PAGE_SIZE - 1);
+   // Addr addr_aligned = addr & ~(VKI_PAGE_SIZE - 1);
+   Addr addr_aligned = addr;
    if (nguardpages_used >= VG_N_GUARDS) {
-      VG_(debugLog)(0,"aspacem","ERROR: nguardpages_used limit reached\n");
+      VG_(debugLog)(0,"aspacem",
+                    "ERROR: nguardpages_used limit reached\n");
       return;
    }
-   Int i = nguardpages_used;
-   while ((i > 0) && (guardpages[i-1] > addr_aligned)) {
-      guardpages[i] = guardpages[i-1];
-      i--;
+   // bisect
+   Int mid = 0,
+       lo = 0,
+       hi = nguardpages_used - 1;
+   while (True) {
+      if (lo > hi) {
+         break;
+      } else {
+         mid = (lo + hi) / 2;
+         if (addr_aligned < guardpages[mid]) { hi = mid - 1; continue; }
+         if (addr_aligned > guardpages[mid]) { lo = mid + 1; continue; }
+         if (addr_aligned == guardpages[mid]) return; // already there
+      }
    }
-   guardpages[i] = addr_aligned;
+   // merge in
+   for (Int i=nguardpages_used; i > lo; i--)
+      guardpages[i] = guardpages[i-1];
+   guardpages[lo] = addr_aligned;
    nguardpages_used++;
 }
 
@@ -1095,33 +1109,42 @@ inline static void guard_pages_install ( Addr addr, SizeT len ) {
 }
 
 static void guard_page_remove ( Addr addr ) {
-   Int i = 0;
-   Bool found = False;
    Addr addr_aligned = addr & ~(VKI_PAGE_SIZE - 1);
-   while (i < nguardpages_used)
-   {
-      if (guardpages[i] == addr_aligned)
-         found = True;
-      if (found)
-         guardpages[i] = guardpages[i+1];
-      i++;
+   // search
+   Int mid = 0,
+       lo = 0,
+       hi = nguardpages_used - 1;
+   while (True) {
+      if (lo > hi) {
+         VG_(message)(Vg_UserMsg,
+                      "Removal failed, expected address not found\n");
+         return;
+      } else {
+         mid = (lo + hi) / 2;
+         if (addr_aligned < guardpages[mid]) { hi = mid - 1; continue; }
+         if (addr_aligned > guardpages[mid]) { lo = mid + 1; continue; }
+         if (addr_aligned == guardpages[mid]) break;
+      }
    }
-   if(found)
-      nguardpages_used--;
+   // remove
+   for(Int i=mid; i<nguardpages_used; i++)
+      guardpages[i] = guardpages[i+1];
+   nguardpages_used--;
 }
 
 inline static void guard_pages_remove ( Addr addr, SizeT len ) {
    Int pages = (len - 1) / VKI_PAGE_SIZE + 1;
    for (Int i=0; i < pages; i++)
-      guard_page_remove (addr + i * VKI_PAGE_SIZE);
+      if (VG_(is_guarded)(addr + i * VKI_PAGE_SIZE))
+         guard_page_remove (addr + i * VKI_PAGE_SIZE);
 }
 
 __attribute__((unused))
 static void show_guard_pages (void) {
    VG_(debugLog)(0, "aspacem", "vvvvvvv\n");
    for (Int i=0; i<nguardpages_used; i++)
-      VG_(debugLog)(0,"aspacem","guard page: %d 0x%lx\n",
-                    find_nsegment_idx(guardpages[i]), guardpages[i]);
+      VG_(debugLog)(0,"aspacem","guard page: seg=%d id=%d addr=%lu\n",
+                    find_nsegment_idx(guardpages[i]), i, guardpages[i]);
    VG_(debugLog)(0, "aspacem", "^^^^^^^\n");
 }
 
@@ -1186,6 +1209,14 @@ Bool VG_(is_guarded) ( Addr addr ) {
       }
       return True;
    }
+}
+
+Bool VG_(is_guarded_addr_len) ( Addr addr, SizeT len ) {
+   Int pages = (len - 1) / VKI_PAGE_SIZE + 1;
+   for (Int i=0; i < pages; i++)
+      if(VG_(is_guarded)(addr + i * VKI_PAGE_SIZE))
+         return True;
+   return False;
 }
 
 /*-----------------------------------------------------------------*/
@@ -2678,7 +2709,8 @@ Bool VG_(am_notify_munmap)( Addr start, SizeT len )
    add_segment( &seg );
 
    /* Unmapping drops guard pages (if present) */
-   guard_pages_remove( start, len );
+   if(VG_(is_guarded_addr_len)( start, len ))
+      guard_pages_remove( start, len );
 
    /* Unmapping could create two adjacent free segments, so a preen is
       needed.  add_segment() will do that, so no need to here. */
