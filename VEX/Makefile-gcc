@@ -47,7 +47,6 @@ LIB_OBJS = 	priv/ir_defs.o                          \
 		priv/main_main.o			\
 		priv/main_globals.o			\
 		priv/main_util.o			\
-		priv/s390_disasm.o			\
 		priv/host_x86_defs.o			\
 		priv/host_amd64_defs.o			\
 		priv/host_arm_defs.o			\
@@ -407,10 +406,6 @@ priv/guest_ppc_toIR.o: $(ALL_HEADERS) priv/guest_ppc_toIR.c
 priv/guest_s390_toIR.o: $(ALL_HEADERS) priv/guest_s390_toIR.c
 	$(CC) $(CCFLAGS) $(ALL_INCLUDES) -o priv/guest_s390_toIR.o \
 					 -c priv/guest_s390_toIR.c
-
-priv/s390_disasm.o: $(ALL_HEADERS) priv/s390_disasm.c
-	$(CC) $(CCFLAGS) $(ALL_INCLUDES) -o priv/s390_disasm.o \
-					 -c priv/s390_disasm.c
 
 priv/guest_mips_helpers.o: $(ALL_HEADERS) priv/guest_mips_helpers.c
 	$(CC) $(CCFLAGS) $(ALL_INCLUDES) -o priv/guest_mips_helpers.o \
