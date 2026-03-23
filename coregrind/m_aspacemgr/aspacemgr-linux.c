@@ -3979,6 +3979,27 @@ static void parse_procselfmaps (
 
    if (record_gap && gapStart < Addr_MAX)
       (*record_gap) ( gapStart, Addr_MAX - gapStart + 1 );
+
+   // madvise guard pages cross check '(left to right)'
+   for (i = 0; i<nguardpages_used; i++) {
+      if (!is_guarded_sanity(guardpages[i])) {
+         VG_(debugLog)(0, "Valgrind:",
+                          "FATAL: failed guard page sanity check at address %lu.\n", guardpages[i]);
+         ML_(am_exit)(1);
+      }
+   }
+   // madvise guard pages cross check '(right to left)'
+   for (i = 0; i < nsegments_used; i++) {
+      if (nsegments[i].hasGuardPages == True) {
+         for (Addr a = nsegments[i].start; a < nsegments[i].end; a += VKI_PAGE_SIZE) {
+            // The following, if run with VG_(clo_sanity_level) >= 3, will
+            // perform needed sanity check via is_guarded_sanity(). We throw
+            // the retval of is_guarded() away.
+            VG_(is_guarded)(a);
+         }
+      }
+   }
+
 }
 
 /*------END-procmaps-parser-for-Linux----------------------------*/
