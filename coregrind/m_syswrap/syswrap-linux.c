@@ -6352,7 +6352,8 @@ PRE(sys_openat)
                     int, dirfd, const char *, pathname, int, flags);
    }
 
-   PRE_MEM_RASCIIZ( "openat(pathname)", ARG2 );
+   if (ML_(safe_to_deref)( (void*)(Addr)ARG2, 1 ))
+      PRE_MEM_RASCIIZ( "openat(pathname)", ARG2 );
 
    // check that we are not trying to open the client exe for writing
    if ((ARG3 & VKI_O_WRONLY) ||
