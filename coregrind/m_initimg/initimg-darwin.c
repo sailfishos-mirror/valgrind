@@ -144,7 +144,9 @@ static void load_client ( /*OUT*/ExeInfo* info,
    with a value of 'avoid' to force using the physical libraries on disk.
    Later versions removed the physical library files so we can
    no longer use this option with 'avoid' and we need to start processing
-   the dyld shared cache file.
+   the dyld shared cache file. Darwin 20 and 21 seem to work OK
+   without needing DYLD_SHARED_REGION. Darwin 22 does need it to be
+   set explicitly to 'use' even though that is the default.
 
    DYLD_INSERT_LIBRARIES: V uses this to preload its core and tool
    shared libraries.
@@ -152,7 +154,8 @@ static void load_client ( /*OUT*/ExeInfo* info,
    The following macOS versions have the following requirements
    All versions: DYLD_INSERT_LIBRARIES
    DARWIN_VERS >= DARWIN_10_15 PTHREAD_PTR_MUNGE_TOKEN
-   DARWIN_VERS < DARWIN_11_00 DYLD_SHARED_REGION 
+   DARWIN_VERS < DARWIN_11_00 DYLD_SHARED_REGION=avoid
+   DARWIN_VERS >= DARWIN_11_00 DYLD_SHARED_REGION=use
 
    Also, change VYLD_* (mangled by launcher) back to DYLD_*.
 
@@ -163,12 +166,14 @@ static HChar** setup_client_env ( HChar** origenv, const HChar* toolname)
 {
    const HChar* preload_core    = "vgpreload_core";
    const HChar* ld_preload      = "DYLD_INSERT_LIBRARIES=";
-#if DARWIN_VERS < DARWIN_11_00
    const HChar* dyld_cache      = "DYLD_SHARED_REGION=";
+#if DARWIN_VERS < DARWIN_11_00
    const HChar* dyld_cache_value= "avoid";
+#else
+   const HChar* dyld_cache_value= "use";
+#endif
    Int    dyld_cache_len  = VG_(strlen)( dyld_cache );
    Bool   dyld_cache_done = False;
-#endif
 #if DARWIN_VERS >= DARWIN_10_15
    Bool   pthread_ptr_munge_token_present = False;
 #endif
@@ -187,10 +192,8 @@ static HChar** setup_client_env ( HChar** origenv, const HChar* toolname)
    // number of env vars to add if not already present
 #if DARWIN_VERS < DARWIN_10_15
    extra_env_vars = 2; // DYLD_INSERT_LIBRARIES and DYLD_SHARED_REGION
-#elif DARWIN_VERS == DARWIN_10_15
+#else
    extra_env_vars = 3; // DYLD_INSERT_LIBRARIES, DYLD_SHARED_REGION and PTHREAD_PTR_MUNGE_TOKEN
-#else // > DARWIN_10_15
-   extra_env_vars = 2; // DYLD_INSERT_LIBRARIES and PTHREAD_PTR_MUNGE_TOKEN
 #endif
 
    /* Alloc space for the vgpreload_core.so path and vgpreload_<tool>.so
@@ -227,11 +230,9 @@ static HChar** setup_client_env ( HChar** origenv, const HChar* toolname)
       if (VG_(memcmp)(*cpp, ld_preload, ld_preload_len) == 0) {
          --extra_env_vars;
       }
-#if DARWIN_VERS < DARWIN_11_00
       if (VG_(memcmp)(*cpp, dyld_cache, dyld_cache_len) == 0) {
          --extra_env_vars;
       }
-#endif
 #if DARWIN_VERS >= DARWIN_10_15
       // strictly would should check for presence and that it is not set to zero
       if (VG_(memcmp)(*cpp, "PTHREAD_PTR_MUNGE_TOKEN=", VG_(strlen)("PTHREAD_PTR_MUNGE_TOKEN=")) == 0) {
@@ -268,7 +269,6 @@ static HChar** setup_client_env ( HChar** origenv, const HChar* toolname)
 
          ld_preload_done = True;
       }
-#if DARWIN_VERS < DARWIN_11_00
       if (VG_(memcmp)(*cpp, dyld_cache, dyld_cache_len) == 0) {
          Int len = dyld_cache_len + VG_(strlen)(dyld_cache_value) + 1;
          HChar *cp = VG_(malloc)("initimg-darwin.sce.4.2", len);
@@ -279,7 +279,6 @@ static HChar** setup_client_env ( HChar** origenv, const HChar* toolname)
 
          dyld_cache_done = True;
       }
-#endif
    }
 
    /* Add the missing bits */
@@ -291,7 +290,6 @@ static HChar** setup_client_env ( HChar** origenv, const HChar* toolname)
 
       ret[envc++] = cp;
    }
-#if DARWIN_VERS < DARWIN_11_00
    if (!dyld_cache_done) {
       Int len = dyld_cache_len + VG_(strlen)(dyld_cache_value) + 1;
       HChar *cp = VG_(malloc) ("initimg-darwin.sce.5.2", len);
@@ -300,7 +298,6 @@ static HChar** setup_client_env ( HChar** origenv, const HChar* toolname)
 
       ret[envc++] = cp;
    }
-#endif
 #if DARWIN_VERS >= DARWIN_10_15
    // pthread really wants a non-zero value for ptr_munge
    if (!pthread_ptr_munge_token_present) {
@@ -326,7 +323,6 @@ static HChar** setup_client_env ( HChar** origenv, const HChar* toolname)
          ret[i][0] = 'D';
       }
    }
-
 
    VG_(free)(preload_string);
    ret[envc] = NULL;
