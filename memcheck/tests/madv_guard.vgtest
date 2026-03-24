@@ -1,0 +1,4 @@
+prog: madv_guard
+vgopts: --sanity-level=3
+stdout_filter: filter_madv_guard
+stderr_filter: filter_madv_guard_stderr

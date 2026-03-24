@@ -1074,8 +1074,11 @@ void ML_(am_do_sanity_check)( void )
 /*-----------------------------------------------------------------*/
 
 static void guard_page_install ( Addr addr ) {
-   // Addr addr_aligned = addr & ~(VKI_PAGE_SIZE - 1);
-   Addr addr_aligned = addr;
+   /* Note that this only installs guard pages into the
+      guardpages array.  But it doesn't flag hasGuardPages
+      for segments having guard pages.
+      That's handled in guard_pages_install() below. */
+   Addr addr_aligned = addr & ~(VKI_PAGE_SIZE - 1);
    if (nguardpages_used >= VG_N_GUARDS) {
       VG_(debugLog)(0,"aspacem",
                     "ERROR: nguardpages_used limit reached\n");
@@ -1103,12 +1106,31 @@ static void guard_page_install ( Addr addr ) {
 }
 
 inline static void guard_pages_install ( Addr addr, SizeT len ) {
+   Int iLo = find_nsegment_idx(addr);
+   Int iHi = find_nsegment_idx(addr + len - 1);
+
+   // Record the new guard pages in the guardpages array
    Int pages = (len - 1) / VKI_PAGE_SIZE + 1;
    for (Int i=0; i < pages; i++)
       guard_page_install(addr + i * VKI_PAGE_SIZE);
+
+   // These 5 should be guaranteed by find_nsegment_idx.
+   aspacem_assert(0 <= iLo && iLo < nsegments_used);
+   aspacem_assert(0 <= iHi && iHi < nsegments_used);
+   aspacem_assert(iLo <= iHi);
+   aspacem_assert(nsegments[iLo].start <= addr );
+   aspacem_assert(nsegments[iHi].end   >= addr + len - 1 );
+
+   // Flag the new guardpages in the nsegments array
+   for (Int i = iLo; i <= iHi; i++)
+      nsegments[i].hasGuardPages = True;
 }
 
 static void guard_page_remove ( Addr addr ) {
+   /* Note that this only removes guard pages from the
+      guardpages array.  But it doesn't unflag hasGuardPages
+      for segments not having any guard pages any more.
+      That's handled in guard_pages_remove() below. */
    Addr addr_aligned = addr & ~(VKI_PAGE_SIZE - 1);
    // search
    Int mid = 0,
@@ -1133,19 +1155,43 @@ static void guard_page_remove ( Addr addr ) {
 }
 
 inline static void guard_pages_remove ( Addr addr, SizeT len ) {
+   Int iLo = find_nsegment_idx(addr);
+   Int iHi = find_nsegment_idx(addr + len - 1);
+   Bool guardPageSeen __attribute__((unused));
+
+   // Reflect the guard pages removal in the guardpages array
    Int pages = (len - 1) / VKI_PAGE_SIZE + 1;
    for (Int i=0; i < pages; i++)
       if (VG_(is_guarded)(addr + i * VKI_PAGE_SIZE))
          guard_page_remove (addr + i * VKI_PAGE_SIZE);
+
+   // These 5 should be guaranteed by find_nsegment_idx.
+   aspacem_assert(0 <= iLo && iLo < nsegments_used);
+   aspacem_assert(0 <= iHi && iHi < nsegments_used);
+   aspacem_assert(iLo <= iHi);
+   aspacem_assert(nsegments[iLo].start <= addr );
+   aspacem_assert(nsegments[iHi].end   >= addr + len - 1 );
+
+   // Unflag segments not having any guard pages any more
+   for (Int i = iLo; i <= iHi; i++) { 
+      Addr aLo = nsegments[i].start;
+      Addr aHi = nsegments[i].end;
+      guardPageSeen = False;
+      for (Int j = 0; j < nguardpages_used; j++) {
+         if ((guardpages[j] >= aLo) && (guardpages[j] <= aHi))
+            guardPageSeen = True;
+      }
+      if (guardPageSeen == False)
+          nsegments[i].hasGuardPages = False;
+
+   }
 }
 
-__attribute__((unused))
 static void show_guard_pages (void) {
-   VG_(debugLog)(0, "aspacem", "vvvvvvv\n");
    for (Int i=0; i<nguardpages_used; i++)
-      VG_(debugLog)(0,"aspacem","guard page: seg=%d id=%d addr=%lu\n",
+      VG_(debugLog)(0,"aspacem","guard page: seg=%d id=%d addr=0x%lx\n",
                     find_nsegment_idx(guardpages[i]), i, guardpages[i]);
-   VG_(debugLog)(0, "aspacem", "^^^^^^^\n");
+   VG_(am_show_nsegments)(0, "aspacem");
 }
 
 #if defined(VGO_linux)
@@ -2619,32 +2665,12 @@ Bool VG_(am_notify_mprotect)( Addr start, SizeT len, UInt prot )
 /* Notifiy aspacem about madvise(MADV_GUARD_INSTALL), bug 514297 */
 Bool VG_(am_notify_madv_guard)( Addr start, SizeT len, Bool install )
 {
-   Int  i, iLo, iHi;
-
    aspacem_assert(VG_IS_PAGE_ALIGNED(start));
    aspacem_assert(VG_IS_PAGE_ALIGNED(len));
 
    if (len == 0)
       return False;
 
-   iLo = find_nsegment_idx(start);
-   iHi = find_nsegment_idx(start + len - 1);
-
-   for (i = iLo; i <= iHi; i++) {
-      /* Apply the permissions to all relevant segments. */
-      switch (nsegments[i].kind) {
-         case SkAnonC: case SkAnonV: case SkFileC: case SkFileV: case SkShmC:
-            nsegments[i].hasGuardPages = install;
-            aspacem_assert(sane_NSegment(&nsegments[i]));
-            break;
-         default:
-            break;
-      }
-   }
-
-   AM_SANITY_CHECK;
-
-   /* Register the guard page(s) installation */
    if (install) {
       VG_(debugLog)(1, "aspacem",
                     "installing guard pages (addr=0x%lx, len=0x%lx)\n",
@@ -2657,9 +2683,19 @@ Bool VG_(am_notify_madv_guard)( Addr start, SizeT len, Bool install )
       guard_pages_remove(start, len);
    }
 
-   // The return val determines whether translations will be
-   // discarded or not.  Discarding translations only makes
-   // sense when installing a guard page, not when removing it.
+   if (VG_(clo_sanity_level) >= 3)
+      show_guard_pages(); 
+
+   AM_SANITY_CHECK;
+
+   if (VG_(clo_sanity_level) >= 3)
+      VG_(debugLog)(0, "aspacem",
+                    "madv_guard sanity_level 3 checks passed\n");
+
+
+   // The return val determines whether translations will be discarded.
+   // That is supposed to happen when guard page is installed, but not
+   // otherwise.
    return install;
 }
 
@@ -3980,22 +4016,36 @@ static void parse_procselfmaps (
    if (record_gap && gapStart < Addr_MAX)
       (*record_gap) ( gapStart, Addr_MAX - gapStart + 1 );
 
-   // madvise guard pages cross check '(left to right)'
+   // Iterate over guard pages
    for (i = 0; i<nguardpages_used; i++) {
+      // Check if every guard page in V's evidence has respective
+      // record in kernel's evidence.
       if (!is_guarded_sanity(guardpages[i])) {
          VG_(debugLog)(0, "Valgrind:",
-                          "FATAL: failed guard page sanity check at address %lu.\n", guardpages[i]);
+                          "FATAL: failed guard page sanity check at address 0x%lx.\n", guardpages[i]);
+         ML_(am_exit)(1);
+      }
+      // Make sure that every guard page belongs to a segment
+      // flagged with hasGuardPages.
+      if(nsegments[find_nsegment_idx(guardpages[i])].hasGuardPages == False) {
+         VG_(debugLog)(0, "Valgrind:",
+                          "FATAL: failed guard page sanity check2 at address 0x%lx.\n", guardpages[i]);
          ML_(am_exit)(1);
       }
    }
-   // madvise guard pages cross check '(right to left)'
+   // Iterate over segments.  For each segment flagged with hasGuardPages
+   // make sure that it actually contains at least one guard page.
    for (i = 0; i < nsegments_used; i++) {
       if (nsegments[i].hasGuardPages == True) {
+         Bool guardPageSeen = False;
          for (Addr a = nsegments[i].start; a < nsegments[i].end; a += VKI_PAGE_SIZE) {
-            // The following, if run with VG_(clo_sanity_level) >= 3, will
-            // perform needed sanity check via is_guarded_sanity(). We throw
-            // the retval of is_guarded() away.
-            VG_(is_guarded)(a);
+            if (VG_(is_guarded)(a) == True)
+               guardPageSeen = True;
+         }
+         if (guardPageSeen == False) {
+            VG_(debugLog)(0, "Valgrind:",
+                          "FATAL: no guard page found for segment %d\n", i);
+            ML_(am_exit)(1);
          }
       }
    }
