@@ -12,8 +12,6 @@ size_t ps = 0; // page size
 
 void check_addr(char *p)
 {
-    bool rv = true;
-
     // check page aligned-ness
     if ((uintptr_t)p % ps != 0)
         perror("page not aligned!\n");
@@ -26,17 +24,17 @@ void check_addr(char *p)
 
     read(fd, &entry, sizeof(entry));
     // Bit 58 pte is a guard region (since 6.15) (see madvise (2) man page)
-    printf("page 0x%lx, is guardpage: %d, present: %d\n",
-           p, ((entry >> 58) & 1), ((entry >> 63) & 1));
+    printf("page 0x%lx, is guardpage: %lu, present: %lu\n",
+           (unsigned long)p, ((entry >> 58) & 1), ((entry >> 63) & 1));
 
     // attempt accessing the address
     if ((open(p, O_RDONLY) == -1) && errno == EFAULT)
         // EFAULT means that we've hit guarded region
-        printf("accessing address 0x%lx failed\n", p);
+        printf("accessing address 0x%lx failed\n", (unsigned long)p);
     else if ((open(p, O_RDONLY) == -1) && errno == ENOENT)
         // ENOENT means no such file or directory, and that's OK here
         // we didn't hit a guarded region, we consider this a pass
-        printf("accessing address 0x%lx passed\n", p);
+        printf("accessing address 0x%lx passed\n", (unsigned long)p);
     else
         // We never open a valid file here, so this can't happen!
         printf("the impossible happened, open() succeeded!\n");
@@ -45,7 +43,7 @@ void check_addr(char *p)
 
 void install_guardpage(char *p)
 {
-    printf("Installing guard page, addr=0x%lx\n", p);
+    printf("Installing guard page, addr=0x%lx\n", (unsigned long)p);
     int rv = madvise(p, ps, MADV_GUARD_INSTALL);
     if (rv != 0)
         perror("madvise failed\n");
@@ -53,7 +51,7 @@ void install_guardpage(char *p)
 
 void remove_guardpage(char *p)
 {
-    printf("Removing guard page, addr=0x%lx\n", p);
+    printf("Removing guard page, addr=0x%lx\n", (unsigned long)p);
     int rv = madvise(p, ps, MADV_GUARD_REMOVE);
     if (rv != 0)
         perror("madvise failed\n");

@@ -88,8 +88,6 @@ dist_noinst_SCRIPTS = \
 	filter_xml_leak \
 	filter_strchr \
 	filter_varinfo3 \
-	filter_madv_guard \
-	filter_madv_guard_stderr \
 	filter_memcheck \
 	filter_malloc_free \
 	filter_sendmsg \
@@ -272,7 +270,6 @@ EXTRA_DIST = \
 	long_namespace_xml.vgtest long_namespace_xml.stdout.exp \
 	long_namespace_xml.stderr.exp long_namespace_xml.stderr.exp-freebsd \
 	long-supps.vgtest long-supps.supp \
-	madv_guard.stderr.exp madv_guard.stdout.exp madv_guard.vgtest \
 	mallinfo.stderr.exp mallinfo.vgtest \
 	mallinfo2.stderr.exp mallinfo2.vgtest \
 	malloc_free_fill.vgtest \
@@ -533,7 +530,6 @@ check_PROGRAMS = \
 	leak-tree \
 	leak-segv-jmp \
 	long-supps \
-	madv_guard \
 	mallinfo \
 	mallinfo2 \
 	malloc_free_fill \

@@ -2,6 +2,8 @@
 include $(top_srcdir)/Makefile.tool-tests.am
 
 dist_noinst_SCRIPTS = filter_stderr \
+	filter_madv_guard \
+	filter_madv_guard_stderr \
 	filter_ioctl_procmap_query
 
 EXTRA_DIST = \
@@ -22,6 +24,7 @@ EXTRA_DIST = \
 	ioctl-tiocsig.vgtest \
 	lsframe1.vgtest lsframe1.stderr.exp \
 	lsframe2.vgtest lsframe2.stderr.exp \
+	madv_guard.stderr.exp madv_guard.stdout.exp madv_guard.vgtest \
 	memfd_create.vgtest memfd_create.stderr.exp \
 		memfd_create.stderr.exp-fcntl64 \
 	rfcomm.vgtest rfcomm.stderr.exp \
@@ -58,6 +61,7 @@ check_PROGRAMS = \
 	getregset \
 	lsframe1 \
 	lsframe2 \
+	madv_guard \
 	rfcomm \
 	sigqueue \
 	stack_switch \
