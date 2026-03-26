@@ -3136,7 +3136,7 @@ PRE(sys_madvise)
 
 POST(sys_madvise)
 {
-#ifdef VKI_MADV_GUARD_INSTALL
+#if defined(VGO_linux)
    if (ARG3 == VKI_MADV_GUARD_INSTALL) {
       // SET_STATUS_Failure( VKI_EINVAL );
       Addr a    = ARG1;
@@ -3144,7 +3144,7 @@ POST(sys_madvise)
       ML_(notify_core_and_tool_of_madv_guard)(a, len, True);
    }
 #endif
-#ifdef VKI_MADV_GUARD_REMOVE
+#if defined(VGO_linux)
    if (ARG3 == VKI_MADV_GUARD_REMOVE) {
       Addr a    = ARG1;
       SizeT len = ARG2;

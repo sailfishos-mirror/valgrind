@@ -1482,7 +1482,7 @@ Bool is_valid_for( UInt kinds, Addr start, SizeT len, UInt prot, Bool madv )
       }
    }
 
-#if defined(VKI_MADV_GUARD_INSTALL)
+#if defined(VGO_linux)
    if (madv && needGuardPageCheck && VG_(is_guarded)(start)) {
       return False;
    }
