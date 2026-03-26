@@ -169,6 +169,16 @@ get_guest_reg(Int offset)
    return GUEST_UNKNOWN;
 }
 
+
+static inline Bool
+is_IRExpr_Not(const IRExpr* e)
+{
+   IROp op;
+   return e->tag == Iex_Unop &&
+          ((op = e->Iex.Unop.op) == Iop_Not8 || op == Iop_Not16 ||
+           op == Iop_Not32 || op == Iop_Not64);
+}
+
 /* Add an instruction */
 static void
 addInstr(ISelEnv *env, s390_insn *insn)
@@ -1681,10 +1691,30 @@ s390_isel_int_expr_wrk(ISelEnv *env, IRExpr *expr)
       if (is_commutative) {
          order_commutative_operands(arg1, arg2);
       }
+      res  = newVRegI(env);
+
+      /* Pattern match: "arg1 and/or not(x)"  -->  and/or with complement */
+      if ((env->hwcaps & VEX_HWCAPS_S390X_MI3) &&
+          (opkind == S390_ALU_OR || opkind == S390_ALU_AND)) {
+         if (is_IRExpr_Not(arg1)) { // swap
+            IRExpr* tmp = arg2;
+            arg2        = arg1;
+            arg1        = tmp;
+         }
+         if (is_IRExpr_Not(arg2)) {
+            HReg h2;
+            h1 = s390_isel_int_expr(env, arg1);
+            h2 = s390_isel_int_expr(env, arg2->Iex.Unop.arg);
+            addInstr(env, s390_insn_alu3(size <= 4 ? 4 : 8,
+                                         opkind == S390_ALU_OR ? S390_ALU3_ORC
+                                                               : S390_ALU3_ANDC,
+                                         res, h1, h2));
+            return res;
+         }
+      }
 
       h1   = s390_isel_int_expr(env, arg1);       /* Process 1st operand */
       op2  = s390_isel_int_expr_RMI(env, arg2);   /* Process 2nd operand */
-      res  = newVRegI(env);
 
       /* As right shifts of one/two byte opreands are implemented using a
          4-byte shift op, we first need to zero/sign-extend the shiftee. */
