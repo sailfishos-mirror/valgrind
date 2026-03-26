@@ -1864,8 +1864,6 @@ s390_isel_int_expr_wrk(ISelEnv *env, IRExpr *expr)
          return dst;
       }
 
-      /* Regular processing */
-
       if (unop == Iop_128to64) {
          HReg dst_hi, dst_lo;
 
@@ -1904,6 +1902,38 @@ s390_isel_int_expr_wrk(ISelEnv *env, IRExpr *expr)
                                              dst, vec, am));
          return dst;
       }
+
+      /* NAND or NOR */
+      if ((env->hwcaps & VEX_HWCAPS_S390X_MI3) && is_IRExpr_Not(expr) &&
+          arg->tag == Iex_Binop) {
+         s390_alu3_t bitop;
+
+         switch (binop) {
+         case Iop_And8:
+         case Iop_And16:
+         case Iop_And32:
+         case Iop_And64:
+            bitop = S390_ALU3_NAND;
+            goto do_nand_nor;
+         case Iop_Or8:
+         case Iop_Or16:
+         case Iop_Or32:
+         case Iop_Or64:
+            bitop = S390_ALU3_NOR;
+         do_nand_nor: {
+            HReg h2;
+            dst = newVRegI(env);
+            h1  = s390_isel_int_expr(env, arg->Iex.Binop.arg1);
+            h2  = s390_isel_int_expr(env, arg->Iex.Binop.arg2);
+            addInstr(env,
+                     s390_insn_alu3(size <= 4 ? 4 : 8, bitop, dst, h1, h2));
+            return dst;
+         }
+         default:;
+         }
+      }
+
+      /* Regular processing */
 
       dst  = newVRegI(env);     /* Result goes into a new register */
       opnd = s390_isel_int_expr_RMI(env, arg);     /* Process the operand */
@@ -1974,10 +2004,16 @@ s390_isel_int_expr_wrk(ISelEnv *env, IRExpr *expr)
       case Iop_Not16:
       case Iop_Not32:
       case Iop_Not64:
-         /* XOR with ffff... */
-         mask.variant.imm = ~(ULong)0;
-         addInstr(env, s390_opnd_copy(size, dst, opnd));
-         insn = s390_insn_alu(size, S390_ALU_XOR, dst, mask);
+         if ((env->hwcaps & VEX_HWCAPS_S390X_MI3) &&
+             opnd.tag == S390_OPND_REG) {
+            insn = s390_insn_alu3(size <= 4 ? 4 : 8, S390_ALU3_NOR, dst,
+                                  opnd.variant.reg, opnd.variant.reg);
+         } else {
+            /* XOR with ffff... */
+            addInstr(env, s390_opnd_copy(size, dst, opnd));
+            mask.variant.imm = ~(ULong)0;
+            insn             = s390_insn_alu(size, S390_ALU_XOR, dst, mask);
+         }
          break;
 
       case Iop_Left8:

@@ -4210,6 +4210,30 @@ s390_emit_OCGRK(UChar *p, UChar r1, UChar r2, UChar r3)
    return emit_RRF6(p, 0xb9650000, r1, r2, r3);
 }
 
+static UChar *
+s390_emit_NNRK(UChar *p, UChar r1, UChar r2, UChar r3)
+{
+   return emit_RRF6(p, 0xb9740000, r1, r2, r3);
+}
+
+static UChar *
+s390_emit_NNGRK(UChar *p, UChar r1, UChar r2, UChar r3)
+{
+   return emit_RRF6(p, 0xb9640000, r1, r2, r3);
+}
+
+static UChar *
+s390_emit_NORK(UChar *p, UChar r1, UChar r2, UChar r3)
+{
+   return emit_RRF6(p, 0xb9760000, r1, r2, r3);
+}
+
+static UChar *
+s390_emit_NOGRK(UChar *p, UChar r1, UChar r2, UChar r3)
+{
+   return emit_RRF6(p, 0xb9660000, r1, r2, r3);
+}
+
 
 /* Provide a symbolic name for register "R0" */
 #define R0 0
@@ -6274,6 +6298,8 @@ s390_insn_as_string(const s390_insn *insn)
       switch (insn->variant.alu3.tag) {
       case S390_ALU3_ANDC: op = "v-andc"; break;
       case S390_ALU3_ORC:  op = "v-orc";  break;
+      case S390_ALU3_NAND: op = "v-nand"; break;
+      case S390_ALU3_NOR:  op = "v-nor";  break;
       default: goto fail;
       }
       s390_sprintf(buf, "%M %R,%R,%R", op, insn->variant.alu3.dst,
@@ -7658,6 +7684,12 @@ s390_insn_alu3_emit(UChar *buf, const s390_insn *insn)
    case S390_ALU3_ORC:
       return insn->size == 4 ? s390_emit_OCRK(buf, dst, op1, op2)
                              : s390_emit_OCGRK(buf, dst, op1, op2);
+   case S390_ALU3_NAND:
+      return insn->size == 4 ? s390_emit_NNRK(buf, dst, op1, op2)
+                             : s390_emit_NNGRK(buf, dst, op1, op2);
+   case S390_ALU3_NOR:
+      return insn->size == 4 ? s390_emit_NORK(buf, dst, op1, op2)
+                             : s390_emit_NOGRK(buf, dst, op1, op2);
    default:
       goto fail;
    }

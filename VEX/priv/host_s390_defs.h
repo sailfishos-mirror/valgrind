@@ -189,6 +189,8 @@ typedef enum {
 typedef enum {
    S390_ALU3_ANDC, /* and with complement */
    S390_ALU3_ORC,  /* or with complement */
+   S390_ALU3_NAND,
+   S390_ALU3_NOR,
 } s390_alu3_t;
 
 /* The kind of unary integer operations */
