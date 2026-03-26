@@ -279,6 +279,7 @@ ML_(notify_core_and_tool_of_mprotect) ( Addr a, SizeT len, Int prot )
                                  "ML_(notify_core_and_tool_of_mprotect)" );
 }
 
+#if defined(VGO_linux)
 void
 ML_(notify_core_and_tool_of_madv_guard) ( Addr a, SizeT len, Bool install )
 {
@@ -291,6 +292,7 @@ ML_(notify_core_and_tool_of_madv_guard) ( Addr a, SizeT len, Bool install )
       VG_(am_notify_madv_guard)(a, len, False);
    }
 }
+#endif
 
 #if HAVE_MREMAP
 /* Expand (or shrink) an existing mapping, potentially moving it at

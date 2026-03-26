@@ -298,9 +298,11 @@ static NSegment nsegments[VG_N_SEGMENTS];
 static Int      nsegments_used = 0;
 
 /* bookkeeping for madvise() guard pages, bug 514297 */
+#if defined(VGO_linux)
 static UInt     VG_N_GUARDS;
 static Addr     *guardpages;
 static Int      nguardpages_used = 0;
+#endif
 
 #define Addr_MIN ((Addr)0)
 #define Addr_MAX ((Addr)(-1ULL))
@@ -472,27 +474,32 @@ static void show_nsegment ( Int logLevel, Int segNo, const NSegment* seg )
 {
    HChar len_buf[20];
    show_len_concisely(len_buf, seg->start, seg->end);
+   const char *tail = "";
+
+#if defined(VGO_linux)
+   tail = seg->hasGuardPages ? " (G)" : " (g)";
+#endif
 
    switch (seg->kind) {
 
       case SkFree:
          VG_(debugLog)(
             logLevel, "aspacem",
-            "%3d: %s %010lx-%010lx %s (%s)\n",
+            "%3d: %s %010lx-%010lx %s%s\n",
             segNo, show_SegKind(seg->kind),
-            seg->start, seg->end, len_buf, seg->hasGuardPages ? "G" : "g"
+            seg->start, seg->end, len_buf, tail
          );
          break;
 
       case SkAnonC: case SkAnonV: case SkShmC:
          VG_(debugLog)(
             logLevel, "aspacem",
-            "%3d: %s %010lx-%010lx %s %c%c%c%c%c (%s)\n",
+            "%3d: %s %010lx-%010lx %s %c%c%c%c%c%s\n",
             segNo, show_SegKind(seg->kind),
             seg->start, seg->end, len_buf,
             seg->hasR ? 'r' : '-', seg->hasW ? 'w' : '-', 
             seg->hasX ? 'x' : '-', seg->hasT ? 'T' : '-',
-            seg->isCH ? 'H' : '-', seg->hasGuardPages ? "G" : "g"
+            seg->isCH ? 'H' : '-', tail
          );
          break;
 
@@ -500,7 +507,7 @@ static void show_nsegment ( Int logLevel, Int segNo, const NSegment* seg )
          VG_(debugLog)(
             logLevel, "aspacem",
             "%3d: %s %010lx-%010lx %s %c%c%c%c%c d=0x%03llx "
-            "i=%-7llu o=%-7lld (%d,%d) (%s)\n",
+            "i=%-7llu o=%-7lld (%d,%d)%s\n",
             segNo, show_SegKind(seg->kind),
             seg->start, seg->end, len_buf,
             seg->hasR ? 'r' : '-', seg->hasW ? 'w' : '-', 
@@ -508,21 +515,20 @@ static void show_nsegment ( Int logLevel, Int segNo, const NSegment* seg )
             seg->isCH ? 'H' : '-',
             seg->dev, seg->ino, seg->offset,
             ML_(am_segname_get_seqnr)(seg->fnIdx), seg->fnIdx,
-            seg->hasGuardPages ? "G" : "g"
+            tail
          );
          break;
 
       case SkResvn:
          VG_(debugLog)(
             logLevel, "aspacem",
-            "%3d: %s %010lx-%010lx %s %c%c%c%c%c %s (%s)\n",
+            "%3d: %s %010lx-%010lx %s %c%c%c%c%c %s%s\n",
             segNo, show_SegKind(seg->kind),
             seg->start, seg->end, len_buf,
             seg->hasR ? 'r' : '-', seg->hasW ? 'w' : '-', 
             seg->hasX ? 'x' : '-', seg->hasT ? 'T' : '-', 
             seg->isCH ? 'H' : '-',
-            show_ShrinkMode(seg->smode),
-            seg->hasGuardPages ? "G" : "g"
+            show_ShrinkMode(seg->smode), tail
          );
          break;
 
@@ -1074,6 +1080,10 @@ void ML_(am_do_sanity_check)( void )
 /*---                                                           ---*/
 /*-----------------------------------------------------------------*/
 
+/* This bug 514297 related section is linux specific.
+   Guard whole the section with defined(VGO_linux) */
+
+#if defined(VGO_linux)
 static void guard_page_install ( Addr addr ) {
    /* Note that this only installs guard pages into the
       guardpages array.  But it doesn't flag hasGuardPages
@@ -1105,6 +1115,7 @@ static void guard_page_install ( Addr addr ) {
    guardpages[lo] = addr_aligned;
    nguardpages_used++;
 }
+
 
 inline static void guard_pages_install ( Addr addr, SizeT len ) {
    Int iLo = find_nsegment_idx(addr);
@@ -1195,7 +1206,6 @@ static void show_guard_pages (void) {
    VG_(am_show_nsegments)(0, "aspacem");
 }
 
-#if defined(VGO_linux)
 static Bool is_guarded_sanity ( Addr addr )
 {
    static Int      VG_(cl_pagemap_fd) = -1;
@@ -1224,7 +1234,6 @@ static Bool is_guarded_sanity ( Addr addr )
    }
    return False;
 }
-#endif
 
 Bool VG_(is_guarded) ( Addr addr ) {
    Addr addr_aligned = addr & ~(VKI_PAGE_SIZE - 1);
@@ -1265,6 +1274,7 @@ Bool VG_(is_guarded_addr_len) ( Addr addr, SizeT len ) {
          return True;
    return False;
 }
+#endif
 
 /*-----------------------------------------------------------------*/
 /*---                                                           ---*/
@@ -1441,7 +1451,9 @@ Bool is_valid_for( UInt kinds, Addr start, SizeT len, UInt prot, Bool madv )
 {
    Int  i, iLo, iHi;
    Bool needR, needW, needX;
+#if defined(VGO_linux)
    Bool needGuardPageCheck = False;
+#endif
 
    if (len == 0)
       return True; /* somewhat dubious case */
@@ -2192,11 +2204,13 @@ Addr VG_(am_startup) ( Addr sp_at_startup )
       estimation of max madvise guard page count is Nthreads + 3 * DSOcnt.
       Madvise guard pages are tracked in the guardpages array below. The
       array size is set via --max-guard-pages or --max-threads: */
+#if defined(VGO_linux)
    VG_N_GUARDS =
       (VG_(clo_max_guard_pages) == MAX_GUARDS_DEFAULT)
          ? VG_(clo_max_threads)
          : VG_(clo_max_guard_pages);
    guardpages = VG_(calloc)("aspacem.guardpages", VG_N_GUARDS, sizeof(Addr));
+#endif
 
    AM_SANITY_CHECK;
    return suggested_clstack_end;
@@ -2664,6 +2678,7 @@ Bool VG_(am_notify_mprotect)( Addr start, SizeT len, UInt prot )
 }
 
 /* Notifiy aspacem about madvise(MADV_GUARD_INSTALL), bug 514297 */
+#if defined(VGO_linux)
 Bool VG_(am_notify_madv_guard)( Addr start, SizeT len, Bool install )
 {
    aspacem_assert(VG_IS_PAGE_ALIGNED(start));
@@ -2699,6 +2714,7 @@ Bool VG_(am_notify_madv_guard)( Addr start, SizeT len, Bool install )
    // otherwise.
    return install;
 }
+#endif
 
 /* Notifies aspacem that an munmap completed successfully.  The
    segment array is updated accordingly.  As with
@@ -2746,8 +2762,10 @@ Bool VG_(am_notify_munmap)( Addr start, SizeT len )
    add_segment( &seg );
 
    /* Unmapping drops guard pages (if present) */
+#if defined(VGO_linux)
    if(VG_(is_guarded_addr_len)( start, len ))
       guard_pages_remove( start, len );
+#endif
 
    /* Unmapping could create two adjacent free segments, so a preen is
       needed.  add_segment() will do that, so no need to here. */
