@@ -2588,6 +2588,20 @@ s390_emit_LY(UChar *p, UChar r1, UChar x2, UChar b2, UShort dl2, UChar dh2)
 
 
 static UChar *
+s390_emit_LA(UChar *p, UChar r1, UChar x2, UChar b2, UShort d2)
+{
+   return emit_RX(p, 0x41000000, r1, x2, b2, d2);
+}
+
+
+static UChar *
+s390_emit_LAY(UChar *p, UChar r1, UChar x2, UChar b2, UShort dl2, UChar dh2)
+{
+   return emit_RXY(p, 0xe30000000071ULL, r1, x2, b2, dl2, dh2);
+}
+
+
+static UChar *
 s390_emit_LG(UChar *p, UChar r1, UChar x2, UChar b2, UShort dl2, UChar dh2)
 {
    return emit_RXY(p, 0xe30000000004ULL, r1, x2, b2, dl2, dh2);
@@ -6353,6 +6367,10 @@ s390_insn_as_string(const s390_insn *insn)
          op = "v-signx";
          break;
 
+      case S390_LOAD_ADDRESS:
+         op = "v-laddr";
+         break;
+
       case S390_NEGATE:
          op = "v-neg";
          break;
@@ -8050,7 +8068,24 @@ s390_insn_unop_emit(UChar *buf, const s390_insn *insn)
    case S390_SIGN_EXTEND_16: return s390_widen_emit(buf, insn, 2, 1);
    case S390_SIGN_EXTEND_32: return s390_widen_emit(buf, insn, 4, 1);
 
-   case S390_NEGATE:         return s390_negate_emit(buf, insn);
+   case S390_LOAD_ADDRESS: {
+      vassert(insn->variant.unop.src.tag == S390_OPND_AMODE);
+      UChar       dst = hregNumber(insn->variant.unop.dst);
+      s390_amode* am  = insn->variant.unop.src.variant.am;
+      UChar       x   = hregNumber(am->x);
+      UChar       b   = hregNumber(am->b);
+      switch (am->tag) {
+      case S390_AMODE_B12:
+      case S390_AMODE_BX12:
+         return s390_emit_LA(buf, dst, x, b, am->d);
+      case S390_AMODE_B20:
+      case S390_AMODE_BX20:
+         return s390_emit_LAY(buf, dst, x, b, DISP20(am->d));
+      }
+      vpanic("s390_insn_unop_emit -- load address");
+   }
+   case S390_NEGATE:
+      return s390_negate_emit(buf, insn);
    case S390_POPCNT:         return s390_popcnt_emit(buf, insn);
    case S390_VEC_FILL: {
       vassert(insn->variant.unop.src.tag == S390_OPND_IMMEDIATE);

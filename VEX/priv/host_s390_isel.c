@@ -1713,6 +1713,22 @@ s390_isel_int_expr_wrk(ISelEnv *env, IRExpr *expr)
          }
       }
 
+      /* Is this a match for "load address"? */
+      if (expr->Iex.Binop.op == Iop_Add64) {
+         ULong disp = arg2->Iex.Const.con->Ico.U64;
+         if (arg2->tag == Iex_Const && ulong_fits_signed_20bit(disp)) {
+            h1 = s390_isel_int_expr(env, arg1);
+            opnd.tag = S390_OPND_AMODE;
+            if (ulong_fits_unsigned_12bit(disp)) {
+               opnd.variant.am = s390_amode_b12(disp, h1);
+            } else {
+               opnd.variant.am = s390_amode_b20((Int)disp, h1);
+            }
+            addInstr(env, s390_insn_unop(size, S390_LOAD_ADDRESS, res, opnd));
+            return res;
+         }
+      }
+
       h1   = s390_isel_int_expr(env, arg1);       /* Process 1st operand */
       op2  = s390_isel_int_expr_RMI(env, arg2);   /* Process 2nd operand */
 
