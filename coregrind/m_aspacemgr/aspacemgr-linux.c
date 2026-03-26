@@ -688,6 +688,9 @@ static Bool maybe_merge_nsegments ( NSegment* s1, const NSegment* s2 )
 
       case SkFree:
          s1->end = s2->end;
+#if defined(VGO_linux)
+         s1->hasGuardPages |= s2->hasGuardPages;
+#endif
          return True;
 
       case SkAnonC: case SkAnonV:
@@ -695,6 +698,9 @@ static Bool maybe_merge_nsegments ( NSegment* s1, const NSegment* s2 )
              && s1->hasX == s2->hasX && s1->isCH == s2->isCH) {
             s1->end = s2->end;
             s1->hasT |= s2->hasT;
+#if defined(VGO_linux)
+            s1->hasGuardPages |= s2->hasGuardPages;
+#endif
             return True;
          }
          break;
@@ -707,6 +713,9 @@ static Bool maybe_merge_nsegments ( NSegment* s1, const NSegment* s2 )
                               + ((ULong)s2->start) - ((ULong)s1->start) ) {
             s1->end = s2->end;
             s1->hasT |= s2->hasT;
+#if defined(VGO_linux)
+            s1->hasGuardPages |= s2->hasGuardPages;
+#endif
             ML_(am_dec_refcount)(s1->fnIdx);
             return True;
          }
@@ -718,6 +727,9 @@ static Bool maybe_merge_nsegments ( NSegment* s1, const NSegment* s2 )
       case SkResvn:
          if (s1->smode == SmFixed && s2->smode == SmFixed) {
             s1->end = s2->end;
+#if defined(VGO_linux)
+            s1->hasGuardPages |= s2->hasGuardPages;
+#endif
             return True;
          }
 
@@ -1274,6 +1286,39 @@ Bool VG_(is_guarded_addr_len) ( Addr addr, SizeT len ) {
          return True;
    return False;
 }
+
+/* Check if segment with given id has at least one guard page */
+Bool is_guarded_segment( Int seg ) {
+   /* Quickly find the beginning of interesting interval
+      of the guardpages array by bisecting it */
+   Int mid = 0,
+       lo = 0,
+       hi = nguardpages_used - 1;
+   while (True) {
+      if (lo > hi) {
+         break;
+      } else {
+         mid = (lo + hi) / 2;
+         if (nsegments[seg].start < guardpages[mid]) { hi = mid - 1; continue; }
+         if (nsegments[seg].start > guardpages[mid]) { lo = mid + 1; continue; }
+         if (nsegments[seg].start == guardpages[mid]) {
+            /* Lucky enough to step on the guard page early */
+            return True;
+         }
+      }
+   }
+   if (lo >= nguardpages_used) {
+      /* Out of range, no guard page for this segment for sure */
+      return False;
+   }
+   /* Scan the interesting interval of guardpages array one by one */
+   for (Int i = lo; i<= nguardpages_used; i++) {
+      if (guardpages[i] > nsegments[seg].end)
+         return False;
+      return True;
+   }
+   return False;
+}
 #endif
 
 /*-----------------------------------------------------------------*/
@@ -1648,6 +1693,11 @@ static void split_nsegment_at ( Addr a )
          += ((ULong)nsegments[i+1].start) - ((ULong)nsegments[i].start);
 
    ML_(am_inc_refcount)(nsegments[i].fnIdx);
+
+#if defined(VGO_linux)
+   nsegments[i].hasGuardPages = is_guarded_segment(i);
+   nsegments[i+1].hasGuardPages = is_guarded_segment(i+1);
+#endif
 
    aspacem_assert(sane_NSegment(&nsegments[i]));
    aspacem_assert(sane_NSegment(&nsegments[i+1]));
