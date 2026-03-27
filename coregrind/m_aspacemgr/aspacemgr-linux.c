@@ -1343,6 +1343,11 @@ Bool is_guarded_interval ( Addr aStart, Addr aEnd ) {
    }
    return False;
 }
+#else
+/* Provide stub VG_(is_guarded)() for non-linux targets */
+Bool VG_(is_guarded) ( Addr addr ) {
+   return False;
+}
 #endif
 
 /*-----------------------------------------------------------------*/
