@@ -1567,6 +1567,25 @@ AC_MSG_RESULT([no])
 
 AM_CONDITIONAL([HAVE_AT_FDCWD], [test x$ac_have_at_fdcwd = xyes])
 
+
+# Check for MADV_GUARD_INSTALL
+
+AC_MSG_CHECKING([for MADV_GUARD_INSTALL])
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+#include <sys/mman.h>
+]], [[
+  int a = MADV_GUARD_INSTALL;
+]])], [
+ac_have_madv_guard_install=yes
+AC_MSG_RESULT([yes])
+], [
+ac_have_madv_guard_install=no
+AC_MSG_RESULT([no])
+])
+
+AM_CONDITIONAL([HAVE_MADV_GUARD_INSTALL], [test x$ac_have_madv_guard_install = xyes])
+
+
 # Check for stpncpy function definition in string.h
 # This explicitly checks with _GNU_SOURCE defined since that is also
 # used in the test case (some systems might define it without anyway

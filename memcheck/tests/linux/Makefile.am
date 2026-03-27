@@ -61,7 +61,6 @@ check_PROGRAMS = \
 	getregset \
 	lsframe1 \
 	lsframe2 \
-	madv_guard \
 	rfcomm \
 	sigqueue \
 	stack_switch \
@@ -116,6 +115,10 @@ if HAVE_LIBAIO
 if HAVE_NR_IO_PGETEVENTS
         check_PROGRAMS += bug420682_2
 endif
+endif
+
+if HAVE_MADV_GUARD_INSTALL
+        check_PROGRAMS += madv_guard
 endif
 
 AM_CFLAGS   += $(AM_FLAG_M3264_PRI)
