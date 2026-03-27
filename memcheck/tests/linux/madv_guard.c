@@ -12,6 +12,7 @@ size_t ps = 0; // page size
 
 void check_addr(char *p)
 {
+#if defined(MADV_GUARD_INSTALL) && defined(MADV_GUARD_REMOVE)
     // check page aligned-ness
     if ((uintptr_t)p % ps != 0)
         perror("page not aligned!\n");
@@ -85,5 +86,6 @@ int main()
     check_addr(p);
 
     close(fd);
+#endif
     return 0;
 }
