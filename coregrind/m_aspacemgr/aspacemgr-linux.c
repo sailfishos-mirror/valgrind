@@ -1095,6 +1095,9 @@ void ML_(am_do_sanity_check)( void )
 /* This bug 514297 related section is linux specific.
    Guard whole the section with defined(VGO_linux) */
 
+Bool is_guarded_segment( Int );
+Bool is_guarded_interval( Addr, Addr );
+
 #if defined(VGO_linux)
 static void guard_page_install ( Addr addr ) {
    /* Note that this only installs guard pages into the
@@ -1289,6 +1292,15 @@ Bool VG_(is_guarded_addr_len) ( Addr addr, SizeT len ) {
 
 /* Check if segment with given id has at least one guard page */
 Bool is_guarded_segment( Int seg ) {
+   return is_guarded_interval (nsegments[seg].start,
+                               nsegments[seg].end);
+}
+
+/* Check if there is a guard page in the guardpages array
+   evidence in given interval of addresses */
+Bool is_guarded_interval ( Addr aStart, Addr aEnd ) {
+   if (nguardpages_used < 1)
+      return False;
    /* Quickly find the beginning of interesting interval
       of the guardpages array by bisecting it */
    Int mid = 0,
@@ -1299,9 +1311,9 @@ Bool is_guarded_segment( Int seg ) {
          break;
       } else {
          mid = (lo + hi) / 2;
-         if (nsegments[seg].start < guardpages[mid]) { hi = mid - 1; continue; }
-         if (nsegments[seg].start > guardpages[mid]) { lo = mid + 1; continue; }
-         if (nsegments[seg].start == guardpages[mid]) {
+         if (aStart < guardpages[mid]) { hi = mid - 1; continue; }
+         if (aStart > guardpages[mid]) { lo = mid + 1; continue; }
+         if (aStart == guardpages[mid]) {
             /* Lucky enough to step on the guard page early */
             return True;
          }
@@ -1313,7 +1325,7 @@ Bool is_guarded_segment( Int seg ) {
    }
    /* Scan the interesting interval of guardpages array one by one */
    for (Int i = lo; i<= nguardpages_used; i++) {
-      if (guardpages[i] > nsegments[seg].end)
+      if (guardpages[i] > aEnd)
          return False;
       return True;
    }
