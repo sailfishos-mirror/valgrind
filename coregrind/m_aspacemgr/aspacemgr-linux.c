@@ -1168,10 +1168,8 @@ static void guard_page_remove ( Addr addr ) {
        lo = 0,
        hi = nguardpages_used - 1;
    while (True) {
-      if (lo > hi) {
-         VG_(message)(Vg_UserMsg,
-                      "Removal failed, expected address not found\n");
-         return;
+         // Removal failed, expected address not found
+         aspacem_assert(lo <= hi);
       } else {
          mid = (lo + hi) / 2;
          if (addr_aligned < guardpages[mid]) { hi = mid - 1; continue; }
