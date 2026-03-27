@@ -1106,9 +1106,9 @@ static void guard_page_install ( Addr addr ) {
       That's handled in guard_pages_install() below. */
    Addr addr_aligned = addr & ~(VKI_PAGE_SIZE - 1);
    if (nguardpages_used >= VG_N_GUARDS) {
-      VG_(debugLog)(0,"aspacem",
-                    "ERROR: nguardpages_used limit reached\n");
-      return;
+      VG_(printf)("Use --max-guard-pages=INT to specify a larger number of\n"
+                  "guard pages and rerun valgrind\n");
+      VG_(core_panic)("Max number of guard pages is too low");
    }
    // bisect
    Int mid = 0,
@@ -1121,7 +1121,11 @@ static void guard_page_install ( Addr addr ) {
          mid = (lo + hi) / 2;
          if (addr_aligned < guardpages[mid]) { hi = mid - 1; continue; }
          if (addr_aligned > guardpages[mid]) { lo = mid + 1; continue; }
-         if (addr_aligned == guardpages[mid]) return; // already there
+         if (addr_aligned == guardpages[mid]) {
+            VG_(debugLog)(0,"aspacem",
+                          "ERROR: Attempt to reinstall already existing guard page\n");
+            return;
+         }
       }
    }
    // merge in
