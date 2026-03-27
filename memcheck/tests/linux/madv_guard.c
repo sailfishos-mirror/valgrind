@@ -7,6 +7,7 @@
 #include <string.h>
 #include <errno.h>
 
+#if defined(MADV_GUARD_INSTALL) && defined(MADV_GUARD_REMOVE)
 int fd = -1; // for /proc/self/pagemap
 size_t ps = 0; // page size
 
@@ -57,9 +58,8 @@ void remove_guardpage(char *p)
         perror("madvise failed\n");
 }
 
-int main()
+int main(void)
 {
-#if defined(MADV_GUARD_INSTALL) && defined(MADV_GUARD_REMOVE)
     fd = open("/proc/self/pagemap", O_RDONLY);
     if (fd < 0)
         perror("open /proc/self/pagemap failed\n");
@@ -86,6 +86,10 @@ int main()
     check_addr(p);
 
     close(fd);
-#endif
     return 0;
 }
+#else
+int main(void) {
+   return 0;
+}
+#endif
