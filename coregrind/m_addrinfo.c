@@ -230,6 +230,7 @@ void VG_(describe_addr) ( DiEpoch ep, Addr a, /*OUT*/AddrInfo* ai )
             will have been described as StackPos_stacked above. */
          const NSegment *seg = VG_(am_find_nsegment) (a);
 #if defined(VGO_linux)
+         /* On linux we might be hitting madvise guard pages, bug 514297 */
          if (seg->hasGuardPages && VG_(is_guarded)(a) ) {
             stackPos = StackPos_guard_page;
          } else
