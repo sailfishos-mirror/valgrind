@@ -1168,14 +1168,12 @@ static void guard_page_remove ( Addr addr ) {
        lo = 0,
        hi = nguardpages_used - 1;
    while (True) {
-         // Removal failed, expected address not found
-         aspacem_assert(lo <= hi);
-      } else {
-         mid = (lo + hi) / 2;
-         if (addr_aligned < guardpages[mid]) { hi = mid - 1; continue; }
-         if (addr_aligned > guardpages[mid]) { lo = mid + 1; continue; }
-         if (addr_aligned == guardpages[mid]) break;
-      }
+      // Removal failed, expected address not found
+      aspacem_assert(lo <= hi);
+      mid = (lo + hi) / 2;
+      if (addr_aligned < guardpages[mid]) { hi = mid - 1; continue; }
+      if (addr_aligned > guardpages[mid]) { lo = mid + 1; continue; }
+      if (addr_aligned == guardpages[mid]) break;
    }
    // remove
    for(Int i=mid; i<nguardpages_used; i++)
