@@ -1188,7 +1188,7 @@ static void guard_page_remove ( Addr addr ) {
 inline static void guard_pages_remove ( Addr addr, SizeT len ) {
    Int iLo = find_nsegment_idx(addr);
    Int iHi = find_nsegment_idx(addr + len - 1);
-   Bool guardPageSeen __attribute__((unused));
+   Bool guardPageSeen;
 
    // Reflect the guard pages removal in the guardpages array
    Int pages = (len - 1) / VKI_PAGE_SIZE + 1;
