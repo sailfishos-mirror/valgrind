@@ -1157,7 +1157,7 @@ inline static void guard_pages_install ( Addr addr, SizeT len ) {
       nsegments[i].hasGuardPages = True;
 }
 
-static void guard_page_remove ( Addr addr ) {
+static void guard_page_remove ( Addr addr, Bool check ) {
    /* Note that this only removes guard pages from the
       guardpages array.  But it doesn't unflag hasGuardPages
       for segments not having any guard pages any more.
@@ -1168,7 +1168,15 @@ static void guard_page_remove ( Addr addr ) {
        lo = 0,
        hi = nguardpages_used - 1;
    while (True) {
-      // Removal failed, expected address not found
+      if ((lo > hi) && (check == False)) {
+         // Here we just return.  The address wasn't found, and
+         // thus can't be removed from the evidence.  This may
+         // happen when munmap() is called.  Unmapping memory
+         // removes also guard pages.  In this case we remove
+         // guard page from V's evidence if there is one, but
+         // if there is none, we don't complain and go ahead.
+         return;
+      }
       aspacem_assert(lo <= hi);
       mid = (lo + hi) / 2;
       if (addr_aligned < guardpages[mid]) { hi = mid - 1; continue; }
@@ -1181,7 +1189,7 @@ static void guard_page_remove ( Addr addr ) {
    nguardpages_used--;
 }
 
-inline static void guard_pages_remove ( Addr addr, SizeT len ) {
+inline static void guard_pages_remove ( Addr addr, SizeT len, Bool check ) {
    Int iLo = find_nsegment_idx(addr);
    Int iHi = find_nsegment_idx(addr + len - 1);
    Bool guardPageSeen;
@@ -1189,8 +1197,7 @@ inline static void guard_pages_remove ( Addr addr, SizeT len ) {
    // Reflect the guard pages removal in the guardpages array
    Int pages = (len - 1) / VKI_PAGE_SIZE + 1;
    for (Int i=0; i < pages; i++)
-      if (VG_(is_guarded)(addr + i * VKI_PAGE_SIZE))
-         guard_page_remove (addr + i * VKI_PAGE_SIZE);
+      guard_page_remove (addr + i * VKI_PAGE_SIZE, check);
 
    // These 5 should be guaranteed by find_nsegment_idx.
    aspacem_assert(0 <= iLo && iLo < nsegments_used);
@@ -1221,33 +1228,52 @@ static void show_guard_pages (void) {
    VG_(am_show_nsegments)(0, "aspacem");
 }
 
-static Bool is_guarded_sanity ( Addr addr )
+static void is_guarded_sanity ( Addr addr, Bool expected )
 {
-   static Int      VG_(cl_pagemap_fd) = -1;
-   if (LIKELY(VG_(cl_pagemap_fd) != -1)) {
-      // do nothing
-   } else {
+   static Int VG_(cl_pagemap_fd) = -1;
+   static Bool pagemap_io_err = False;
+   // Don't repeatedly complain about io /proc/self/pagemap IO errors
+   if (pagemap_io_err == True)
+      return;
+   if (VG_(cl_pagemap_fd) == -1) {
       VG_(cl_pagemap_fd) = sr_Res(ML_(am_open)("/proc/self/pagemap", VKI_O_RDONLY, 0 ));
-         if(VG_(cl_pagemap_fd) == -1)
-            ML_(am_barf)("I/O error on /proc/self/pagemap");
+         if(VG_(cl_pagemap_fd) == -1) {
+            VG_(debugLog)(0, "aspacem", "I/O error on /proc/self/pagemap");
+         }
       VG_(cl_pagemap_fd) = VG_(safe_fd)(VG_(cl_pagemap_fd));
    }
    Addr addr_page_aligned = addr & ~(VKI_PAGE_SIZE - 1);
    vki_off_t offset = ((vki_uint64_t)addr_page_aligned / VKI_PAGE_SIZE) * sizeof(vki_uint64_t);
    Int ret = ML_(am_lseek) (VG_(cl_pagemap_fd), offset, VKI_SEEK_SET);
-   if (ret == -1)
-      ML_(am_barf)("failed lseek in pagemap\n");
+   if (ret == -1) {
+      VG_(debugLog)(0, "aspacem", "failed lseek in pagemap\n");
+      pagemap_io_err = True;
+   }
    // https://docs.kernel.org/admin-guide/mm/pagemap.html
    vki_uint64_t entry; // one 64-bit value for each virtual page
    ret = ML_(am_read) (VG_(cl_pagemap_fd), &entry, sizeof(vki_uint64_t));
-   if (ret == -1)
-      ML_(am_barf)("failed reading pagemap\n");
+   if (ret == -1) {
+      VG_(debugLog)(0, "aspacem", "failed reading pagemap\n");
+      pagemap_io_err = True;
+   }
    if (((entry >> 58) & 1) == 1) {
       VG_(debugLog)(1, "aspacem",
-                    "madvise guard page hit at addr 0x%010lx\n", addr);
-      return True;
+                    "madvise guard page hit at addr 0x%lx\n", addr);
+      if (expected == True) {
+         return;
+      } else {
+         VG_(debugLog)(0, "Valgrind:",
+                          "FATAL: failed guard page sanity check\n");
+         ML_(am_exit)(1);
+      }
    }
-   return False;
+   if (expected == False) {
+      return;
+   } else {
+      VG_(debugLog)(0, "Valgrind:",
+                       "FATAL: failed guard page sanity check\n");
+      ML_(am_exit)(1);
+   }
 }
 
 Bool VG_(is_guarded) ( Addr addr ) {
@@ -1260,10 +1286,7 @@ Bool VG_(is_guarded) ( Addr addr ) {
          if (LIKELY(VG_(clo_sanity_level) < 3)) {
             /* do nothing */
          } else {
-            if (is_guarded_sanity ( addr ) == True)
-               VG_(debugLog)(1, "aspacem",
-                             "VG_(is_guarded)() failed (not guarded 0x%lx)\n",
-                             addr);
+            is_guarded_sanity ( addr, False );
          }
          return False;
       }
@@ -1273,21 +1296,10 @@ Bool VG_(is_guarded) ( Addr addr ) {
       if (LIKELY(VG_(clo_sanity_level) < 3)) {
          /* do nothing */
       } else {
-         if (is_guarded_sanity ( addr ) == False)
-            VG_(debugLog)(1, "aspacem",
-                          "VG_(is_guarded)() failed (guarded 0x%lx)\n",
-                          addr);
+         is_guarded_sanity ( addr, True );
       }
       return True;
    }
-}
-
-Bool VG_(is_guarded_addr_len) ( Addr addr, SizeT len ) {
-   Int pages = (len - 1) / VKI_PAGE_SIZE + 1;
-   for (Int i=0; i < pages; i++)
-      if(VG_(is_guarded)(addr + i * VKI_PAGE_SIZE))
-         return True;
-   return False;
 }
 
 /* Check if segment with given id has at least one guard page */
@@ -2758,7 +2770,7 @@ Bool VG_(am_notify_madv_guard)( Addr start, SizeT len, Bool install )
       VG_(debugLog)(1, "aspacem",
                     "removing guard pages (addr=0x%lx, len=0x%lx)\n",
                     start, len);
-      guard_pages_remove(start, len);
+      guard_pages_remove(start, len, True);
    }
 
    if (VG_(clo_sanity_level) >= 3)
@@ -2825,8 +2837,7 @@ Bool VG_(am_notify_munmap)( Addr start, SizeT len )
 
    /* Unmapping drops guard pages (if present) */
 #if defined(VGO_linux)
-   if(VG_(is_guarded_addr_len)( start, len ))
-      guard_pages_remove( start, len );
+      guard_pages_remove( start, len, False );
 #endif
 
    /* Unmapping could create two adjacent free segments, so a preen is
@@ -4101,11 +4112,7 @@ static void parse_procselfmaps (
    for (i = 0; i<nguardpages_used; i++) {
       // Check if every guard page in V's evidence has respective
       // record in kernel's evidence.
-      if (!is_guarded_sanity(guardpages[i])) {
-         VG_(debugLog)(0, "Valgrind:",
-                          "FATAL: failed guard page sanity check at address 0x%lx.\n", guardpages[i]);
-         ML_(am_exit)(1);
-      }
+      is_guarded_sanity(guardpages[i], True);
       // Make sure that every guard page belongs to a segment
       // flagged with hasGuardPages.
       if(nsegments[find_nsegment_idx(guardpages[i])].hasGuardPages == False) {
