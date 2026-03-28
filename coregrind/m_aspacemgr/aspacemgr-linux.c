@@ -1847,6 +1847,9 @@ static void init_nsegment ( /*OUT*/NSegment* seg )
    seg->isFF     = False;
    seg->ignore_offset = False;
 #endif
+#if defined(VGO_linux)
+   seg->hasGuardPages = False;
+#endif
 
 }
 
@@ -4113,6 +4116,7 @@ static void parse_procselfmaps (
    if (record_gap && gapStart < Addr_MAX)
       (*record_gap) ( gapStart, Addr_MAX - gapStart + 1 );
 
+#if defined(VGO_linux)
    // Iterate over guard pages
    for (i = 0; i<nguardpages_used; i++) {
       // Check if every guard page in V's evidence has respective
@@ -4129,20 +4133,14 @@ static void parse_procselfmaps (
    // Iterate over segments.  For each segment flagged with hasGuardPages
    // make sure that it actually contains at least one guard page.
    for (i = 0; i < nsegments_used; i++) {
-      if (nsegments[i].hasGuardPages == True) {
-         Bool guardPageSeen = False;
-         for (Addr a = nsegments[i].start; a < nsegments[i].end; a += VKI_PAGE_SIZE) {
-            if (VG_(is_guarded)(a) == True)
-               guardPageSeen = True;
-         }
-         if (guardPageSeen == False) {
+      if (is_guarded_segment(i) != nsegments[i].hasGuardPages) {
+            show_guard_pages();
             VG_(debugLog)(0, "Valgrind:",
-                          "FATAL: no guard page found for segment %d\n", i);
+                          "FATAL: segment %d: inconsistent guard page evidence\n", i);
             ML_(am_exit)(1);
          }
-      }
    }
-
+#endif
 }
 
 /*------END-procmaps-parser-for-Linux----------------------------*/
