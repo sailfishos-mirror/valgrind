@@ -784,6 +784,16 @@
    fun:_mh_execute_header
 }
 
+{
+   macOS1015:_objc_atfork_parent
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   fun:class_setWeakIvarLayout
+   fun:class_setWeakIvarLayout
+   fun:_objc_atfork_parent
+}
+
 # FIXME PJF all these Addr* issues looks like problems with memory mapping
 
 {

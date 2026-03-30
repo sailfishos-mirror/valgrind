@@ -218,6 +218,30 @@
 }
 
 {
+   macOS1015:__csrctl
+   Helgrind:Race
+   fun:__csrctl
+}
+
+{
+   macOS1015:search_method_list(method_list_t const*, objc_selector*)
+   Helgrind:Race
+   fun:_ZL18search_method_listPK13method_list_tP13objc_selector
+}
+
+{
+   macOS1015:cerror
+   Helgrind:Race
+   fun:cerror
+}
+
+{
+   macOS1015:getPreoptimizedClass
+   Helgrind:Race
+   fun:getPreoptimizedClass
+}
+
+{
    maxOS1100:dlopen_internal
    Helgrind:Race
    ...
