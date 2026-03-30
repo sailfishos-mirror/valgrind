@@ -1186,6 +1186,7 @@ are not entered into bugzilla tend to get forgotten about or ignored.
 506453  Unexpected behaviour with IR injection and vex-guest-chase=yes
 509157  riscv64: Shift instructions can behave wrong
 510840  Use objdump for disassembly in VEX (s390x only)
+517596  VEX/priv/guest_ppc_toIR.c: Two possible cut'n'paste errors
 
 To see details of a given bug, visit
   https://bugs.kde.org/show_bug.cgi?id=XXXXXX
