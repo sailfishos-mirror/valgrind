@@ -4758,32 +4758,33 @@ static char* maybe_merge_procmap_stack(char* p,  struct vki_kinfo_vmentry *kve, 
 {
    static Bool sgrowsiz_read = False;
    static SizeT kern_sgrowsiz;
+   static SizeT kern_maxssiz;
    if (!sgrowsiz_read) {
       SizeT sysctl_size = sizeof(SizeT);
-      VG_(sysctlbyname)("kern.sgrowsiz", &kern_sgrowsiz, &sysctl_size, NULL, 0);
+      Int res = VG_(sysctlbyname)("kern.sgrowsiz", &kern_sgrowsiz, &sysctl_size, NULL, 0);
+      vg_assert(res == 0);
+#if defined(VGP_amd64_freebsd) || defined(VGP_arm64_freebsd)
+      res = VG_(sysctlbyname)("kern.maxssiz", &kern_maxssiz, &sysctl_size, NULL, 0);
+      vg_assert(0 == res);
+#elif defined (VGP_x86_freebsd)
+      // first check for x86 on amd64
+      res = VG_(sysctlbyname)("compat.ia32.maxssiz", &kern_maxssiz, &sysctl_size, NULL, 0);
+      if (0 != res) {
+         // then x86 on x86
+         res = VG_(sysctlbyname)("kern.maxssiz", &kern_maxssiz, &sysctl_size, NULL, 0);
+      }
+      vg_assert(0 == res);
+#else
+#error "unknown FreeBSD platform"
+#endif
       sgrowsiz_read = True;
    }
    char* p_next = p + kve->kve_structsize;
    struct vki_kinfo_vmentry *kve_next = (struct vki_kinfo_vmentry *)(p_next);
 
-#if defined(VGP_amd64_freebsd)
-   // I think that this is the stacksize rlimit
-   // I could use sysctl kern.maxssiz for this
-   if ( *pEndPlusOne + kern_sgrowsiz - kve->kve_start == 512ULL*1024ULL*1024ULL) {
+   if ( *pEndPlusOne + kern_sgrowsiz - kve->kve_start == kern_maxssiz) {
       return p;
    }
-#elif defined(VGP_x86_freebsd)
-   // sysctl kern.maxssiz OK for x86 on x86 but not x86 on amd64
-   if ( *pEndPlusOne + kern_sgrowsiz - kve->kve_start == 64ULL*1024ULL*1024ULL) {
-      return p;
-   }
-#elif defined(VGP_arm64_freebsd)
-   if ( *pEndPlusOne + kern_sgrowsiz - kve->kve_start == 1024ULL*1024ULL*1024ULL) {
-      return p;
-   }
-#else
-#    error Unknown platform
-#endif
 
    while (kve_next->kve_protection & VKI_KVME_PROT_READ &&
           kve_next->kve_protection & VKI_KVME_PROT_WRITE &&
