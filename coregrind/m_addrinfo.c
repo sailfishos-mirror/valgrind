@@ -228,8 +228,8 @@ void VG_(describe_addr) ( DiEpoch ep, Addr a, /*OUT*/AddrInfo* ai )
       if (tid != VG_INVALID_THREADID) {
          /* Should be below stack pointer, as if it is >= SP, it
             will have been described as StackPos_stacked above. */
-         const NSegment *seg = VG_(am_find_nsegment) (a);
 #if defined(VGO_linux)
+         const NSegment *seg = VG_(am_find_nsegment) (a);
          /* On linux we might be hitting madvise guard pages, bug 514297 */
          if (seg->hasGuardPages && VG_(is_guarded)(a) ) {
             stackPos = StackPos_guard_page;

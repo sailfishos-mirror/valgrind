@@ -254,8 +254,10 @@ static void usage_NORETURN ( int need_help )
 "              attempt to avoid expensive address-space-resync operations\n"
 "    --max-threads=<number>     maximum number of threads that valgrind can\n"
 "                               handle [%d]\n"
+#if defined(VGO_linux)
 "    --max-guard-pages=<number> maximum number of madvise guard pages that\n"
 "                               valgrind can handle [%d]\n"
+#endif
 "\n";
 
    const HChar usage2[] =
@@ -381,8 +383,10 @@ static void usage_NORETURN ( int need_help )
                   VG_(clo_vgdb_poll)         /* int */,
                   VG_(vgdb_prefix_default)() /* char* */,
                   N_SECTORS_DEFAULT          /* int */,
-                  MAX_THREADS_DEFAULT        /* int */,
-                  MAX_GUARDS_DEFAULT         /* int */
+                  MAX_THREADS_DEFAULT        /* int */
+#if defined(VGO_linux)
+                , MAX_GUARDS_DEFAULT         /* int */
+#endif
                );
    if (need_help > 1 && VG_(details).name) {
       VG_(printf)("  user options for %s:\n", VG_(details).name);
@@ -516,14 +520,18 @@ static void process_option (Clo_Mode mode,
 
    // Set up VG_(clo_max_threads); needed for VG_(tl_pre_clo_init)
    else if VG_INT_CLOM(cloE, arg, "--max-threads", VG_(clo_max_threads)) {
+#if defined(VGO_linux)
       // VG_(clo_max_guard_pages) defaults to VG_(clo_max_threads)
       // unless explititly set otherwise - below.  With glibc upstream
       // commit a6fbe36b7f31 and others, a guard page is installed for
       // each new thread.
       VG_(clo_max_guard_pages) = VG_(clo_max_threads);
+#endif
    }
+#if defined(VGO_linux)
    // Set up VG_(clo_max_guard_pages); needed for aspacemgr init
    else if VG_INT_CLOM(cloE, arg, "--max-guard-pages", VG_(clo_max_guard_pages)) {}
+#endif
 
    // Set up VG_(clo_sim_hints). This is needed a.o. for an inner
    // running in an outer, to have "no-inner-prefix" enabled
@@ -1367,13 +1375,17 @@ Int valgrind_main ( Int argc, HChar **argv, HChar **envp )
             VG_(fmsg_bad_option)(argv[i], "%s\n", errmsg);
       }
       if VG_INT_CLOM(cloE, argv[i], "--max-threads", VG_(clo_max_threads)) {
+#if defined(VGO_linux)
          // VG_(clo_max_guard_pages) defaults to VG_(clo_max_threads)
          // unless explititly set otherwise - below.  With glibc upstream
          // commit a6fbe36b7f31 and others, a guard page is installed for
          // each new thread.
          VG_(clo_max_guard_pages) = VG_(clo_max_threads);
+#endif
       }
+#if defined(VGO_linux)
       if VG_INT_CLOM(cloE, argv[i], "--max-guard-pages", VG_(clo_max_guard_pages)) {}
+#endif
    }
 
    /* ... and start the debug logger.  Now we can safely emit logging

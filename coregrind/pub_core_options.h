@@ -327,8 +327,10 @@ extern Word VG_(clo_main_stacksize);
 extern UInt VG_(clo_max_threads);
 
 /* The maximum number of madvise guard pages we support. */
+#if defined(VGO_linux)
 #define MAX_GUARDS_DEFAULT 500
 extern UInt VG_(clo_max_guard_pages);
+#endif
 
 /* If the same IP is found twice in a backtrace in a sequence of max
    VG_(clo_merge_recursive_frames) frames, then the recursive call
