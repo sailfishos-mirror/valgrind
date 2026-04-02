@@ -2939,18 +2939,18 @@ AC_DEFUN([AC_GXX_WARNING_SUBST_NO],[
   AC_MSG_CHECKING([if g++ accepts -W$1])
   safe_CXXFLAGS=$CXXFLAGS
   CXXFLAGS="-W$1 -Werror"
-  AC_LANG_PUSH(C++)
   AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]], [[;]])], [
                     AC_SUBST([$2], [-Wno-$1])
-  AC_LANG_POP()
   AC_MSG_RESULT([yes])], [
                 AC_SUBST([$2], [])
                 AC_MSG_RESULT([no])])
   CXXFLAGS=$safe_CXXFLAGS
 ])
 
+AC_LANG_PUSH(C++)
 AC_GXX_WARNING_SUBST_NO([missing-exception-spec], [FLAG_W_NO_MISSING_EXCEPTION_SPEC])
 AC_GXX_WARNING_SUBST_NO([implicit-exception-spec-mismatch], [FLAG_W_NO_IMPLICIT_EXCEPTION_SPEC_MISMATCH])
+AC_LANG_POP()
 
 # Does this compiler support -Wformat-security ?
 # Special handling is needed, because certain GCC versions require -Wformat
