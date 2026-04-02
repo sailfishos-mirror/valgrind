@@ -1862,10 +1862,8 @@ static void complainIfUndefined ( MCEnv* mce, IRAtom* atom, IRExpr *guard )
    /* If the complaint is to be issued under a guard condition, AND
       that into the guard condition for the helper call. */
    if (guard) {
-      IRAtom *g1 = assignNew('V', mce, Ity_I32, unop(Iop_1Uto32, di->guard));
-      IRAtom *g2 = assignNew('V', mce, Ity_I32, unop(Iop_1Uto32, guard));
-      IRAtom *e  = assignNew('V', mce, Ity_I32, binop(Iop_And32, g1, g2));
-      di->guard  = assignNew('V', mce, Ity_I1,  unop(Iop_32to1, e));
+      di->guard =
+         assignNew('V', mce, Ity_I1, binop(Iop_And1, di->guard, guard));
    }
 
    setHelperAnns( mce, di );
