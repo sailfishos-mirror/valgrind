@@ -4811,8 +4811,6 @@ static char* maybe_merge_procmap_stack(char* p,  struct vki_kinfo_vmentry *kve, 
 
 
 /*
- * PJF 2023-09-23
- *
  * This function is somewhat badly named for FreeBSD, where the
  * /proc filesystem is optional so we can't count on users
  * having it. Instead we use the KERN_PROC_VMMAP syscall.
@@ -4847,9 +4845,32 @@ static char* maybe_merge_procmap_stack(char* p,  struct vki_kinfo_vmentry *kve, 
  * Instead of mmap'ing the RW PT_LOAD the kernel has mmap'd anonymous swap and copied from the exe file.
  * See https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=273956
  *
- * So what can we do? We can reuse most of the info from the previous 'r-x' mapping.
- * The filename, dev and ino are all the same. That leaves the offset. We can
- * make a rough estimate of the value as being previous offset + previous size.
+ * If Valgrind is built with GNU bfd.ld (which could be with clang or GCC) then we have
+ *
+ * objdump -p .in_place/memcheck-amd64-freebsd
+ *    LOAD off    0x0000000000000000 vaddr 0x0000000038000000 paddr 0x0000000038000000 align 2**12
+ *         filesz 0x0000000000297b40 memsz 0x0000000000297b40 flags r-x
+ *    LOAD off    0x0000000000298000 vaddr 0x0000000038298000 paddr 0x0000000038298000 align 2**12
+ *         filesz 0x0000000000000a38 memsz 0x00000000025dcfb8 flags rw-
+ *
+ * and the procstat -v output
+ * 57440         0x38000000         0x38298000 r-x  664 2776   1   0 CN--- vn /home/paulf/valgrind/memcheck/memcheck-amd64-freebsd
+ * 57440         0x38298000         0x3a875000 rw- 4512 4512   1   0 ----- sw
+ *
+ * Is that complicated enough? No.
+ *
+ * The final RW PT_LOAD for the host can be split (at least when building
+ * with the LLVM toolchain).
+ *
+ * 40751         0x38000000         0x380cc000 r--  204 2722   3   1 CN--- vn /home/paulf/scratch/valgrind/memcheck/memcheck-amd64-freebsd
+ * 40751         0x380cc000         0x38294000 r-x  456 2722   3   1 CN--- vn /home/paulf/scratch/valgrind/memcheck/memcheck-amd64-freebsd
+ * 40751         0x38294000         0x38295000 rw-    1    0   1   0 C---- vn /home/paulf/scratch/valgrind/memcheck/memcheck-amd64-freebsd
+ * 40751         0x38295000         0x3a872000 rw- 4587 4587   1   0 --S-- sw
+ *
+ * So what can we do? We can reuse most of the info from the previous 'r-x'
+ * or 'rw-' mapping. The filename, dev and ino are all the same. That leaves
+ * the offset. We can make a rough estimate of the value as being
+ * previous offset + previous size.
  * Since the addresses in memory will be page aligned it's not possible to
  * obtain the original offset. It isn't good enough for ML_(read_elf_object)
  * in readelf.c
@@ -4862,6 +4883,12 @@ static char* maybe_merge_procmap_stack(char* p,  struct vki_kinfo_vmentry *kve, 
  * if Valgrind crashes or asserts it will print its own stack without
  * debuginfo, which is mostly useless. See the above FreeBSD bugzilla item
  * for an example.
+ *
+ * The rule for triggering the recording of the part or whole RW PT_LOAD
+ * mapped as swap is:
+ *
+ * "The first time that there is a swap mapping after a RW or RX mapping
+ * then also record that swap mapping."
  */
 
 /* Size of a smallish table used to read /proc/self/map entries. */
@@ -4883,27 +4910,11 @@ static void parse_procselfmaps (
    UInt   prot;
    ULong  foffset, dev, ino;
    struct vki_kinfo_vmentry *kve;
-   vki_size_t len;
+   SizeT len;
    Int    oid[4];
    SysRes sres;
-   Int map_count = 0;
-   // this assumes that compiling with clang uses ld.lld which produces 3 LOAD segements
-   // and that compiling with GCC uses ld.bfd which produces 2 LOAD segments
-#if defined(__clang__)
-   Int const rx_map = 1;
-   Int const rw_map = 2;
-#elif defined(__GNUC__)
-   Int const rx_map = 0;
-   Int const rw_map = 1;
-#else
-#error("unsupported compiler")
-#endif
-   // could copy the whole kinfo_vmentry but it is 1160 bytes
-   char   *rx_filename = NULL;
-   ULong  rx_dev = 0U;
-   ULong  rx_ino = 0U;
-   ULong  rx_foffset = 0U;
    Bool   tool_read_maps = (record_mapping == read_maps_callback);
+   Bool   host_rw_map_swap_hack_done = False;
 
    foffset = ino = 0; /* keep gcc-4.1.0 happy */
 
@@ -4939,16 +4950,6 @@ static void parse_procselfmaps (
       if (kve->kve_protection & VKI_KVME_PROT_WRITE) prot |= VKI_PROT_WRITE;
       if (kve->kve_protection & VKI_KVME_PROT_EXEC)  prot |= VKI_PROT_EXEC;
 
-      map_count = (p - (char *)procmap_buf)/kve->kve_structsize;
-
-      if (tool_read_maps && map_count == rw_map) {
-         aspacem_assert((prot & (VKI_PROT_READ | VKI_PROT_WRITE)) == (VKI_PROT_READ | VKI_PROT_WRITE));
-         filename = rx_filename;
-         dev = rx_dev;
-         ino = rx_ino;
-         foffset = rx_foffset;
-      }
- 
       if (record_gap && gapStart < start)
          (*record_gap) ( gapStart, start-gapStart );
 
@@ -4958,27 +4959,48 @@ static void parse_procselfmaps (
          p = maybe_merge_procmap_stack(p, kve, &endPlusOne, &prot);
       }
 
+      /* a normal mapping */
       if (record_mapping && start < endPlusOne) {
          (*record_mapping) ( start, endPlusOne-start,
                              prot, dev, ino,
-                           foffset, filename, tool_read_maps && map_count == 2 );
+                           foffset, filename, False );
       }
 
-      if (tool_read_maps && map_count == rx_map) {
-         aspacem_assert((prot & (VKI_PROT_READ | VKI_PROT_EXEC)) == (VKI_PROT_READ | VKI_PROT_EXEC));
-         rx_filename = filename;
-         rx_dev = dev;
-         rx_ino = ino;
-         /* this is only accurate to the page alignment */
-         rx_foffset = foffset + endPlusOne - start;
+      /* check for the host RW segment partially or wholly mapped as swap */
+      if (!host_rw_map_swap_hack_done &&
+         tool_read_maps &&
+          (((prot & (VKI_PROT_READ | VKI_PROT_EXEC)) == (VKI_PROT_READ | VKI_PROT_EXEC)) ||
+           ((prot & (VKI_PROT_READ | VKI_PROT_WRITE)) == (VKI_PROT_READ | VKI_PROT_WRITE))) &&
+          filename &&
+          p + kve->kve_structsize < (char*)procmap_buf + len) {
+         char* p_next = p + kve->kve_structsize;
+         struct vki_kinfo_vmentry* kve_next = (struct vki_kinfo_vmentry *)p_next;
+         UInt prot_next = 0;
+         if (kve_next->kve_protection & VKI_KVME_PROT_READ)  prot_next |= VKI_PROT_READ;
+         if (kve_next->kve_protection & VKI_KVME_PROT_WRITE) prot_next |= VKI_PROT_WRITE;
+         if (kve_next->kve_protection & VKI_KVME_PROT_EXEC)  prot_next |= VKI_PROT_EXEC;
+         if (((prot_next & (VKI_PROT_READ | VKI_PROT_WRITE)) == (VKI_PROT_READ | VKI_PROT_WRITE)) &&
+             (kve_next->kve_type == VKI_KVME_TYPE_SWAP)) {
+            Addr start_next      = (UWord)kve_next->kve_start;
+            Addr endPlusOne_next = (UWord)kve_next->kve_end;
+            if (record_mapping && start_next < endPlusOne_next) {
+               (*record_mapping) ( start_next, endPlusOne_next-start_next,
+                                   prot_next, dev, ino,
+                                   foffset + start_next - start,
+                                   filename, True );
+               p += kve_next->kve_structsize;
+               host_rw_map_swap_hack_done = True;
+            }
+         }
       }
 
       gapStart = endPlusOne;
-      // PJF I think that we need to walk this based on each entry's kve_structsize
+      // We need to walk this based on each entry's kve_structsize
       // because sysctl kern.coredump_pack_fileinfo (on by default) can cause this
       // array to be packed (for core dumps)
       // the packing consists of only storing the used part of kve_path rather than
-      // the full 1024 bytes
+      // the full 1024 bytes.
+      // Other BSDs do not provide the filename and can therefore use sizeof.
       p += kve->kve_structsize;
    }
  
