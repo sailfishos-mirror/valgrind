@@ -29,6 +29,12 @@ while (<>)
     s#_start1 \(src/lib/csu/i386/crt1_c.c.*#(below main)#;
     s#__libc_start1 \(in /...libc...\)#(below main)#;
 
+    # FreeBSD when installed from source rather than binary packages
+    # generated assembler results in things like
+    # write (write.S:4)
+    s#: (\w+) \(\1\.S:\d+\)#: $1 (in /...libc...)#;
+    s#\(.*/lib/libsys/libsys_.*\)#(in /...libc...)#;
+
     # on Illumos
     s#_start_crt \(in .*#(below main)#;
 
