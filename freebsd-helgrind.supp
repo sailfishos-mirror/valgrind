@@ -94,6 +94,18 @@
    obj:*/lib*/libthr.so.3
    fun:pthread_create
 }
+
+{
+   HELGRIND-PTHREAD-CREATE3
+   Helgrind:Race
+   fun:free
+   obj:*/lib*/libthr.so.3
+   fun:_pthread_exit_mask
+   fun:_Tthr_exit
+   obj:*/lib*/libthr.so.3
+   fun:pthread_create
+}
+
 # PJF again a pthread_self() hazard
 {
    HELGRIND-PTHREAD-SELF1
