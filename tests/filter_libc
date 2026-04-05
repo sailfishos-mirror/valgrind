@@ -33,7 +33,10 @@ while (<>)
     # generated assembler results in things like
     # write (write.S:4)
     s#: (\w+) \(\1\.S:\d+\)#: $1 (in /...libc...)#;
+    # not all follow that pattern so need to be done explicitly
+    s#(?:__mac_get_file|syscall|_open)\.S:\d+#in /...libc...#;
     s#\(.*/lib/libsys/libsys_.*\)#(in /...libc...)#;
+    s#\(.*/lib/libc/sys/.*\.c:\d+\)#(in /...libc...)#;
 
     # on Illumos
     s#_start_crt \(in .*#(below main)#;
