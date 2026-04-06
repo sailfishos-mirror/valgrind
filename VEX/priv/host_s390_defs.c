@@ -2546,9 +2546,9 @@ s390_emit_IILF(UChar *p, UChar r1, UInt i2)
 
 
 static UChar *
-s390_emit_IPM(UChar *p, UChar r1, UChar r2)
+s390_emit_IPM(UChar *p, UChar r1)
 {
-   return emit_RRE(p, 0xb2220000, r1, r2);
+   return emit_RRE(p, 0xb2220000, r1, 0);
 }
 
 
@@ -7021,7 +7021,7 @@ static UChar *
 s390_emit_load_cc(UChar *p, UChar reg)
 {
    p = s390_emit_LGHI(p, reg, 0);  /* Clear out, cc not affected */
-   p = s390_emit_IPM(p, reg, reg);
+   p = s390_emit_IPM(p, reg);
    /* Shift 28 bits to the right --> [0,1,2,3] */
    return s390_emit_SRL(p, reg, 0, 28); /* REG = cc */
 }
