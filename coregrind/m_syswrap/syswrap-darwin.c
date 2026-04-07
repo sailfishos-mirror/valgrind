@@ -10819,6 +10819,98 @@ PRE(pselect)
 
 #endif /* DARWIN_VERS >= DARWIN_10_11 */
 
+// SYS_persona 494
+// __persona(uint32_t operation, uint32_t flags, struct kpersona_info *info, uid_t *id,
+// i          size_t *idlen, char *path);
+PRE(persona)
+{
+   // FIXME PJF macOS 10.13 and 10.14(?) do not have the path argument
+   PRINT("__persona ( %" FMT_REGWORD "u, %" FMT_REGWORD "u, %#" FMT_REGWORD "x, %#" FMT_REGWORD "x, %#" FMT_REGWORD "x, %#" FMT_REGWORD "x )", ARG1, ARG2, ARG3, ARG4, ARG5, ARG6);
+   PRE_REG_READ6(int, "persona", uint32_t, operation, uint32_t, flags, struct kpersona_info*, info, uid_t*, id, size_t*, idlen, char*, path);
+
+   struct vki_kpersona_info* info = (struct vki_kpersona_info*)ARG3;
+   SizeT* idlen = (SizeT*)ARG5;
+   switch (ARG1) {
+   case VKI_PERSONA_OP_PALLOC:
+      PRE_MEM_RASCIIZ("__persona(path", ARG6);
+      // fallthrough
+   case VKI_PERSONA_OP_ALLOC:
+      // read info, write to info persona_id field and id
+      PRE_MEM_READ("__persona(info)", ARG3, sizeof(struct vki_kpersona_info));
+      PRE_FIELD_WRITE("__persona(info->persona_id", info->persona_id);
+      PRE_MEM_WRITE("__persona(id)", ARG4, sizeof(vki_uid_t));
+      break;
+   case VKI_PERSONA_OP_DEALLOC:
+      PRE_MEM_READ("__persona(id)", ARG4, sizeof(vki_uid_t));
+      break;
+   case VKI_PERSONA_OP_GET:
+      PRE_MEM_WRITE("__persona(id)", ARG4, sizeof(vki_uid_t));
+      break;
+   case VKI_PERSONA_OP_INFO:
+   case VKI_PERSONA_OP_PIDINFO:
+      PRE_MEM_WRITE("__persona(info)", (Addr)info, sizeof(struct vki_kpersona_info));
+      PRE_MEM_READ("__persona(id)", ARG4, sizeof(vki_uid_t));
+      break;
+   case VKI_PERSONA_OP_FIND:
+      PRE_MEM_READ("__persona(info)", ARG3, sizeof(struct vki_kpersona_info));
+      PRE_MEM_READ("__persona(idlen)", ARG5, sizeof(size_t));
+      if (ML_(safe_to_deref)(idlen, sizeof(SizeT))) {
+         PRE_MEM_WRITE("__persona(id)", ARG4, *idlen*sizeof(vki_uid_t));
+         ARG7 = *idlen;
+      }
+      PRE_MEM_WRITE("__persona(idlen)", ARG5, sizeof(size_t));
+      break;
+   case VKI_PERSONA_OP_GETPATH:
+      PRE_MEM_READ("__persona(id)", ARG4, sizeof(vki_uid_t));
+      PRE_MEM_WRITE("__persona(path)", ARG6, VKI_MAXPATHLEN);
+      break;
+   case VKI_PERSONA_OP_FIND_BY_TYPE:
+      PRE_MEM_READ("__persona(idlen)", ARG5, sizeof(size_t));
+      PRE_FIELD_READ("__persona(info->type)", info->persona_type);
+      if (ML_(safe_to_deref)(idlen, sizeof(SizeT))) {
+         PRE_MEM_WRITE("__persona(id)", ARG4, *idlen*sizeof(vki_uid_t));
+         ARG7 = *idlen;
+      }
+      PRE_MEM_WRITE("__persona(idlen)", ARG5, sizeof(size_t));
+      break;
+   default:
+      // assert
+      break;
+   }
+}
+
+POST(persona)
+{
+   struct vki_kpersona_info* info = (struct vki_kpersona_info*)ARG3;
+   SizeT* idlen = (SizeT*)ARG5;
+   switch (ARG1) {
+   case VKI_PERSONA_OP_PALLOC:
+   case VKI_PERSONA_OP_ALLOC:
+      POST_FIELD_WRITE(info->persona_id);
+      POST_MEM_WRITE(ARG4, sizeof(vki_uid_t));
+      break;
+   case VKI_PERSONA_OP_GET:
+      POST_MEM_WRITE(ARG4, sizeof(vki_uid_t));
+      break;
+   case VKI_PERSONA_OP_INFO:
+   case VKI_PERSONA_OP_PIDINFO:
+      POST_MEM_WRITE(ARG3, sizeof(struct vki_kpersona_info));
+      break;
+   case VKI_PERSONA_OP_GETPATH:
+      POST_MEM_WRITE(ARG6, VG_(strlen)((char*)ARG6)+1);
+      break;
+   case VKI_PERSONA_OP_FIND:
+   case VKI_PERSONA_OP_FIND_BY_TYPE:
+      if (ML_(safe_to_deref)(idlen, sizeof(SizeT))) {
+         POST_MEM_WRITE(ARG4, VG_MIN(*idlen, ARG7)*sizeof(vki_uid_t));
+      }
+      POST_MEM_WRITE(ARG5, sizeof(size_t));
+      break;
+   default:
+      break;
+   }
+}
+
 
 /* ---------------------------------------------------------------------
  Added for macOS 10.12 (Sierra)
@@ -12116,7 +12208,7 @@ const SyscallTableEntry ML_(syscall_table)[] = {
 // _____(__NR_stack_snapshot_with_config),              // 491
 // _____(__NR_microstackshot),                          // 492
 // _____(__NR_grab_pgo_data),                           // 493
-// _____(__NR_persona),                                 // 494
+   MACXY(__NR_persona, persona),                        // 494
    _____(VG_DARWIN_SYSCALL_CONSTRUCT_UNIX(495)),        // ???
    _____(VG_DARWIN_SYSCALL_CONSTRUCT_UNIX(496)),        // ???
    _____(VG_DARWIN_SYSCALL_CONSTRUCT_UNIX(497)),        // ???
