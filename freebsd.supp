@@ -188,3 +188,13 @@
    obj:/lib/libc.so.7
    fun:__cxa_atexit
 }
+# this is a heisensuppression
+# thread_alloca and lsframe1 tests fail regularly with make regtest
+# but refuse to fail when run on their own
+{
+   MEMCHECK-RTLD-_SIGPROCMASK
+   Memcheck:Param
+   sigprocmask(set)
+   fun:_sigprocmask
+   fun:_rtld_bind
+}
