@@ -405,7 +405,18 @@ void VG_(redir_notify_new_DebugInfo)( DebugInfo* newdi )
    const HChar* const pthread_soname = "libpthread.so.0";
    const HChar* const pthread_stack_cache_actsize_varname
       = "stack_cache_actsize";
+#if defined(VGO_linux)
    const HChar* const libc_soname = "libc.so.6";
+#elif defined(VGO_freebsd)
+   const HChar* const libc_soname = "libc.so.7";
+#elif defined(VGO_solaris)
+   const HChar* const libc_soname = "libc.so.1";
+#elif defined(VGO_darwin)
+   // some system lib or DSC on macOS
+   const HChar* const libc_soname = "libc.so.6";
+#else
+#error Unknown platform
+#endif
    const HChar* const libc_gnu_get_libc_version_funcname = "gnu_get_libc_version";
 #if defined(VGO_solaris)
    Bool         vg_vfork_fildes_var_search = False;
