@@ -37,6 +37,7 @@ while (<>)
     s#(?:__mac_get_file|syscall|_open)\.S:\d+#in /...libc...#;
     s#\(.*/lib/libsys/libsys_.*\)#(in /...libc...)#;
     s#\(.*/lib/libc/sys/.*\.c:\d+\)#(in /...libc...)#;
+    s#__libc_start1 \(.*lib/libc/csu/libc_start1\.c:\d+\)#(below main)#;
 
     # on Illumos
     s#_start_crt \(in .*#(below main)#;
