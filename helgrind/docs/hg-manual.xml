@@ -1318,6 +1318,23 @@ unlock(mx)                             unlock(mx)
     </listitem>
   </varlistentry>
 
+  <varlistentry id="opt.show-events"
+                xreflabel="--show-events">
+    <term>
+      <option><![CDATA[--show-events=0|1|2
+      [default: 0]]]></option>
+    </term>
+    <listitem>
+      <para>
+        Controls tracing of internal Helgrind synchronization, threading
+        and memory events.  At level 1, Helgrind prints a trace of its
+        synchronization, threading and memory events.  At level 2,
+        additional memory events are also traced.  The default value of
+        0 disables tracing.
+      </para>
+    </listitem>
+  </varlistentry>
+
 
 </variablelist>
 <!-- end of xi:include in the manpage -->

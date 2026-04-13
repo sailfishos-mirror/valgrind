@@ -100,10 +100,6 @@
 
 /* ------------ Debug/trace options ------------ */
 
-// 0 for silent, 1 for some stuff, 2 for lots of stuff
-#define SHOW_EVENTS 0
-
-
 static void all__sanity_check ( const HChar* who ); /* fwds */
 
 #define HG_CLI__DEFAULT_MALLOC_REDZONE_SZB 16 /* let's say */
@@ -1478,7 +1474,7 @@ static inline Thread* get_current_Thread ( void ) {
 static
 void evh__new_mem ( Addr a, SizeT len ) {
    Thread *thr = get_current_Thread();
-   if (SHOW_EVENTS >= 2)
+   if (HG_(clo_show_events) >= 2)
       VG_(printf)("evh__new_mem(%p, %lu)\n", (void*)a, len );
    shadow_mem_make_New( thr, a, len );
    if (len >= SCE_BIGRANGE_T && (HG_(clo_sanity_flags) & SCE_BIGRANGE))
@@ -1490,7 +1486,7 @@ void evh__new_mem ( Addr a, SizeT len ) {
 static
 void evh__new_mem_stack ( Addr a, SizeT len ) {
    Thread *thr = get_current_Thread();
-   if (SHOW_EVENTS >= 2)
+   if (HG_(clo_show_events) >= 2)
       VG_(printf)("evh__new_mem_stack(%p, %lu)\n", (void*)a, len );
    shadow_mem_make_New( thr, -VG_STACK_REDZONE_SZB + a, len );
    if (len >= SCE_BIGRANGE_T && (HG_(clo_sanity_flags) & SCE_BIGRANGE))
@@ -1503,7 +1499,7 @@ void evh__new_mem_stack ( Addr a, SizeT len ) {
 static void VG_REGPARM(1) evh__new_mem_stack_##syze(Addr new_SP)         \
 {                                                                        \
    Thread *thr = get_current_Thread();                                   \
-   if (SHOW_EVENTS >= 2)                                                 \
+   if (HG_(clo_show_events) >= 2)                                        \
       VG_(printf)("evh__new_mem_stack_" #syze "(%p, %lu)\n",             \
                   (void*)new_SP, (SizeT)syze );                          \
    shadow_mem_make_New( thr, -VG_STACK_REDZONE_SZB + new_SP, syze );     \
@@ -1526,7 +1522,7 @@ DCL_evh__new_mem_stack(160);
 static
 void evh__new_mem_w_tid ( Addr a, SizeT len, ThreadId tid ) {
    Thread *thr = get_current_Thread();
-   if (SHOW_EVENTS >= 2)
+   if (HG_(clo_show_events) >= 2)
       VG_(printf)("evh__new_mem_w_tid(%p, %lu)\n", (void*)a, len );
    shadow_mem_make_New( thr, a, len );
    if (len >= SCE_BIGRANGE_T && (HG_(clo_sanity_flags) & SCE_BIGRANGE))
@@ -1539,7 +1535,7 @@ static
 void evh__new_mem_w_perms ( Addr a, SizeT len, 
                             Bool rr, Bool ww, Bool xx, ULong di_handle ) {
    Thread *thr = get_current_Thread();
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__new_mem_w_perms(%p, %lu, %d,%d,%d)\n",
                   (void*)a, len, (Int)rr, (Int)ww, (Int)xx );
    if (rr || ww || xx) {
@@ -1557,7 +1553,7 @@ void evh__set_perms ( Addr a, SizeT len,
    // This handles mprotect requests.  If the memory is being put
    // into no-R no-W state, paint it as NoAccess, for the reasons
    // documented at evh__die_mem_munmap().
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__set_perms(%p, %lu, r=%d w=%d x=%d)\n",
                   (void*)a, len, (Int)rr, (Int)ww, (Int)xx );
    /* Hmm.  What should we do here, that actually makes any sense?
@@ -1572,7 +1568,7 @@ void evh__set_perms ( Addr a, SizeT len,
 static
 void evh__die_mem ( Addr a, SizeT len ) {
    // Urr, libhb ignores this.
-   if (SHOW_EVENTS >= 2)
+   if (HG_(clo_show_events) >= 2)
       VG_(printf)("evh__die_mem(%p, %lu)\n", (void*)a, len );
    shadow_mem_make_NoAccess_NoFX( get_current_Thread(), a, len );
    if (len >= SCE_BIGRANGE_T && (HG_(clo_sanity_flags) & SCE_BIGRANGE))
@@ -1589,7 +1585,7 @@ void evh__die_mem_munmap ( Addr a, SizeT len ) {
    // VTS references in the affected area are dropped.  Marking memory
    // as NoAccess is expensive, but we assume that munmap is sufficiently
    // rare that the space gains of doing this are worth the costs.
-   if (SHOW_EVENTS >= 2)
+   if (HG_(clo_show_events) >= 2)
       VG_(printf)("evh__die_mem_munmap(%p, %lu)\n", (void*)a, len );
    shadow_mem_make_NoAccess_AHAE( get_current_Thread(), a, len );
 }
@@ -1597,7 +1593,7 @@ void evh__die_mem_munmap ( Addr a, SizeT len ) {
 static
 void evh__untrack_mem ( Addr a, SizeT len ) {
    // Libhb doesn't ignore this.
-   if (SHOW_EVENTS >= 2)
+   if (HG_(clo_show_events) >= 2)
       VG_(printf)("evh__untrack_mem(%p, %lu)\n", (void*)a, len );
    shadow_mem_make_Untracked( get_current_Thread(), a, len );
    if (len >= SCE_BIGRANGE_T && (HG_(clo_sanity_flags) & SCE_BIGRANGE))
@@ -1606,7 +1602,7 @@ void evh__untrack_mem ( Addr a, SizeT len ) {
 
 static
 void evh__copy_mem ( Addr src, Addr dst, SizeT len ) {
-   if (SHOW_EVENTS >= 2)
+   if (HG_(clo_show_events) >= 2)
       VG_(printf)("evh__copy_mem(%p, %p, %lu)\n", (void*)src, (void*)dst, len );
    Thread *thr = get_current_Thread();
    if (LIKELY(thr->synchr_nesting == 0))
@@ -1618,7 +1614,7 @@ void evh__copy_mem ( Addr src, Addr dst, SizeT len ) {
 static
 void evh__pre_thread_ll_create ( ThreadId parent, ThreadId child )
 {
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__pre_thread_ll_create(p=%d, c=%d)\n",
                   (Int)parent, (Int)child );
 
@@ -1692,7 +1688,7 @@ void evh__pre_thread_ll_exit ( ThreadId quit_tid )
 {
    Int     nHeld;
    Thread* thr_q;
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__pre_thread_ll_exit(thr=%d)\n",
                   (Int)quit_tid );
 
@@ -1808,7 +1804,7 @@ void evh__HG_PTHREAD_JOIN_POST ( ThreadId stay_tid, Thread* quit_thr )
    Thr*     hbthr_s;
    Thr*     hbthr_q;
 
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__post_thread_join(stayer=%d, quitter=%p)\n",
                   (Int)stay_tid, quit_thr );
 
@@ -1847,8 +1843,8 @@ void evh__HG_PTHREAD_JOIN_POST ( ThreadId stay_tid, Thread* quit_thr )
 static
 void evh__pre_mem_read ( CorePart part, ThreadId tid, const HChar* s, 
                          Addr a, SizeT size) {
-   if (SHOW_EVENTS >= 2
-       || (SHOW_EVENTS >= 1 && size != 1))
+   if (HG_(clo_show_events) >= 2
+       || (HG_(clo_show_events) >= 1 && size != 1))
       VG_(printf)("evh__pre_mem_read(ctid=%d, \"%s\", %p, %lu)\n", 
                   (Int)tid, s, (void*)a, size );
    Thread *thr = map_threads_lookup(tid);
@@ -1862,7 +1858,7 @@ static
 void evh__pre_mem_read_asciiz ( CorePart part, ThreadId tid,
                                 const HChar* s, Addr a ) {
    Int len;
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__pre_mem_asciiz(ctid=%d, \"%s\", %p)\n", 
                   (Int)tid, s, (void*)a );
    // Don't segfault if the string starts in an obviously stupid
@@ -1882,7 +1878,7 @@ void evh__pre_mem_read_asciiz ( CorePart part, ThreadId tid,
 static
 void evh__pre_mem_write ( CorePart part, ThreadId tid, const HChar* s,
                           Addr a, SizeT size ) {
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__pre_mem_write(ctid=%d, \"%s\", %p, %lu)\n", 
                   (Int)tid, s, (void*)a, size );
    Thread *thr = map_threads_lookup(tid);
@@ -1894,7 +1890,7 @@ void evh__pre_mem_write ( CorePart part, ThreadId tid, const HChar* s,
 
 static
 void evh__new_mem_heap ( Addr a, SizeT len, Bool is_inited ) {
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__new_mem_heap(%p, %lu, inited=%d)\n", 
                   (void*)a, len, (Int)is_inited );
    // We ignore the initialisation state (is_inited); that's ok.
@@ -1906,7 +1902,7 @@ void evh__new_mem_heap ( Addr a, SizeT len, Bool is_inited ) {
 static
 void evh__die_mem_heap ( Addr a, SizeT len ) {
    Thread* thr;
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__die_mem_heap(%p, %lu)\n", (void*)a, len );
    thr = get_current_Thread();
    tl_assert(thr);
@@ -2066,7 +2062,7 @@ static
 void evh__HG_PTHREAD_MUTEX_INIT_POST( ThreadId tid, 
                                       void* mutex, Word mbRec )
 {
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__hg_PTHREAD_MUTEX_INIT_POST(ctid=%d, mbRec=%ld, %p)\n", 
                   (Int)tid, mbRec, (void*)mutex );
    tl_assert(mbRec == 0 || mbRec == 1);
@@ -2082,7 +2078,7 @@ void evh__HG_PTHREAD_MUTEX_DESTROY_PRE( ThreadId tid, void* mutex,
 {
    Thread* thr;
    Lock*   lk;
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__hg_PTHREAD_MUTEX_DESTROY_PRE"
                   "(ctid=%d, %p, isInit=%d)\n", 
                   (Int)tid, (void*)mutex, (Int)mutex_is_init );
@@ -2141,7 +2137,7 @@ static void evh__HG_PTHREAD_MUTEX_LOCK_PRE ( ThreadId tid,
    // 'mutex' may be invalid - not checked by wrapper
    Thread* thr;
    Lock*   lk;
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__hg_PTHREAD_MUTEX_LOCK_PRE(ctid=%d, mutex=%p)\n", 
                   (Int)tid, (void*)mutex );
 
@@ -2181,7 +2177,7 @@ static void evh__HG_PTHREAD_MUTEX_LOCK_POST ( ThreadId tid, void* mutex )
 {
    // only called if the real library call succeeded - so mutex is sane
    Thread* thr;
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__HG_PTHREAD_MUTEX_LOCK_POST(ctid=%d, mutex=%p)\n", 
                   (Int)tid, (void*)mutex );
 
@@ -2199,7 +2195,7 @@ static void evh__HG_PTHREAD_MUTEX_UNLOCK_PRE ( ThreadId tid, void* mutex )
 {
    // 'mutex' may be invalid - not checked by wrapper
    Thread* thr;
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__HG_PTHREAD_MUTEX_UNLOCK_PRE(ctid=%d, mutex=%p)\n", 
                   (Int)tid, (void*)mutex );
 
@@ -2213,7 +2209,7 @@ static void evh__HG_PTHREAD_MUTEX_UNLOCK_POST ( ThreadId tid, void* mutex )
 {
    // only called if the real library call succeeded - so mutex is sane
    Thread* thr;
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__hg_PTHREAD_MUTEX_UNLOCK_POST(ctid=%d, mutex=%p)\n", 
                   (Int)tid, (void*)mutex );
    thr = map_threads_maybe_lookup( tid );
@@ -2239,7 +2235,7 @@ static void evh__HG_PTHREAD_SPIN_INIT_OR_UNLOCK_PRE( ThreadId tid,
       it.  Since this is the pre-routine, if it is locked, unlock it
       and take a dependence edge.  Otherwise, do nothing. */
 
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__hg_PTHREAD_SPIN_INIT_OR_UNLOCK_PRE"
                   "(ctid=%d, slock=%p)\n", 
                   (Int)tid, (void*)slock );
@@ -2266,7 +2262,7 @@ static void evh__HG_PTHREAD_SPIN_INIT_OR_UNLOCK_POST( ThreadId tid,
       actions as per evh__HG_PTHREAD_MUTEX_INIT_POST.  Else do
       nothing. */
 
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__hg_PTHREAD_SPIN_INIT_OR_UNLOCK_POST"
                   "(ctid=%d, slock=%p)\n", 
                   (Int)tid, (void*)slock );
@@ -2413,7 +2409,7 @@ static void evh__HG_PTHREAD_COND_SIGNAL_PRE ( ThreadId tid, void* cond )
    CVInfo*   cvi;
    //Lock*     lk;
 
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__HG_PTHREAD_COND_SIGNAL_PRE(ctid=%d, cond=%p)\n", 
                   (Int)tid, (void*)cond );
 
@@ -2490,7 +2486,7 @@ static Bool evh__HG_PTHREAD_COND_WAIT_PRE ( ThreadId tid,
    Bool    lk_valid = True;
    CVInfo* cvi;
 
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__hg_PTHREAD_COND_WAIT_PRE"
                   "(ctid=%d, cond=%p, mutex=%p)\n", 
                   (Int)tid, (void*)cond, (void*)mutex );
@@ -2559,7 +2555,7 @@ static void evh__HG_PTHREAD_COND_WAIT_POST ( ThreadId tid,
    Thread* thr;
    CVInfo* cvi;
 
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__HG_PTHREAD_COND_WAIT_POST"
                   "(ctid=%d, cond=%p, mutex=%p)\n, timeout=%d",
                   (Int)tid, (void*)cond, (void*)mutex, (Int)timeout );
@@ -2604,7 +2600,7 @@ static void evh__HG_PTHREAD_COND_INIT_POST ( ThreadId tid,
 {
    CVInfo* cvi;
 
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__HG_PTHREAD_COND_INIT_POST"
                   "(ctid=%d, cond=%p, cond_attr=%p)\n", 
                   (Int)tid, (void*)cond, (void*) cond_attr );
@@ -2621,7 +2617,7 @@ static void evh__HG_PTHREAD_COND_DESTROY_PRE ( ThreadId tid,
    /* Deal with destroy events.  The only purpose is to free storage
       associated with the CV, so as to avoid any possible resource
       leaks. */
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__HG_PTHREAD_COND_DESTROY_PRE"
                   "(ctid=%d, cond=%p, cond_is_init=%d)\n", 
                   (Int)tid, (void*)cond, (Int)cond_is_init );
@@ -2638,7 +2634,7 @@ static void evh__HG_PTHREAD_COND_DESTROY_PRE ( ThreadId tid,
 static
 void evh__HG_PTHREAD_RWLOCK_INIT_POST( ThreadId tid, void* rwl )
 {
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__hg_PTHREAD_RWLOCK_INIT_POST(ctid=%d, %p)\n", 
                   (Int)tid, (void*)rwl );
    map_locks_lookup_or_create( LK_rdwr, (Addr)rwl, tid );
@@ -2651,7 +2647,7 @@ void evh__HG_PTHREAD_RWLOCK_DESTROY_PRE( ThreadId tid, void* rwl )
 {
    Thread* thr;
    Lock*   lk;
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__hg_PTHREAD_RWLOCK_DESTROY_PRE(ctid=%d, %p)\n", 
                   (Int)tid, (void*)rwl );
 
@@ -2702,7 +2698,7 @@ void evh__HG_PTHREAD_RWLOCK_LOCK_PRE ( ThreadId tid,
    // 'rwl' may be invalid - not checked by wrapper
    Thread* thr;
    Lock*   lk;
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__hg_PTHREAD_RWLOCK_LOCK_PRE(ctid=%d, isW=%d, %p)\n", 
                   (Int)tid, (Int)isW, (void*)rwl );
 
@@ -2726,7 +2722,7 @@ void evh__HG_PTHREAD_RWLOCK_LOCK_POST ( ThreadId tid, void* rwl, Word isW )
 {
    // only called if the real library call succeeded - so mutex is sane
    Thread* thr;
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__hg_PTHREAD_RWLOCK_LOCK_POST(ctid=%d, isW=%d, %p)\n", 
                   (Int)tid, (Int)isW, (void*)rwl );
 
@@ -2746,7 +2742,7 @@ static void evh__HG_PTHREAD_RWLOCK_UNLOCK_PRE ( ThreadId tid, void* rwl )
 {
    // 'rwl' may be invalid - not checked by wrapper
    Thread* thr;
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__HG_PTHREAD_RWLOCK_UNLOCK_PRE(ctid=%d, rwl=%p)\n", 
                   (Int)tid, (void*)rwl );
 
@@ -2760,7 +2756,7 @@ static void evh__HG_PTHREAD_RWLOCK_UNLOCK_POST ( ThreadId tid, void* rwl )
 {
    // only called if the real library call succeeded - so mutex is sane
    Thread* thr;
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__hg_PTHREAD_RWLOCK_UNLOCK_POST(ctid=%d, rwl=%p)\n", 
                   (Int)tid, (void*)rwl );
    thr = map_threads_maybe_lookup( tid );
@@ -2863,7 +2859,7 @@ static void evh__HG_POSIX_SEM_DESTROY_PRE ( ThreadId tid, void* sem )
    UWord keyW, valW;
    SO*   so;
 
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__HG_POSIX_SEM_DESTROY_PRE(ctid=%d, sem=%p)\n", 
                   (Int)tid, (void*)sem );
 
@@ -2892,7 +2888,7 @@ void evh__HG_POSIX_SEM_INIT_POST ( ThreadId tid, void* sem, UWord value )
    SO*     so;
    Thread* thr;
 
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__HG_POSIX_SEM_INIT_POST(ctid=%d, sem=%p, value=%lu)\n", 
                   (Int)tid, (void*)sem, value );
 
@@ -2941,7 +2937,7 @@ static void evh__HG_POSIX_SEM_POST_PRE ( ThreadId tid, void* sem )
    SO*     so;
    Thr*    hbthr;
 
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__HG_POSIX_SEM_POST_PRE(ctid=%d, sem=%p)\n", 
                   (Int)tid, (void*)sem );
 
@@ -2969,7 +2965,7 @@ static void evh__HG_POSIX_SEM_WAIT_POST ( ThreadId tid, void* sem )
    SO*     so;
    Thr*    hbthr;
 
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__HG_POSIX_SEM_WAIT_POST(ctid=%d, sem=%p)\n", 
                   (Int)tid, (void*)sem );
 
@@ -3068,7 +3064,7 @@ static void evh__HG_PTHREAD_BARRIER_INIT_PRE ( ThreadId tid,
    Thread* thr;
    Bar*    bar;
 
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__HG_PTHREAD_BARRIER_INIT_PRE"
                   "(tid=%d, barrier=%p, count=%lu, resizable=%lu)\n", 
                   (Int)tid, (void*)barrier, count, resizable );
@@ -3125,7 +3121,7 @@ static void evh__HG_PTHREAD_BARRIER_DESTROY_PRE ( ThreadId tid,
    /* Deal with destroy events.  The only purpose is to free storage
       associated with the barrier, so as to avoid any possible
       resource leaks. */
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__HG_PTHREAD_BARRIER_DESTROY_PRE"
                   "(tid=%d, barrier=%p)\n", 
                   (Int)tid, (void*)barrier );
@@ -3244,7 +3240,7 @@ static void evh__HG_PTHREAD_BARRIER_WAIT_PRE ( ThreadId tid,
    Bar*    bar;
    UWord   present;
 
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__HG_PTHREAD_BARRIER_WAIT_PRE"
                   "(tid=%d, barrier=%p)\n", 
                   (Int)tid, (void*)barrier );
@@ -3287,7 +3283,7 @@ static void evh__HG_PTHREAD_BARRIER_RESIZE_PRE ( ThreadId tid,
    Bar*    bar;
    UWord   present;
 
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__HG_PTHREAD_BARRIER_RESIZE_PRE"
                   "(tid=%d, barrier=%p, newcount=%lu)\n", 
                   (Int)tid, (void*)barrier, newcount );
@@ -3406,7 +3402,7 @@ void evh__HG_USERSO_SEND_PRE ( ThreadId tid, UWord usertag )
    Thread* thr;
    SO*     so;
 
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__HG_USERSO_SEND_PRE(ctid=%d, usertag=%#lx)\n", 
                   (Int)tid, usertag );
 
@@ -3431,7 +3427,7 @@ void evh__HG_USERSO_RECV_POST ( ThreadId tid, UWord usertag )
    Thread* thr;
    SO*     so;
 
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__HG_USERSO_RECV_POST(ctid=%d, usertag=%#lx)\n", 
                   (Int)tid, usertag );
 
@@ -3455,7 +3451,7 @@ void evh__HG_USERSO_FORGET_ALL ( ThreadId tid, UWord usertag )
       SO is associated with USERTAG, then the association is removed
       and all resources associated with SO are freed.  Importantly,
       that frees up any VTSs stored in SO. */
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__HG_USERSO_FORGET_ALL(ctid=%d, usertag=%#lx)\n", 
                   (Int)tid, usertag );
 
@@ -3471,7 +3467,7 @@ void evh__HG_USERSO_FORGET_ALL ( ThreadId tid, UWord usertag )
 static
 void evh__HG_RTLD_BIND_GUARD(ThreadId tid, Int flags)
 {
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__HG_RTLD_BIND_GUARD"
                   "(tid=%d, flags=%d)\n",
                   (Int)tid, flags);
@@ -3491,7 +3487,7 @@ void evh__HG_RTLD_BIND_GUARD(ThreadId tid, Int flags)
 static
 void evh__HG_RTLD_BIND_CLEAR(ThreadId tid, Int flags)
 {
-   if (SHOW_EVENTS >= 1)
+   if (HG_(clo_show_events) >= 1)
       VG_(printf)("evh__HG_RTLD_BIND_CLEAR"
                   "(tid=%d, flags=%d)\n",
                   (Int)tid, flags);
@@ -5843,6 +5839,10 @@ static Bool hg_process_cmd_line_option ( const HChar* arg )
                             HG_(clo_ignore_thread_creation)) {}
    else if VG_BOOL_CLO(arg, "--check-cond-signal-mutex",
                             HG_(clo_check_cond_signal_mutex)) {}
+
+   else if VG_BINT_CLO(arg, "--show-events",
+                            HG_(clo_show_events), 0, 2) {}
+
    else
       return VG_(replacement_malloc_process_cmd_line_option)(arg);
 
@@ -5898,6 +5898,11 @@ static void hg_print_debug_usage ( void )
 "       auto:    done just often enough to keep space usage under control\n"
 "       always:  done after every VTS GC (mostly just a big time waster)\n"
     );
+   VG_(printf)("   --show-events=0|1|2 [0]\n"
+"       0: Do not trace internal Helgrind events\n"
+"       1: Trace Helgrind's synchronization, threading and memory events\n"
+"       2: Trace additional memory events\n"
+   );
 }
 
 static void hg_print_stats (void)

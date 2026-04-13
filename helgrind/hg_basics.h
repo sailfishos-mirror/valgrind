@@ -137,6 +137,15 @@ extern UWord HG_(clo_vts_pruning);
    the stack, which speeds things up a bit.  Default: True. */
 extern Bool HG_(clo_check_stack_refs); 
 
+/* Controls which internal Helgrind events to trace:
+
+   0: No trace is printed (default).
+
+   1: Trace Helgrind's synchronization, threading and memory events.
+
+   2: Trace additional memory events. */
+extern UWord HG_(clo_show_events);
+
 #endif /* ! __HG_BASICS_H */
 
 /*--------------------------------------------------------------------*/

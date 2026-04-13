@@ -44,6 +44,12 @@ Support for the following macOS versions has been added
 
 * ==================== TOOL CHANGES ===================
 
+* Helgrind:
+  - New debug option --show-events=0|1|2. Controls tracing of internal
+    Helgrind synchronization, threading and memory events. At level 1,
+    Helgrind prints a trace of its synchronization, threading and memory
+    events. At level 2, additional memory events are also traced. The
+    default value of 0 disables tracing.
 
 * ==================== FIXED BUGS ====================
 
