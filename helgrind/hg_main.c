@@ -212,6 +212,7 @@ static Lock* mk_LockN ( LockKind kind, Addr guestaddr ) {
    lock->kind             = kind;
    lock->heldW            = False;
    lock->heldBy           = NULL;
+   lock->explicit_init    = False;
    tl_assert(HG_(is_sane_LockN)(lock));
    return lock;
 }
@@ -2087,16 +2088,37 @@ void evh__mem_help_cwrite_N(Addr a, SizeT size) {
    user where the lock was initialised, rather than only being able to
    show where it was first locked.  Intercepting lock initialisations
    is not necessary for the basic operation of the race checker. */
+
+/* Warn if --track-destroy is enabled and a live lock record already
+   exists at ga, suggesting a missing pthread_*_destroy call.  fn_name
+   should be the pthread init function name, such as "pthread_mutex_init". */
 static
-void evh__HG_PTHREAD_MUTEX_INIT_POST( ThreadId tid, 
+void maybe_warn_lock_reinit ( Addr ga, const HChar* fn_name )
+{
+   if (HG_(clo_track_destroy) == 0)
+      return;
+   Lock* lk = map_locks_maybe_lookup(ga);
+   if (lk != NULL) {
+      VG_(message)(Vg_UserMsg,
+         "%s called on address %p which already has a live lock record\n",
+         fn_name, (void*)ga);
+      if (lk->appeared_at)
+         VG_(pp_ExeContext)(lk->appeared_at);
+   }
+}
+
+static
+void evh__HG_PTHREAD_MUTEX_INIT_POST( ThreadId tid,
                                       void* mutex, Word mbRec )
 {
    if (HG_(clo_show_events) >= 1)
-      VG_(printf)("evh__hg_PTHREAD_MUTEX_INIT_POST(ctid=%d, mbRec=%ld, %p)\n", 
+      VG_(printf)("evh__hg_PTHREAD_MUTEX_INIT_POST(ctid=%d, mbRec=%ld, %p)\n",
                   (Int)tid, mbRec, (void*)mutex );
    tl_assert(mbRec == 0 || mbRec == 1);
-   map_locks_lookup_or_create( mbRec ? LK_mbRec : LK_nonRec,
-                               (Addr)mutex, tid );
+   maybe_warn_lock_reinit( (Addr)mutex, "pthread_mutex_init" );
+   Lock* lk = map_locks_lookup_or_create( mbRec ? LK_mbRec : LK_nonRec,
+                                          (Addr)mutex, tid );
+   lk->explicit_init = True;
    if (HG_(clo_sanity_flags) & SCE_LOCKS)
       all__sanity_check("evh__hg_PTHREAD_MUTEX_INIT_POST");
 }
@@ -2664,9 +2686,11 @@ static
 void evh__HG_PTHREAD_RWLOCK_INIT_POST( ThreadId tid, void* rwl )
 {
    if (HG_(clo_show_events) >= 1)
-      VG_(printf)("evh__hg_PTHREAD_RWLOCK_INIT_POST(ctid=%d, %p)\n", 
+      VG_(printf)("evh__hg_PTHREAD_RWLOCK_INIT_POST(ctid=%d, %p)\n",
                   (Int)tid, (void*)rwl );
-   map_locks_lookup_or_create( LK_rdwr, (Addr)rwl, tid );
+   maybe_warn_lock_reinit( (Addr)rwl, "pthread_rwlock_init" );
+   Lock* lk = map_locks_lookup_or_create( LK_rdwr, (Addr)rwl, tid );
+   lk->explicit_init = True;
    if (HG_(clo_sanity_flags) & SCE_LOCKS)
       all__sanity_check("evh__hg_PTHREAD_RWLOCK_INIT_POST");
 }
@@ -5872,6 +5896,18 @@ static Bool hg_process_cmd_line_option ( const HChar* arg )
    else if VG_BINT_CLO(arg, "--show-events",
                             HG_(clo_show_events), 0, 2) {}
 
+   else if VG_STR_CLO(arg, "--track-destroy", tmp_str) {
+      if (VG_(strcmp)(tmp_str, "no") == 0)
+         HG_(clo_track_destroy) = 0;
+      else if (VG_(strcmp)(tmp_str, "yes") == 0)
+         HG_(clo_track_destroy) = 1;
+      else if (VG_(strcmp)(tmp_str, "all") == 0)
+         HG_(clo_track_destroy) = 2;
+      else
+         VG_(fmsg_bad_option)(arg,
+            "Bad argument, should be 'no', 'yes' or 'all'\n");
+   }
+
    else
       return VG_(replacement_malloc_process_cmd_line_option)(arg);
 
@@ -5902,7 +5938,13 @@ static void hg_print_usage ( void )
 "        no: do not check that the associated mutex is locked for calls\n"
 "          to pthread_cond_{signal,broadcast}\n"
 "        yes: generate 'dubious' error messages if the associated mutex\n"
-"          is unlocked\n",
+"          is unlocked\n"
+"    --track-destroy=no|yes|all  report missing pthread_*_destroy calls? [no]\n"
+"        no: do not warn about missing pthread_*_destroy calls\n"
+"        yes: warn when pthread_mutex_init or pthread_rwlock_init is called\n"
+"          on an address that already has a live lock record\n"
+"        all: like yes but also lists all undestroyed locks at exit (except\n"
+"          those using static initializers)\n",
 HG_(clo_ignore_thread_creation) ? "yes" : "no"
    );
 }
@@ -6014,6 +6056,30 @@ static void hg_fini ( Int exitcode )
       pp_everything( PP_ALL, "SK_(fini)" );
    if (HG_(clo_sanity_flags))
       all__sanity_check("SK_(fini)");
+
+   if (HG_(clo_track_destroy) >= 2) {
+      Lock* lk;
+      UWord count = 0;
+      for (lk = admin_locks; lk != NULL; lk = lk->admin_next)
+         if (lk->explicit_init)
+            count++;
+      if (count > 0) {
+         VG_(umsg)("%lu lock(s) were not destroyed before exit.\n", count);
+         for (lk = admin_locks; lk != NULL; lk = lk->admin_next) {
+            const HChar* kind = lk->kind == LK_rdwr ? "rwlock" : "mutex";
+            if (!lk->explicit_init)
+               continue;
+            if (lk->appeared_at) {
+               VG_(umsg)("Undestroyed %s at address %p, first observed at:\n",
+                         kind, (void*)lk->guestaddr);
+               VG_(pp_ExeContext)(lk->appeared_at);
+            } else {
+               VG_(umsg)("Undestroyed %s at address %p\n",
+                         kind, (void*)lk->guestaddr);
+            }
+         }
+      }
+   }
 
    if (VG_(clo_stats))
       hg_print_stats();

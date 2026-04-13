@@ -146,6 +146,12 @@ extern Bool HG_(clo_check_stack_refs);
    2: Trace additional memory events. */
 extern UWord HG_(clo_show_events);
 
+/* Controls the reporting of undestroyed locks at guest exit.  Also
+   detects when a lock is initialized at the same start address as an
+   undestroyed lock. Defaults to 0 since undestroyed locks aren't
+   necessarily a bug.  */
+extern UWord HG_(clo_track_destroy);
+
 #endif /* ! __HG_BASICS_H */
 
 /*--------------------------------------------------------------------*/

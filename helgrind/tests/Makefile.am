@@ -16,6 +16,7 @@ noinst_SCRIPTS = \
 
 EXTRA_DIST = \
 	bug513598.vgtest \
+	lock_destroy_report.vgtest lock_destroy_report.stderr.exp \
 	annotate_hbefore.vgtest \
 	annotate_rwlock.vgtest annotate_rwlock.stderr.exp \
 	annotate_smart_pointer.vgtest annotate_smart_pointer.stderr.exp \
@@ -149,6 +150,7 @@ check_PROGRAMS = \
 	annotate_hbefore \
 	bug513598 \
 	bug327548 \
+	lock_destroy_report \
 	bug484480 \
 	cond_init_destroy \
 	cond_timedwait_invalid \

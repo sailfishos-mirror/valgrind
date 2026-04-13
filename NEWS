@@ -51,6 +51,13 @@ Support for the following macOS versions has been added
     events. At level 2, additional memory events are also traced. The
     default value of 0 disables tracing.
 
+  - New option --track-destroy=no|yes|all. Checks for missing
+    pthread_mutex_destroy and pthread_rwlock_destroy calls. With yes,
+    Helgrind warns when pthread_mutex_init or pthread_rwlock_init is called
+    on the address of a live (undestroyed) lock. With all, Helgrind also
+    reports undestroyed locks at process exit. --track-destroy does not track
+    locks that use static initializers.
+
 * ==================== FIXED BUGS ====================
 
 The following bugs have been fixed or resolved.  Note that "n-i-bz"
