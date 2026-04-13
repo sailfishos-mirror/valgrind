@@ -97,6 +97,8 @@ are not entered into bugzilla tend to get forgotten about or ignored.
 513522  m_libcassert.c: 'ordered comparison of pointer with integer zero'
         compiler warning
 513475  Add SSE4.1 PMULLD instruction for x86 32 bit
+513598  Helgrind should detect locks without pthread_{rwlock,mutex}_destroy
+        being called - Assertion 'lk->kind == LK_rdwr' failed.
 514094  readlink("/proc/self/exe") overwrites buffer beyond its return value
 514206  Assertion '!sr_isError(sr)' failed - mmap fd points to an open
         descriptor to a PCI device

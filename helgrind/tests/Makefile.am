@@ -15,6 +15,7 @@ noinst_SCRIPTS = \
 	filter_stderr
 
 EXTRA_DIST = \
+	bug513598.vgtest \
 	annotate_hbefore.vgtest \
 	annotate_rwlock.vgtest annotate_rwlock.stderr.exp \
 	annotate_smart_pointer.vgtest annotate_smart_pointer.stderr.exp \
@@ -146,6 +147,7 @@ noinst_HEADERS = safe-pthread.h safe-semaphore.h
 # should be conditionally compiled like tc20_verifywrap is.
 check_PROGRAMS = \
 	annotate_hbefore \
+	bug513598 \
 	bug327548 \
 	bug484480 \
 	cond_init_destroy \

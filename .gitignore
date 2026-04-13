@@ -682,6 +682,7 @@
 /helgrind/tests/bug327548
 /helgrind/tests/bug392331
 /helgrind/tests/bug484480
+/helgrind/tests/bug513598
 /helgrind/tests/cond_init_destroy
 /helgrind/tests/cond_timedwait_invalid
 /helgrind/tests/cond_timedwait_test

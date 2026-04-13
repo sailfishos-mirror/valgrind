@@ -750,6 +750,10 @@ static Int HG_(get_pthread_create_nesting_level)(ThreadId tid) {
 /*--- map_locks :: WordFM guest-Addr-of-lock Lock*             ---*/
 /*----------------------------------------------------------------*/
 
+static void map_locks_delete ( Addr ga ); /* fwds */
+__attribute__((noinline))
+static void laog__handle_one_lock_deletion ( Lock* lk ); /* fwds */
+
 /* Make sure there is a lock table entry for the given (lock) guest
    address.  If not, create one of the stated 'kind' in unheld state.
    In any case, return the address of the existing or new Lock. */
@@ -772,6 +776,33 @@ Lock* map_locks_lookup_or_create ( LockKind lkk, Addr ga, ThreadId tid )
       tl_assert(oldlock != NULL);
       tl_assert(HG_(is_sane_LockN)(oldlock));
       tl_assert(oldlock->guestaddr == ga);
+      /* Check for a mismatch between an rwlock and a mutex of either
+         kind. evh__HG_PTHREAD_MUTEX_LOCK_POST uses LK_mbRec as the
+         fallback kind, so a non-recursive mutex first encountered
+         at lock time rather than init time is expected to mismatch. */
+      Bool old_is_mutex = (oldlock->kind == LK_nonRec
+                           || oldlock->kind == LK_mbRec);
+      Bool new_is_mutex = (lkk == LK_nonRec || lkk == LK_mbRec);
+      if (old_is_mutex != new_is_mutex) {
+         /* At address GA a mutex has replaced an rwlock or an rwlock
+            has replaced a mutex.  Remove the stale oldlock record.  */
+         if (oldlock->heldBy) {
+            remove_Lock_from_locksets_of_all_owning_Threads(oldlock);
+            VG_(deleteBag)(oldlock->heldBy);
+            oldlock->heldBy = NULL;
+            oldlock->heldW = False;
+            oldlock->acquired_at = NULL;
+         }
+         if (HG_(clo_track_lockorders))
+            laog__handle_one_lock_deletion(oldlock);
+         map_locks_delete(ga);
+         del_LockN(oldlock);
+         Lock* lock = mk_LockN( lkk, ga );
+         lock->appeared_at = VG_(record_ExeContext)( tid, 0 );
+         tl_assert(HG_(is_sane_LockN)(lock));
+         VG_(addToFM)( map_locks, (UWord)ga, (UWord)lock );
+         return lock;
+      }
       return oldlock;
    }
 }
@@ -1008,8 +1039,6 @@ static void all__sanity_check ( const HChar* who ) {
 static void laog__pre_thread_acquires_lock ( Thread*, Lock* ); /* fwds */
 //static void laog__handle_lock_deletions    ( WordSetID ); /* fwds */
 static inline Thread* get_current_Thread ( void ); /* fwds */
-__attribute__((noinline))
-static void laog__handle_one_lock_deletion ( Lock* lk ); /* fwds */
 
 
 /* Block-copy states (needed for implementing realloc()). */
