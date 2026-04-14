@@ -14694,7 +14694,7 @@ PRE(sys_fsconfig)
    if (ARG3)
       PRE_MEM_RASCIIZ( "fsconfig(key)", ARG3);
    if (!ML_(fd_allowed)(ARG1, "fsconfig", tid, False))
-      SET_STATUS_Failure( VKI_EBADF );
+      SET_STATUS_Failure( VKI_EINVAL ); // Bug 518951
    /* XXX we could also check the value based on the cmd FSCONFIG_...  */
 }
 

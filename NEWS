@@ -138,6 +138,7 @@ are not entered into bugzilla tend to get forgotten about or ignored.
 518482  FreeBSD: assert in parse_procselfmaps when built with GNU binutils
 518609  Setting double verbose interferes with symbol loading (FreeBSD 16)
 518778  Valgrind LTP testsuite fails to compile on Fedora 44+
+518951  LTP testcase fsconfig02 fails under Valgrind
 
 To see details of a given bug, visit
   https://bugs.kde.org/show_bug.cgi?id=XXXXXX
