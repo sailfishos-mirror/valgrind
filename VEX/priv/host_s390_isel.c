@@ -1714,9 +1714,9 @@ s390_isel_int_expr_wrk(ISelEnv *env, IRExpr *expr)
       }
 
       /* Is this a match for "load address"? */
-      if (expr->Iex.Binop.op == Iop_Add64) {
+      if (expr->Iex.Binop.op == Iop_Add64 && arg2->tag == Iex_Const) {
          ULong disp = arg2->Iex.Const.con->Ico.U64;
-         if (arg2->tag == Iex_Const && ulong_fits_signed_20bit(disp)) {
+         if (ulong_fits_signed_20bit(disp)) {
             h1 = s390_isel_int_expr(env, arg1);
             opnd.tag = S390_OPND_AMODE;
             if (ulong_fits_unsigned_12bit(disp)) {
