@@ -98,7 +98,6 @@ EXTRA_DIST = \
 	tc12_rwl_trivial.vgtest \
 		tc12_rwl_trivial.stderr.exp \
 		tc12_rwl_trivial.stderr.exp-darwin970 \
-		tc12_rwl_trivial.stderr.exp-solaris \
 		tc12_rwl_trivial.stderr.exp-freebsd \
 	tc13_laog1.vgtest tc13_laog1.stderr.exp \
 	tc14_laog_dinphils.vgtest \
