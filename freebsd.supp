@@ -185,7 +185,7 @@
    Memcheck:Leak
    match-leak-kinds: reachable
    fun:malloc
-   obj:/lib/libc.so.7
+   obj:*/lib*/libc.so.7
    fun:__cxa_atexit
 }
 # this is a heisensuppression
@@ -195,6 +195,6 @@
    MEMCHECK-RTLD-_SIGPROCMASK
    Memcheck:Param
    sigprocmask(set)
-   fun:_sigprocmask
-   fun:_rtld_bind
+   obj:/libexec/ld-elf*.so.1
+   obj:/libexec/ld-elf*.so.1
 }
