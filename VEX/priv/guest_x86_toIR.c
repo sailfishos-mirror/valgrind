@@ -13206,6 +13206,40 @@ DisResult disInstr_X86_WRK (
       goto decode_success;
    }
 
+   /* 66 0F 3A 42 /r ib MPSADBW xmm1, xmm2/m128, imm8
+      Multiple Packed Sums of Absolute Difference */
+   if (sz == 2 && insn[0] == 0x0F && insn[1] == 0x3A && insn[2] == 0x42) {
+       Int    imm8;
+       IRTemp src_vec = newTemp(Ity_V128);
+       IRTemp dst_vec = newTemp(Ity_V128);
+       modrm          = insn[3];
+       UInt   rG      = gregOfRM(modrm);
+
+       assign( dst_vec, getXMMReg(rG) );
+
+       /* in a case of delta + 3, +3 skips the three opcode bytes (0F 3A 42)
+          that insn[] already matched */
+       if ( epartIsReg( modrm ) ) {
+         UInt rE = eregOfRM(modrm);
+
+         imm8 = (Int)(insn[3+1]);
+         assign( src_vec, getXMMReg(rE) );
+         delta += 3+1+1;
+         DIP( "mpsadbw $%d, %s,%s\n", imm8,
+             nameXMMReg(rE), nameXMMReg(rG) );
+       } else {
+         addr = disAMode( &alen, sorb, delta + 3, dis_buf);
+         gen_SEGV_if_not_16_aligned( addr );
+         assign( src_vec, loadLE( Ity_V128, mkexpr(addr) ) );
+         imm8 = (Int)(insn[3+alen]);
+         delta += 3+alen+1;
+         DIP( "mpsadbw $%d, %s,%s\n", imm8, dis_buf, nameXMMReg(rG) );
+       }
+
+       putXMMReg( rG, mkexpr( math_MPSADBW_128(dst_vec, src_vec, imm8) ) );
+       goto decode_success;
+     }
+
    /* 66 0F 3A 0D /r ib = BLENDPD */
    if (sz == 2 && insn[0] == 0x0F && insn[1] == 0x3A && insn[2] == 0x0D) {
      decode_sse4_blend_imm(&delta, insn, "blendpd", math_BLENDPD_128, sorb);

@@ -962,24 +962,6 @@ void test_INSERTPS ( void )
    }
 }
 
-void test_MPSADBW ( void )
-{
-   V128 src, dst;
-   Int i;
-   for (i = 0; i < 50; i++) {
-      randV128(&src);
-      randV128(&dst);
-      DO_imm_mandr_r("mpsadbw", 0, src, dst);
-      DO_imm_mandr_r("mpsadbw", 1, src, dst);
-      DO_imm_mandr_r("mpsadbw", 2, src, dst);
-      DO_imm_mandr_r("mpsadbw", 3, src, dst);
-      DO_imm_mandr_r("mpsadbw", 4, src, dst);
-      DO_imm_mandr_r("mpsadbw", 5, src, dst);
-      DO_imm_mandr_r("mpsadbw", 6, src, dst);
-      DO_imm_mandr_r("mpsadbw", 7, src, dst);
-   }
-}
-
 void test_PACKUSDW ( void )
 {
    V128 src, dst;

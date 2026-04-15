@@ -164,6 +164,7 @@ int main(void)
    test_BLENDVPS();
    test_PTEST();
    test_PCMPEQQ();
+   test_MPSADBW();
 
    return 0;
 }
