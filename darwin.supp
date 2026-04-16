@@ -766,6 +766,38 @@
    fun:_NXHashRehashToCapacity
 }
 
+{
+   macOS1014:remapClass(objc_class*)
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc_zone_calloc
+   fun:_ZL10remapClassP10objc_class
+}
+
+{
+   macOS1014:NXHashGet
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   fun:NXHashGet
+}
+
+{
+   macOS1014:NXHashInsert
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc*
+   fun:NXHashInsert
+}
+
+{
+   macOS1014:isEqualPrototype(void const*, void const*, void const*)
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc_zone_malloc
+   fun:_ZL16isEqualPrototypePKvS0_S0_
+}
+
 # I suppose that this is deliberate
 # and that Apple know what they are doing?
 # On macOS 12 at least this seems to have changed name to ___chkstk_darwin

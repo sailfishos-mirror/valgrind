@@ -192,6 +192,13 @@
 }
 
 {
+   macOS1014:list_array_tt<unsigned long, protocol_list_t>::tryFree()
+   Helgrind:Race
+   fun:_ZN13list_array_ttIm15protocol_list_tE7tryFreeEv
+   fun:NXMapRemove
+}
+
+{
    macOS1015:NXMapInsert
    Helgrind:Race
    fun:NXMapInsert
