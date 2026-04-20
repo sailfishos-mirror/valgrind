@@ -10,15 +10,31 @@ for nanoMIPS/Linux. macOS is supported up to version 13 Ventura (amd64 only).
 
 * ==================== CORE CHANGES ===================
 
-* linux madvise MADV_GUARD_INSTALL unsupported
+* There are two new client requests
+
+  - VALGRIND_REPLACES_MALLOC Returns 1 if the tool replaces malloc
+    (e.g., memcheck).  Returns 0 if the tool does not replace malloc
+    (e.g., cachegrind and callgrind) or if the executable is not
+    running under VALGRIND.
+
+  - VALGRIND_GET_TOOLNAME Get the running tool name as a string. Takes
+    two arguments, an input buffer pointer and the length of that
+    buffer. Returns the required length (including terminating nul)
+    for the tool name. Returns 0 and the contents supplied buffer are
+    not modified if not running under Valgrind.
+
+  See also the full description in the valgrind.h header file or the
+  in The Client Request mechanism section of the Valgrind User Manual.
+
+* linux lightweight guard pages (madvise MADV_GUARD_INSTALL) supported
 
   glibc 2.42+ (with linux 6.13+) uses MADV_GUARD_INSTALL to setup
-  stack guard pages. valgrind currently isn't able to track this and
-  such guard pages also don't show up in /proc maps (only in /proc
-  pagemap since linux 6.14). For now valgrind fails a madvise
-  MADV_GUARD_INSTALL syscall with EINVAL. This causes glibc to fall
-  back to mprotect PROT_NONE which valgrind is able to track.
-  See also https://bugs.kde.org/show_bug.cgi?id=514297
+  stack guard pages. These lightweight guard pages are now supported
+  under valgrind. By default, Valgrind can handle to up to 500 madvise
+  guard pages. With thread heavy workloads the default value might not
+  be sufficient. Use --max-guard-pages=N to provide a different limit.
+  If --max-guard-pages is not set explicitly, then it will default to
+  the --max-threads setting.
 
 * --num-callers now has a minimum value of 2.
 
@@ -28,23 +44,35 @@ for nanoMIPS/Linux. macOS is supported up to version 13 Ventura (amd64 only).
 
 * ================== PLATFORM CHANGES =================
 
+* x86: Support for SSE4.1 instructions has been ported from AMD64 to
+  (32bit) x86. This is ongoing work. Currently the following SSE4.1
+  instructions are supported BLENDPD BLENDPS BLENDVPD BLENDVPS
+  MOVNTDQA MPSADBW PBLENDVB PBLENDW PCMPEQQ PINSRD PMAXSB PMAXSD
+  PMAXUD PMAXUW PMINSB PMINSD PMINUD PMINUW PMULLD PTEST.
+  Bug #518222 tracks further progress.
+
 * s390x: Machine models older than z196 are no longer supported.
 
 * s390x: Support new z/Architecture features from the 15th edition.  In
   particular this enables running binaries compiled with `-march=arch15'
   or `-march=z17' and exploiting the new MSA extensions 10-13.
 
-Support for the following macOS versions has been added
-10.13 High Sierra (bug fixes)
-10.14 Mojave
-10.15 Catalina
-11.0  Big Sur (Intel only)
-12.0  Monterey (Intel only)
-13.0  Ventura (Intel only, preliminary)
+* Support for the following macOS versions has been added
+  10.13 High Sierra (bug fixes)
+  10.14 Mojave
+  10.15 Catalina
+  11.0  Big Sur (Intel only)
+  12.0  Monterey (Intel only)
+  13.0  Ventura (Intel only, preliminary)
+
+* The Linux Test Project (LTP) v20260130 was integrated. New linux
+  syscall wrappers for file_getattr, file_setattr, lsm_get_self_attr,
+  lsm_set_self_attr, lsm_list_modules were added.
 
 * ==================== TOOL CHANGES ===================
 
 * Helgrind:
+
   - New debug option --show-events=0|1|2. Controls tracing of internal
     Helgrind synchronization, threading and memory events. At level 1,
     Helgrind prints a trace of its synchronization, threading and memory
