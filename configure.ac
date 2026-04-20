@@ -18,8 +18,8 @@ AC_PREREQ(2.69)
 m4_define([v_major_ver], [3])
 m4_define([v_minor_ver], [27])
 m4_define([v_micro_ver], [0])
-m4_define([v_suffix_ver], [RC2])
-m4_define([v_rel_date], ["17 Apr 2026"])
+m4_define([v_suffix_ver], [])
+m4_define([v_rel_date], ["20 Apr 2026"])
 m4_define([v_version],
 	  m4_if(v_suffix_ver, [],
 		[v_major_ver.v_minor_ver.v_micro_ver],
