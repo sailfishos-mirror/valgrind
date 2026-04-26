@@ -963,3 +963,12 @@
    ...
    fun:libSystem_atfork_child
 }
+
+{
+   macOS1300:_fetchInitializingClassList(bool)
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:?alloc
+   fun:_ZL27_fetchInitializingClassListb
+}
+
