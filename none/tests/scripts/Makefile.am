@@ -16,6 +16,7 @@ EXTRA_DIST = \
 	shell.stderr.exp-dash4 \
 	shell.stdout.exp shell.stderr.exp-illumos shell.stderr.exp-freebsd \
 	shell.stderr.exp-solaris shell.stderr.exp-solaris-spawn \
+	shell.stderr.exp-darwin \
 	shell2.vgtest shell2.stderr.exp shell2.stderr.exp-darwin19 \
 	shell2.stdout.exp \
 	shell3.vgtest shell3.stderr.exp shell3.stdout.exp \
