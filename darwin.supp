@@ -972,3 +972,15 @@
    fun:_ZL27_fetchInitializingClassListb
 }
 
+{
+   macOS1300:libSystem_initializer
+   Memcheck:Param
+   mach_msg2(msg)
+   fun:mach_msg2_trap
+   fun:mach_msg2_internal
+   fun:task_set_special_port
+   fun:_os_trace_create_debug_control_port
+   fun:_libtrace_init
+   fun:libSystem_initializer
+}
+

@@ -7469,7 +7469,7 @@ POST(mach_make_memory_entry_64)
    Reply *reply = (Reply *)ARG1;
 
    if (reply->Head.msgh_bits & MACH_MSGH_BITS_COMPLEX) {
-      assign_port_name(reply->object.name, "memory-%p");
+      record_named_port(tid, reply->object.name, MACH_PORT_RIGHT_SEND, "memory-%p");
       PRINT("%s", name_for_port(reply->object.name));
    }
 }
@@ -9210,9 +9210,6 @@ PRE(mach_msg2)
   if (options & MACH_SEND_MSG && msgh_bits & MACH_SEND_TRAILER) {
     trailer_size = REQUESTED_TRAILER_SIZE(options);
   }
-// FIXME: loads of issues on macOS 13 and no computer to test on
-// disabled for now
-#if DARWIN_VERS != DARWIN_13_00
   if (options & MACH64_MSG_VECTOR) {
     mach_msg_vector_t *msgv = (mach_msg_vector_t *)mh;
     PRE_MEM_READ("mach_msg2(msgv)", (Addr)mh, sizeof(mach_msg_vector_t));
@@ -9240,7 +9237,6 @@ PRE(mach_msg2)
       PRE_MEM_WRITE("mach_msg2(msg)", (Addr)mh, size);
     }
   }
-#endif
 
   // Assume call may block unless specified otherwise
   *flags |= SfMayBlock;
@@ -9257,19 +9253,20 @@ PRE(mach_msg2)
     // no message sent, receive only
     CALL_PRE(mach_msg_receive);
     return;
-  } else if (msgh_local_port == vg_host_port) {
+  } else if (msgh_remote_port == vg_host_port) {
     // message sent to mach_host_self()
     CALL_PRE(mach_msg_host);
+    AFTER = POST_FN(mach_msg_host);
     return;
-  } else if (is_task_port(msgh_local_port)) {
+  } else if (is_task_port(msgh_remote_port)) {
     // message sent to a task
     CALL_PRE(mach_msg_task);
     return;
-  } else if (msgh_local_port == vg_bootstrap_port) {
+  } else if (msgh_remote_port == vg_bootstrap_port) {
     // message sent to bootstrap port
     CALL_PRE(mach_msg_bootstrap);
     return;
-  } else if (is_thread_port(msgh_local_port)) {
+  } else if (is_thread_port(msgh_remote_port)) {
     // message sent to one of this process's threads
     CALL_PRE(mach_msg_thread);
     return;
@@ -9281,6 +9278,25 @@ PRE(mach_msg2)
 
 POST(mach_msg2)
 {
+#define MACH_MSG2_UNSHIFT_LOW(x) ((x) & 0xffffffff)
+  mach_msg_header_t *mh = (mach_msg_header_t *)ARG1;
+  mach_msg_option64_t options = (mach_msg_option64_t)ARG2;
+  UWord rcv_size = MACH_MSG2_UNSHIFT_LOW(ARG7);
+#undef MACH_MSG2_UNSHIFT_LOW
+
+  if (options & MACH_RCV_MSG && RES == 0) {
+    if (options & MACH64_MSG_VECTOR) {
+      mach_msg_vector_t *msgv = (mach_msg_vector_t *)mh;
+      if (msgv->msgv_rcv_addr != 0) {
+        POST_MEM_WRITE((Addr)msgv->msgv_rcv_addr, msgv->msgv_rcv_size);
+      } else {
+        POST_MEM_WRITE((Addr)msgv->msgv_data, msgv->msgv_rcv_size);
+      }
+    } else {
+      POST_MEM_WRITE((Addr)mh, rcv_size);
+    }
+  }
+
   // Call handler chosen by PRE(mach_msg2)
   if (AFTER) {
     (*AFTER)(tid, arrghs, status);
