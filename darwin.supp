@@ -984,3 +984,10 @@
    fun:libSystem_initializer
 }
 
+{
+   macOS1300:fork
+   Memcheck:Addr4
+   fun:xpc_atfork_child
+   fun:libSystem_atfork_child
+   fun:fork
+}
