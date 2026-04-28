@@ -2988,14 +2988,20 @@ PRE(shmget)
 
 PRE(shm_open)
 {
-   PRINT("shm_open(%#lx(%s), %ld, %lu)", ARG1, (HChar *)ARG1, SARG2, ARG3);
-   PRE_REG_READ3(long, "shm_open",
-                 const char *,"name", int,"flags", vki_mode_t,"mode");
+   if (ARG2 & VKI_O_CREAT) {
+      PRINT("shm_open(%#lx(%s), %ld, %lu)", ARG1, (HChar *)ARG1, SARG2, ARG3);
+      PRE_REG_READ3(long, "shm_open",
+                    const char *,"name", int,"flags", vki_mode_t,"mode");
+   } else {
+      PRINT("shm_open(%#lx(%s), %ld)", ARG1, (HChar *)ARG1, SARG2);
+      PRE_REG_READ2(long, "shm_open", const char *,"name", int,"flags");
+   }
 
    PRE_MEM_RASCIIZ( "shm_open(filename)", ARG1 );
 
    *flags |= SfMayBlock;
 }
+
 POST(shm_open)
 {
    vg_assert(SUCCESS);

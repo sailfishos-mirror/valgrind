@@ -14,7 +14,6 @@ for nanoMIPS/Linux. macOS is supported up to version 13 Ventura (amd64 only).
 
 * ==================== TOOL CHANGES ===================
 
-
 * ==================== FIXED BUGS ====================
 
 The following bugs have been fixed or resolved.  Note that "n-i-bz"
@@ -25,6 +24,7 @@ than mailing the developers (or mailing lists) directly -- bugs that
 are not entered into bugzilla tend to get forgotten about or ignored.
 
 519223  Recognize ioctl(UFFDIO_*) operations
+519539  Darwin shm_open mode is optional and depends on oflag
 
 To see details of a given bug, visit
   https://bugs.kde.org/show_bug.cgi?id=XXXXXX
