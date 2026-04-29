@@ -5258,21 +5258,6 @@ AC_MSG_RESULT([no])
 ])
 CFLAGS="$save_CFLAGS"
 
-if test x$ac_have_usable_linux_futex_h = xyes \
-        -a x$ac_have_builtin_atomic_primary = xyes; then
-  ac_enable_linux_ticket_lock_primary=yes
-fi
-AM_CONDITIONAL([ENABLE_LINUX_TICKET_LOCK_PRIMARY],
-               [test x$ac_enable_linux_ticket_lock_primary = xyes])
-
-if test x$VGCONF_PLATFORM_SEC_CAPS != x \
-        -a x$ac_have_usable_linux_futex_h = xyes \
-        -a x$ac_have_builtin_atomic_secondary = xyes; then
-  ac_enable_linux_ticket_lock_secondary=yes
-fi
-AM_CONDITIONAL([ENABLE_LINUX_TICKET_LOCK_SECONDARY],
-               [test x$ac_enable_linux_ticket_lock_secondary = xyes])
-
 
 #----------------------------------------------------------------------------
 # Checks for typedefs, structures, and compiler characteristics.
@@ -5866,7 +5851,21 @@ fi
 AM_CONDITIONAL([HAVE_BUILTIN_ATOMIC64],
                [test x$ac_have_builtin_atomic64 = xyes])
 
-               
+if test x$ac_have_usable_linux_futex_h = xyes \
+        -a x$ac_have_builtin_atomic_primary = xyes; then
+  ac_enable_linux_ticket_lock_primary=yes
+fi
+AM_CONDITIONAL([ENABLE_LINUX_TICKET_LOCK_PRIMARY],
+               [test x$ac_enable_linux_ticket_lock_primary = xyes])
+
+if test x$VGCONF_PLATFORM_SEC_CAPS != x \
+        -a x$ac_have_usable_linux_futex_h = xyes \
+        -a x$ac_have_builtin_atomic_secondary = xyes; then
+  ac_enable_linux_ticket_lock_secondary=yes
+fi
+AM_CONDITIONAL([ENABLE_LINUX_TICKET_LOCK_SECONDARY],
+               [test x$ac_enable_linux_ticket_lock_secondary = xyes])
+
 AC_MSG_CHECKING([if platform has openat2 syscall])
 
 AC_LINK_IFELSE([AC_LANG_PROGRAM([[
