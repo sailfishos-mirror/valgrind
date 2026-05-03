@@ -10852,6 +10852,7 @@ PRE(pselect)
 
 #endif /* DARWIN_VERS >= DARWIN_10_11 */
 
+#if defined(SYS_persona)
 // SYS_persona 494
 // __persona(uint32_t operation, uint32_t flags, struct kpersona_info *info, uid_t *id,
 // i          size_t *idlen, char *path);
@@ -10943,6 +10944,7 @@ POST(persona)
       break;
    }
 }
+#endif /* defined(SYS_persona) */
 
 
 /* ---------------------------------------------------------------------
@@ -12230,7 +12232,11 @@ const SyscallTableEntry ML_(syscall_table)[] = {
 // _____(__NR_stack_snapshot_with_config),              // 491
 // _____(__NR_microstackshot),                          // 492
 // _____(__NR_grab_pgo_data),                           // 493
+#endif
+#if defined(SYS_persona)
    MACXY(__NR_persona, persona),                        // 494
+#endif
+#if DARWIN_VERS >= DARWIN_10_11
    _____(VG_DARWIN_SYSCALL_CONSTRUCT_UNIX(495)),        // ???
    _____(VG_DARWIN_SYSCALL_CONSTRUCT_UNIX(496)),        // ???
    _____(VG_DARWIN_SYSCALL_CONSTRUCT_UNIX(497)),        // ???
