@@ -1652,7 +1652,6 @@
 /none/tests/nestedfns
 /none/tests/nocwd
 /none/tests/pending
-/none/tests/pluto
 /none/tests/ppoll_alarm
 /none/tests/process_vm_readv_writev
 /none/tests/pselect_alarm
