@@ -412,6 +412,11 @@ int main(void)
    test_POPCNTL_x86();
    test_POPCNTW_x86();
    test_PHMINPOSUW();
+   test_ROUNDPD_w_immediate_rounding();
+   test_ROUNDPS_w_immediate_rounding();
+   test_ROUNDPD_w_mxcsr_rounding();
+   test_ROUNDPS_w_mxcsr_rounding();
+   test_PMULDQ();
    test_CRC32_U32_x86();
    test_CRC32_U16_x86();
    test_CRC32_U8_x86();
