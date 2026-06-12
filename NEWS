@@ -29,6 +29,7 @@ are not entered into bugzilla tend to get forgotten about or ignored.
 
 271615  Unhandled instruction "popcnt" on x86
 295974  Add SSE4.1 PEXTRD instruction for x86 32 bit
+338365  New client request to fetch valgrind version
 387080  Add --peak-only option to ms_print
 391311  Fix arm64 valgrind tests compilation with clang
 519223  Recognize ioctl(UFFDIO_*) operations
@@ -36,9 +37,14 @@ are not entered into bugzilla tend to get forgotten about or ignored.
 519574  valgrind 3.27 "--fair-sched=yes" does not work
 519613  Valgrind incorrectly unpacks the result of sys_port (port_getn)
         on error, leading to a ~60s wallclock time delay on every call
+518217  Add PHMINPOSUW SSE4.1 support for x86
+518218  Add PMULDQ SSE4.1 support for x86
+518220  Add ROUNDPS, ROUNDSS, ROUNDPD, ROUNDSD SSE4.1 support for x86
 520482  Advertise POPCNT on x86 via CPUID
+520753  Advertise LZCNT via CPUID for x86 (32-bit) clients
 520856  unhandled instruction bytes: 0x2E 0xFF 0x14 0x85
 520861  Update FAQ for C++ standard library
+521027  Advertise LZCNT on amd64 via CPUID
 
 To see details of a given bug, visit
   https://bugs.kde.org/show_bug.cgi?id=XXXXXX

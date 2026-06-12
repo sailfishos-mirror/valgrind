@@ -264,6 +264,12 @@ int main(void)
    test_PACKUSDW();
    test_POPCNTL_x86();
    test_POPCNTW_x86();
+   test_PHMINPOSUW();
+   test_ROUNDPD_w_immediate_rounding();
+   test_ROUNDPS_w_immediate_rounding();
+   test_ROUNDPD_w_mxcsr_rounding();
+   test_ROUNDPS_w_mxcsr_rounding();
+   test_PMULDQ();
 
    return 0;
 }
