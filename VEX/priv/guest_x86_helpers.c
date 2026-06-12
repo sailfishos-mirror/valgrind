@@ -2476,7 +2476,8 @@ void x86g_dirtyhelper_CPUID_sse2 ( VexGuestX86State* st )
    address sizes   : 36 bits physical, 48 bits virtual
    power management:
 */
-void x86g_dirtyhelper_CPUID_sse3 ( VexGuestX86State* st )
+void x86g_dirtyhelper_CPUID_sse3 ( VexGuestX86State* st,
+                                   UInt hasLZCNT )
 {
 #  define SET_ABCD(_a,_b,_c,_d)               \
       do { st->guest_EAX = (UInt)(_a);        \
@@ -2533,9 +2534,13 @@ void x86g_dirtyhelper_CPUID_sse3 ( VexGuestX86State* st )
       case 0x80000000:
          SET_ABCD(0x80000008, 0x00000000, 0x00000000, 0x00000000);
          break;
-      case 0x80000001:
-         SET_ABCD(0x00000000, 0x00000000, 0x00000001, 0x20100000);
+      case 0x80000001: {
+         UInt ecx_extra = 0;
+         ecx_extra = hasLZCNT ? (1U << 5) : 0;
+         SET_ABCD(0x00000000, 0x00000000, 0x00000001 | ecx_extra,
+                  0x20100000);
          break;
+         }
       case 0x80000002:
          SET_ABCD(0x65746e49, 0x2952286c, 0x726f4320, 0x4d542865);
          break;
@@ -2654,23 +2659,6 @@ void x86g_dirtyhelper_SxDT ( void *address, UInt op ) {
 
 static inline ULong mk32x2 ( UInt w1, UInt w0 ) {
    return (((ULong)w1) << 32) | ((ULong)w0);
-}
-
-static inline UShort sel16x4_3 ( ULong w64 ) {
-   UInt hi32 = toUInt(w64 >> 32);
-   return toUShort(hi32 >> 16);
-}
-static inline UShort sel16x4_2 ( ULong w64 ) {
-   UInt hi32 = toUInt(w64 >> 32);
-   return toUShort(hi32);
-}
-static inline UShort sel16x4_1 ( ULong w64 ) {
-   UInt lo32 = toUInt(w64);
-   return toUShort(lo32 >> 16);
-}
-static inline UShort sel16x4_0 ( ULong w64 ) {
-   UInt lo32 = toUInt(w64);
-   return toUShort(lo32);
 }
 
 /* CALLED FROM GENERATED CODE: CLEAN HELPER */
