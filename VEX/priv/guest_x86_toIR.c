@@ -13893,7 +13893,7 @@ DisResult disInstr_X86_WRK (
 
       IRType tyE = szToITy(sz);
       IRTemp valE = newTemp(tyE);
-      modrm = insn[3];
+      modrm = insn[4];
 
       if (epartIsReg(modrm)) {
          assign(valE, getIReg(sz, eregOfRM(modrm)));
