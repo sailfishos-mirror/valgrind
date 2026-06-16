@@ -13922,7 +13922,7 @@ DisResult disInstr_X86_WRK (
       IRTemp valG1 = newTemp(Ity_I32);
       assign(valG1,
              mkIRExprCCall(Ity_I32, 0, nm, fn,
-             mkIRExprVec_1(mkexpr(valG0))));
+             mkIRExprVec_2(mkexpr(valG0), widenUto32(mkexpr(valE)))));
 
       putIReg(4, gregOfRM(modrm), mkexpr(valG1));
       goto decode_success;
