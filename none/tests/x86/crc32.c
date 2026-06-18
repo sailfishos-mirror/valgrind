@@ -2,10 +2,40 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+typedef  signed int              Int;
 typedef  unsigned int            UInt;
 typedef  unsigned char           UChar;
 typedef  unsigned short int      UShort;
+typedef  unsigned long long int  ULong;
 
+
+static inline UChar randUChar ( void )
+{
+   static UInt seed = 80021;
+   seed = 1103515245 * seed + 12345;
+   return (seed >> 17) & 0xFF;
+}
+
+
+static inline ULong randULong ( void )
+{
+   Int i;
+   ULong r = 0;
+   for (i = 0; i < 8; i++) {
+      r = (r << 8) | (ULong)(0xFF & randUChar());
+   }
+   return r;
+}
+
+static inline UInt randUInt ( void )
+{
+   Int i;
+   UInt r = 0;
+   for (i = 0; i < 4; i++) {
+      r = (r << 8) | (UInt)(0xFF & randUChar());
+   }
+   return r;
+}
 
 /////////////////////////////////////////////////////////////////
 
@@ -156,12 +186,156 @@ void try_misc ( void )
 
 /////////////////////////////////////////////////////////////////
 
+void test_CRC32_U8_x86 ( void )
+{
+   UInt block[4];
+   Int i;
+   UInt oszacp_mask = 0x8D5;
+   for (i = 0; i < 10; i++) {
+      block[0] = i == 0 ? 0 : (UInt)randUInt();
+      block[1] = (UInt)randUInt();
+      block[2] = (UInt)randUInt();
+      block[3] = (UInt)randUInt();
+      __asm__ __volatile__(
+         "movl %0,       %%eax"  "\n\t"
+         "movl 0(%%eax), %%edi"  "\n\t"
+         "movl 4(%%eax), %%ecx"  "\n\t"
+         "crc32 %%dl,  %%ecx"  "\n\t"
+         "movl %%ecx, 8(%%eax)"  "\n\t"
+         "pushf"                 "\n\t"
+         "popl %%edx"             "\n\t"
+         "movl %%edx, 12(%%eax)"  "\n"
+         : /*out*/
+         : /*in*/"r"(&block[0])
+         : /*trash*/ "cc", "memory", "edi", "ecx", "edx"
+      );
+      printf("r crc32_u8  %08x %08x  %08x %08x\n",
+             block[0], block[1], block[2], block[3] & oszacp_mask);
 
+      block[0] = i == 0 ? 0 : (UInt)randUInt();
+      block[1] = (UInt)randUInt();
+      block[2] = (UInt)randUInt();
+      block[3] = (UInt)randUInt();
+      __asm__ __volatile__(
+         "movl %0,       %%eax"  "\n\t"
+         "movl 4(%%eax), %%ecx"  "\n\t"
+         "crc32b 0(%%eax), %%ecx"  "\n\t"
+         "movl %%ecx, 8(%%eax)"  "\n\t"
+         "pushf"                 "\n\t"
+         "popl %%edx"             "\n\t"
+         "movl %%edx, 12(%%eax)"  "\n"
+         : /*out*/
+         : /*in*/"r"(&block[0])
+         : /*trash*/ "cc", "memory", "ecx", "edx"
+      );
+      printf("m crc32_u8  %08x %08x  %08x %08x\n",
+             block[0], block[1], block[2], block[3] & oszacp_mask);
+   }
+}
+
+void test_CRC32_U16_x86 ( void )
+{
+   UInt block[4];
+   Int i;
+   UInt oszacp_mask = 0x8D5;
+   for (i = 0; i < 10; i++) {
+      block[0] = i == 0 ? 0 : (UInt)randUInt();
+      block[1] = (UInt)randUInt();
+      block[2] = (UInt)randUInt();
+      block[3] = (UInt)randUInt();
+      __asm__ __volatile__(
+         "movl %0,       %%eax"  "\n\t"
+         "movl 0(%%eax), %%edi"  "\n\t"
+         "movl 4(%%eax), %%ecx"  "\n\t"
+         "crc32 %%di,  %%ecx"  "\n\t"
+         "movl %%ecx, 8(%%eax)"  "\n\t"
+         "pushf"                 "\n\t"
+         "popl %%edx"             "\n\t"
+         "movl %%edx, 12(%%eax)"  "\n"
+         : /*out*/
+         : /*in*/"r"(&block[0])
+         : /*trash*/ "cc", "memory", "edi", "ecx", "edx"
+      );
+      printf("r crc32_u16  %08x %08x  %08x %08x\n",
+             block[0], block[1], block[2], block[3] & oszacp_mask);
+
+      block[0] = i == 0 ? 0 : (UInt)randUInt();
+      block[1] = (UInt)randUInt();
+      block[2] = (UInt)randUInt();
+      block[3] = (UInt)randUInt();
+      __asm__ __volatile__(
+         "movl %0,       %%eax"  "\n\t"
+         "movl 4(%%eax), %%ecx"  "\n\t"
+         "crc32w 0(%%eax), %%ecx"  "\n\t"
+         "movl %%ecx, 8(%%eax)"  "\n\t"
+         "pushf"                 "\n\t"
+         "popl %%edx"             "\n\t"
+         "movl %%edx, 12(%%eax)"  "\n"
+         : /*out*/
+         : /*in*/"r"(&block[0])
+         : /*trash*/ "cc", "memory", "ecx", "edx"
+      );
+      printf("m crc32_u16  %08x %08x  %08x %08x\n",
+             block[0], block[1], block[2], block[3] & oszacp_mask);
+   }
+}
+
+void test_CRC32_U32_x86 ( void )
+{
+   UInt block[4];
+   Int i;
+   UInt oszacp_mask = 0x8D5;
+   for (i = 0; i < 10; i++) {
+      block[0] = i == 0 ? 0 : (UInt)randUInt();
+      block[1] = (UInt)randUInt();
+      block[2] = (UInt)randUInt();
+      block[3] = (UInt)randUInt();
+      __asm__ __volatile__(
+         "movl %0,       %%eax"  "\n\t"
+         "movl 0(%%eax), %%edi"  "\n\t"
+         "movl 4(%%eax), %%ecx"  "\n\t"
+         "crc32 %%edi,  %%ecx"  "\n\t"
+         "movl %%ecx, 8(%%eax)"  "\n\t"
+         "pushf"                 "\n\t"
+         "popl %%edx"             "\n\t"
+         "movl %%edx, 12(%%eax)"  "\n"
+         : /*out*/
+         : /*in*/"r"(&block[0])
+         : /*trash*/ "cc", "memory", "edi", "ecx", "edx"
+      );
+      printf("r crc32_u32  %08x %08x  %08x %08x\n",
+             block[0], block[1], block[2], block[3] & oszacp_mask);
+
+      block[0] = i == 0 ? 0 : (UInt)randUInt();
+      block[1] = (UInt)randUInt();
+      block[2] = (UInt)randUInt();
+      block[3] = (UInt)randUInt();
+      __asm__ __volatile__(
+         "movl %0,       %%eax"  "\n\t"
+         "movl 4(%%eax), %%ecx"  "\n\t"
+         "crc32 0(%%eax), %%ecx"  "\n\t"
+         "movl %%ecx, 8(%%eax)"  "\n\t"
+         "pushf"                 "\n\t"
+         "popl %%edx"             "\n\t"
+         "movl %%edx, 12(%%eax)"  "\n"
+         : /*out*/
+         : /*in*/"r"(&block[0])
+         : /*trash*/ "cc", "memory", "ecx", "edx"
+      );
+      printf("m crc32_u32  %08x %08x  %08x %08x\n",
+             block[0], block[1], block[2], block[3] & oszacp_mask);
+   }
+}
+
+/////////////////////////////////////////////////////////////////
 
 int main ( int argc, char** argv )
 {
    try_simple();
    try_mem();
    try_misc();
+   test_CRC32_U8_x86();
+   test_CRC32_U16_x86();
+   test_CRC32_U32_x86();
    return 0;
 }
