@@ -13468,6 +13468,17 @@ DisResult disInstr_X86_WRK (
       goto decode_success;
    }
 
+   /* 66 0F 38 37 PCMPGTQ 64x2 signed comparison */
+   if (sz == 2 && insn[0] == 0x0F
+       && insn[1] == 0x38 && insn[2] == 0x37) {
+     delta = dis_SSEint_E_to_G(
+         sorb, delta+3, "pcmpgtq",
+         Iop_CmpGT64Sx2, False
+         );
+     goto decode_success;
+   }
+
+
    /* 66 0F 38 38 /r  - PMINSB xmm1, xmm2/m128
       66 0F 38 3C /r  - PMAXSB xmm1, xmm2/m128
       Minimum/Maximum of Packed Signed Byte Integers (XMM)
@@ -13878,6 +13889,53 @@ DisResult disInstr_X86_WRK (
       stmt( IRStmt_Put( OFFB_CC_NDEP, mkU32(0) ));
       stmt( IRStmt_Put( OFFB_CC_DEP1, mkexpr(oszacp) ));
 
+      goto decode_success;
+   }
+
+   // crc32
+   if (insn[0] == 0xF2 && insn[1] == 0x0F &&
+       insn[2] == 0x38 && (insn[3] == 0xF0 || insn[3] == 0xF1)) {
+      /* insn[3] == 0xF0 signalizes a 8-bit operand.  Wider operands
+         are signalized using prefixes in 64-bit case or sz in this case */
+      if (insn[3] == 0xF0)
+         sz = 1;
+      else
+         vassert(sz == 2 || sz == 4 || sz == 8);
+
+      IRType tyE = szToITy(sz);
+      IRTemp valE = newTemp(tyE);
+      modrm = insn[4];
+
+      if (epartIsReg(modrm)) {
+         assign(valE, getIReg(sz, eregOfRM(modrm)));
+         delta += 4 + 1;
+      } else {
+         // F2 0F 38 F0 => 4 bytes
+         addr = disAMode( &alen, sorb, delta+4, dis_buf );
+         assign(valE, loadLE(tyE, mkexpr(addr)));
+         delta += 4 + alen;
+      }
+
+      IRTemp valG0 = newTemp(Ity_I32);
+      assign(valG0, getIReg(4, gregOfRM(modrm)));
+
+      const HChar* nm = NULL;
+      void*  fn = NULL;
+      switch (sz) {
+         case 1: nm = "x86g_calc_crc32b";
+                 fn = &x86g_calc_crc32b; break;
+         case 2: nm = "x86g_calc_crc32w";
+                 fn = &x86g_calc_crc32w; break;
+         case 4: nm = "x86g_calc_crc32l";
+                 fn = &x86g_calc_crc32l; break;
+      }
+      vassert(nm && fn);
+      IRTemp valG1 = newTemp(Ity_I32);
+      assign(valG1,
+             mkIRExprCCall(Ity_I32, 0, nm, fn,
+             mkIRExprVec_2(mkexpr(valG0), widenUto32(mkexpr(valE)))));
+
+      putIReg(4, gregOfRM(modrm), mkexpr(valG1));
       goto decode_success;
    }
 
