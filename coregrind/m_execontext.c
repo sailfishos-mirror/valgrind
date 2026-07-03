@@ -622,6 +622,36 @@ const HChar* VG_(get_ExeContext_first_fnname)(ExeContext* ec)
    return NULL;
 }
 
+Bool VG_(is_ExeContext_ignored)(ExeContext* ec, Int start_ips, XArray* ignore_fns)
+{
+   if (VG_(sizeXA)(ignore_fns) > 0) {
+      const DiEpoch ep = VG_(current_DiEpoch)();
+      const HChar *fnname;
+      InlIPCursor *iipc = NULL;
+      Addr* ips = VG_(get_ExeContext_StackTrace)(ec);
+      Int n_ips  = VG_(get_ExeContext_n_ips)(ec);
+      Bool found_name = False;
+      // ips[0] must be the allocation function like malloc
+      for (Int i = start_ips; i < n_ips && !found_name; ++i) {
+         iipc = VG_(new_IIPC)(ep, ips[i]);
+         do {
+            found_name = VG_(get_fnname_inl)(ep, ips[i], &fnname, iipc);
+            if (found_name) {
+               break;
+            }
+         } while (VG_(next_IIPC)(iipc));
+         VG_(delete_IIPC)(iipc);
+      }
+      if (found_name && VG_(strIsMemberXA)(ignore_fns, fnname)) {
+         return True;
+      } else {
+         // FIXME PJF make this verbose output
+         //VG_(printf)("not found %s\n", fnname);
+      }
+   }
+   return False;
+}
+
 /*--------------------------------------------------------------------*/
 /*--- end                                           m_execontext.c ---*/
 /*--------------------------------------------------------------------*/

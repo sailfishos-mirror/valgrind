@@ -41,6 +41,7 @@
 #include "pub_tool_replacemalloc.h"
 #include "pub_tool_tooliface.h"
 #include "pub_tool_wordfm.h"
+#include "pub_tool_execontext.h"
 
 #include "dhat.h"
 
@@ -75,6 +76,11 @@ static ULong g_reads_bytes = 0;
 static ULong g_writes_bytes = 0;
 
 //------------------------------------------------------------//
+//--- Ignore functions                                     ---//
+//------------------------------------------------------------//
+static XArray* ignore_fns;
+
+//------------------------------------------------------------//
 //--- Command line args                                    ---//
 //------------------------------------------------------------//
 
@@ -86,12 +92,16 @@ static const HChar* clo_dhat_out_file = "dhat.out.%p";
 
 static Bool dh_process_cmd_line_option(const HChar* arg)
 {
+   const HChar* tmp_str;
    if VG_STR_CLO(arg, "--dhat-out-file", clo_dhat_out_file) {
 
-   } else if (VG_XACT_CLO(arg, "--mode=heap",   clo_mode, Heap)) {
-   } else if (VG_XACT_CLO(arg, "--mode=copy",   clo_mode, Copy)) {
-   } else if (VG_XACT_CLO(arg, "--mode=ad-hoc", clo_mode, AdHoc)) {
-
+   } else if (VG_XACT_CLO(arg, "--mode=heap",     clo_mode, Heap)) {
+   } else if (VG_XACT_CLO(arg, "--mode=copy",     clo_mode, Copy)) {
+   } else if (VG_XACT_CLO(arg, "--mode=ad-hoc",   clo_mode, AdHoc)) {
+   } else if (VG_STR_CLO(arg, "--ignore-fn",      tmp_str)) {
+      VG_(addToXA)(ignore_fns, &tmp_str);
+   } else if (VG_STR_CLO(arg, "--ignore-fns-file", tmp_str)) {
+      VG_(load_tool_function_list)(tmp_str, ignore_fns, "DHAT ignore function file");
    } else {
       return VG_(replacement_malloc_process_cmd_line_option)(arg);
    }
@@ -102,8 +112,10 @@ static Bool dh_process_cmd_line_option(const HChar* arg)
 static void dh_print_usage(void)
 {
    VG_(printf)(
-"    --dhat-out-file=<file>    output file name [dhat.out.%%p]\n"
-"    --mode=heap|copy|ad-hoc   profiling mode\n"
+"    --dhat-out-file=<file>          output file name [dhat.out.%%p]\n"
+"    --mode=heap|copy|ad-hoc         profiling mode\n"
+"    --ignore-fn=<name>              ignore heap allocations within <name> [empty]\n"
+"    --ignore-fns-file=<filename>    ignore heap allocations contained in <filename> [empty]\n"
    );
 }
 
@@ -599,11 +611,17 @@ void* new_block ( ThreadId tid, void* p, SizeT req_szB, SizeT req_alignB,
       return p;
    }
 
+   ExeContext* ec = VG_(record_ExeContext)(tid, 0/*first word delta*/);
+
+   if (VG_(is_ExeContext_ignored)(ec, 1, ignore_fns)) {
+      return p;
+   }
+
    // Make new Block, add to interval_tree.
    Block* bk = VG_(malloc)("dh.new_block.1", sizeof(Block));
    bk->payload      = (Addr)p;
    bk->req_szB      = req_szB;
-   bk->ec           = VG_(record_ExeContext)(tid, 0/*first word delta*/);
+   bk->ec           = ec;
    bk->allocd_at    = g_curr_instrs;
    bk->reads_bytes  = 0;
    bk->writes_bytes = 0;
@@ -677,6 +695,20 @@ void* renew_block ( ThreadId tid, void* p_old, SizeT new_req_szB )
    // Find the old block.
    Block* bk = find_Block_containing( (Addr)p_old );
    if (!bk) {
+      if (VG_(sizeXA)(ignore_fns) > 0) {
+         // assume the allocation function was ignored
+         SizeT old_actual_szB = VG_(cli_malloc_usable_size)(p_old);
+         if (new_req_szB > old_actual_szB) {
+            p_new = VG_(cli_malloc)(VG_(clo_alignment), new_req_szB);
+            if (!p_new) {
+               return NULL;
+            }
+            tl_assert(p_new != p_old);
+            VG_(memcpy)(p_new, p_old, old_actual_szB);
+            VG_(cli_free)(p_old);
+            return p_new;
+         }
+      }
       return NULL;   // bogus realloc
    }
 
@@ -835,7 +867,7 @@ static SizeT dh_malloc_usable_size ( ThreadId tid, void* p )
    }
 
    Block* bk = find_Block_containing( (Addr)p );
-   return bk ? bk->req_szB : 0;
+   return bk ? bk->req_szB : VG_(cli_malloc_usable_size)(p);
 }
 
 //------------------------------------------------------------//
@@ -1891,6 +1923,9 @@ static void dh_pre_clo_init(void)
                         "dh.ppinfo.1",
                         VG_(free),
                         NULL/*unboxedcmp*/ );
+
+   ignore_fns = VG_(newXA)(VG_(malloc), "dh.iif.1",
+                                        VG_(free), sizeof(HChar*));
 }
 
 VG_DETERMINE_INTERFACE_VERSION(dh_pre_clo_init)

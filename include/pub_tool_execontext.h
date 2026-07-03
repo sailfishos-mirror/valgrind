@@ -124,6 +124,9 @@ ExeContext* VG_(make_ExeContext_from_StackTrace)( const Addr* ips, UInt n_ips );
 // Get the name of the topmost function from an ExeContext
 const HChar* VG_(get_ExeContext_first_fnname)(ExeContext* ec);
 
+// Returns true if the first named function starting from start_ips
+// matches an element in ignore_fns
+Bool VG_(is_ExeContext_ignored)(ExeContext* ec, Int start_ips, XArray* ignore_fns);
 
 // Returns the "null" exe context. The null execontext is an artificial
 // exe context, with a stack trace made of one Addr (the NULL address).

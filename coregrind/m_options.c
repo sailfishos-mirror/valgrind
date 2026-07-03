@@ -506,6 +506,65 @@ Bool VG_(should_we_trace_this_child) ( const HChar* child_exe_name,
    return True;
 }
 
+/*
+ * Not strictly a comand line option, but it is used to avoid
+ * needing multiple alloc/ignore function command line options
+ */
+void VG_(load_tool_function_list)(const HChar* filename, XArray* functions,
+                                  const HChar* error)
+{
+   struct vg_stat stat_buf;
+   SysRes fd = VG_(open)(filename, 0, VKI_S_IRUSR);
+   HChar* f_clo = NULL;
+   if ( !sr_isError(fd) ) {
+      Int res = VG_(fstat)( sr_Res(fd), &stat_buf );
+      if (res == 0
+          && stat_buf.uid == VG_(geteuid)()
+          && VKI_S_ISREG(stat_buf.mode)
+          && !(stat_buf.mode & VKI_S_IWOTH)) {
+         if ( stat_buf.size > 0 ) {
+            f_clo = VG_(malloc)("options.ltlf.1", stat_buf.size+1);
+            Int n = VG_(read)(sr_Res(fd), f_clo, stat_buf.size);
+            if (n == -1)
+               n = 0;
+            //vg_assert(n >= 0 && n <= stat_buf.size+1);
+            f_clo[n] = '\0';
+            HChar* cp = f_clo;
+            while (*cp) {
+               if (*cp == '#') {
+                  while (*++cp && *cp != '\n')
+                     ;
+                  continue;
+               }
+               if (*cp == '\n') {
+                  ++cp;
+                  continue;
+               }
+               // non-comment non-blank line
+               const HChar* cp_end = cp;
+               while (*++cp_end && *cp_end != '\n')
+                  ;
+               SizeT func_len = cp_end - cp + 1;
+               HChar func[func_len];
+               VG_(strncpy)(func, cp, func_len);
+               func[func_len - 1 ] = '\0';
+               HChar *f = VG_(strdup)("options.ltfl.2", func);
+               VG_(addToXA)(functions, &f);
+               cp += func_len;
+            }
+            VG_(free)(f_clo);
+         }
+      } else {
+         VG_(umsg)("error: %s '%s' was not read as it is either not a regular file,\n"
+            "    or is world writeable, or is not owned by the current user.\n",
+            error, filename);
+      }
+      VG_(close)(sr_Res(fd));
+   } else {
+      //VG_(umsg)("error: can't open DHAT ignore function file '%s'\n", filename);
+      VG_(umsg)("error: can't open %s '%s'\n", error, filename);
+   }
+}
 
 /*--------------------------------------------------------------------*/
 /*--- end                                                          ---*/

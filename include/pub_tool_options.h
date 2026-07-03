@@ -32,6 +32,7 @@
 #include "pub_tool_basics.h"     // for VG_ macro
 #include "pub_tool_libcbase.h"   // for VG__ str functions
 #include "pub_tool_libcprint.h"  // for VG_(fmsg_bad_option)
+#include "pub_tool_xarray.h"     // for XArray
 #include "libvex.h"              // for VexControl
 
 // Command line option parsing happens in the following modes:
@@ -447,6 +448,14 @@ extern UInt  VG_(clo_modify_fds);
 */
 extern HChar* VG_(expand_file_name)(const HChar* option_name,
                                     const HChar* format);
+
+/*
+ * Loads a list of function names into the XArray pointed to by 'functions'
+ * Skips blank lines and lines starting with '#'.
+ * If there is problem opening the file the 'error' string will be used.
+ */
+extern void VG_(load_tool_function_list)(const HChar* filename, XArray* functions,
+                                         const HChar* error);
 
 #endif   // __PUB_TOOL_OPTIONS_H
 

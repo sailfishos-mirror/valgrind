@@ -1,0 +1,56 @@
+# deliberate blank line
+
+# macOS 10.13
+_xpc_malloc
+_xpc_dictionary_insert
+map_images_nolock
+allocBuckets(void*, unsigned int)
+realizeClass(objc_class*)
+_NXHashRehashToCapacity
+NXCreateHashTableFromZone
+NXCreateMapTableFromZone
+NXHashInsert
+add_class_to_loadable_list
+class_createInstance
+xpc_string_create
+strdup
+_xpc_calloc
+xpc_array_create
+# macOS 10.14
+_NXMapRehash(_NXMapTable*)
+arc4_init
+realizeClassWithoutSwift(objc_class*)
+objc_class::setHasCustomRR(bool)
+_objc_flush_caches
+remapClass(objc_class*)
+isEqualPrototype(void const*, void const*, void const*)
+TimeLogger::log(char const*)
+freeBuckets(NXHashTable*, int)
+NXHashGet
+call_load_methods
+objc_msgLookup
+# macOS 10.15
+getProtocol(char const*)
+class_setWeakIvarLayout
+NXMapRemove
+int sliceRequiresGC<Arch32>(Arch32::mh_t, FileSlice)
+_mapStrIsEqual(_NXMapTable*, void const*, void const*)
+_NXMapMember(_NXMapTable*, void const*, void**)
+NXMapInsert
+objc::DenseMap<objc_class*, objc_class*, objc::DenseMapValueInfo<objc_class*>, objc::DenseMapInfo<objc_class*>, objc::detail::DenseMapPair<objc_class*, objc_class*> >::grow(unsigned int)
+object_setClass
+objc_msgSend_stret
+protocols()
+copySwiftV1MangledName(char const*, bool)
+_getObjc2ProtocolList(header_info const*, unsigned long*)
+# macOS 11
+realizeClassWithoutSwift(objc_class*, objc_class*)
+_objc_init
+objc::SafeRanges::add(unsigned long, unsigned long)
+_vasprintf
+# macOS 12
+_xpc_alloc
+# macOS 13
+_xpc_strdup
+_fetchInitializingClassList(bool)
+cache_t::allocateBuckets(unsigned int)
