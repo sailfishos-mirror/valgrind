@@ -273,6 +273,7 @@ int main(void)
    test_PCMPGTQ();
    test_PMOVSXBW();
    test_PMOVSXBD();
+   test_DPPS();
 
    return 0;
 }
