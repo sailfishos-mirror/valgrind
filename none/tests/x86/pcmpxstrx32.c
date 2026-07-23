@@ -45,9 +45,9 @@ void expand ( V128* dst, char* summary )
    memset(blockC, 0x55, 80); \
    memcpy(blockC + 0,  &argL,  16); \
    memcpy(blockC + 16, &argR,  16); \
-   memcpy(blockC + 32, &edxIN, 8); \
-   memcpy(blockC + 40, &eaxIN, 8); \
-   memcpy(blockC + 48, &edxIN, 8); \
+   memcpy(blockC + 32, &edxIN, 4); \
+   memcpy(blockC + 40, &eaxIN, 4); \
+   memcpy(blockC + 48, &edxIN, 4); \
    __asm__ __volatile__( \
       "movupd     0(%0), %%xmm2"           "\n\t" \
       "movupd     16(%0), %%xmm7"         "\n\t" \
