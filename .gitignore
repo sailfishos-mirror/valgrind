@@ -2432,6 +2432,7 @@ none/tests/freebsd/bug499212
 /none/tests/x86/Makefile.in
 /none/tests/x86/movbe
 /none/tests/x86/movx
+/none/tests/x86/pcmpxstrx32
 /none/tests/x86/pushpopseg
 /none/tests/x86/rcl_assert
 /none/tests/x86/sbbmisc
