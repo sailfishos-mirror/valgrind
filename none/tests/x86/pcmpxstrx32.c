@@ -45,62 +45,62 @@ void expand ( V128* dst, char* summary )
    memset(blockC, 0x55, 80); \
    memcpy(blockC + 0,  &argL,  16); \
    memcpy(blockC + 16, &argR,  16); \
-   memcpy(blockC + 32, &rdxIN, 8); \
-   memcpy(blockC + 40, &raxIN, 8); \
-   memcpy(blockC + 48, &rdxIN, 8); \
+   memcpy(blockC + 32, &edxIN, 8); \
+   memcpy(blockC + 40, &eaxIN, 8); \
+   memcpy(blockC + 48, &edxIN, 8); \
    __asm__ __volatile__( \
       "movupd     0(%0), %%xmm2"           "\n\t" \
-      "movupd     16(%0), %%xmm13"         "\n\t" \
-      "movq       32(%0), %%rdx"           "\n\t" \
-      "movq       40(%0), %%rax"           "\n\t" \
+      "movupd     16(%0), %%xmm7"         "\n\t" \
+      "movl       32(%0), %%edx"           "\n\t" \
+      "movl       40(%0), %%eax"           "\n\t" \
       "movupd     48(%0), %%xmm0"          "\n\t" \
       "movl       64(%0), %%ecx"            "\n\t" \
-      "pcmp" #name " $0x" #imm8b6 ", %%xmm2, %%xmm13"  "\n\t" \
+      "pcmp" #name " $0x" #imm8b6 ", %%xmm2, %%xmm7"  "\n\t" \
       "movupd     %%xmm0, 48(%0)"          "\n\t" \
       "movl       %%ecx, 64(%0)"            "\n\t" \
-      "pushfq"                             "\n\t" \
-      "popq       %%r15"                   "\n\t" \
-      "movq       %%r15, 72(%0)"           "\n\t" \
+      "pushfl"                             "\n\t" \
+      "popl       %%edi"                   "\n\t" \
+      "movl       %%edi, 72(%0)"           "\n\t" \
       : /*out*/  \
       : /*in*/"r"(blockC)  \
-      : /*trash*/"memory","cc","xmm2","xmm13","xmm0","rdx","rax","rcx","r15" \
+      : /*trash*/"memory","cc","xmm2","xmm7","xmm0","edx","eax","ecx","edi" \
    ); \
    printf("  " #name " $0x" #imm8b6 ":  "); \
    printf("    xmm0 "); \
    show_V128( (V128*)(blockC+48) ); \
-   printf("  rcx %016llx  flags %08llx\n", block[8], block[9] & 0x8D5);
+   printf("  ecx %08x  flags %08llx\n", (UInt)block[8], block[9] & 0x8D5);
 
-void one_test ( char* summL, ULong rdxIN, char* summR, ULong raxIN )
+void one_test ( char* summL, UInt edxIN, char* summR, UInt eaxIN )
 {
    V128 argL, argR;
    expand( &argL, summL );
    expand( &argR, summR );
    printf("\n");
-   printf("rdx %016llx  argL ", rdxIN);
+   printf("edx %016x  argL ", edxIN);
    show_V128(&argL);
-   printf("  rax %016llx  argR ", raxIN);
+   printf("  eax %016x  argR ", eaxIN);
    show_V128(&argR);
    printf("\n");
 
    ULong block[ 2/*in:argL*/          // 0  0
                 + 2/*in:argR*/        // 2  16
-                + 1/*in:rdx*/         // 4  32
-                + 1/*in:rax*/         // 5  40
+                + 1/*in:edx*/         // 4  32
+                + 1/*in:eax*/         // 5  40
                 + 2/*inout:xmm0*/     // 6  48
-                + 1/*inout:rcx*/      // 8  64
+                + 1/*inout:ecx*/      // 8  64
                 + 1/*out:rflags*/ ];  // 9  72
    assert(sizeof(block) == 80);
 
    UChar* blockC = (UChar*)&block[0];
 
-   // one_subtest(istri, 4A)
-   // one_subtest(istri, 0A)
-   // one_subtest(istrm, 4A)
-   // one_subtest(istrm, 0A)
-   // one_subtest(estri, 4A)
-   // one_subtest(estri, 0A)
-   // one_subtest(estrm, 4A)
-   // one_subtest(estrm, 0A)
+   one_subtest(istri, 4A)
+   one_subtest(istri, 0A)
+   one_subtest(istrm, 4A)
+   one_subtest(istrm, 0A)
+   one_subtest(estri, 4A)
+   one_subtest(estri, 0A)
+   one_subtest(estrm, 4A)
+   one_subtest(estrm, 0A)
 
 }
 
