@@ -8333,9 +8333,9 @@ static Long dis_xTESTy_128 ( const VexAbiInfo* vbi, UChar sorb, Long delta )
 // uses the x86 disAMode(sorb, ...) signature
 
 static Int dis_PCMPxSTRx32 ( const VexAbiInfo* vbi, UChar sorb,
-                             Long delta, Bool isAvx, UChar opc )
+                             Int delta, Bool isAvx, UChar opc )
 {
-   Long   delta0  = delta;
+   Int   delta0  = delta;
    UInt   isISTRx = opc & 2;
    UInt   isxSTRM = (opc & 1) ^ 1;
    UInt   regNoL  = 0;
