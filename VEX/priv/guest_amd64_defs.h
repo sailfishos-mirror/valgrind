@@ -232,7 +232,7 @@ extern ULong amd64g_dirtyhelper_RDSEED ( void );
    actually been validated, and will assert if otherwise.  The front
    end should ensure we're only called with verified values.
 */
-extern ULong amd64g_dirtyhelper_PCMPxSTRx ( 
+extern UInt amd64g_dirtyhelper_PCMPxSTRx ( 
           VexGuestAMD64State*,
           HWord opc4_and_imm,
           HWord gstOffL, HWord gstOffR,

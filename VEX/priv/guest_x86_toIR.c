@@ -8419,21 +8419,21 @@ static Int dis_PCMPxSTRx32 ( const VexAbiInfo* vbi, UChar sorb,
    const HChar* nm = "x86g_dirtyhelper_PCMPxSTRx";
 
    /* Round up the arguments.  Note that this is a kludge -- the use
-      of mkU64 rather than mkIRExpr_HWord implies the assumption that
-      the host's word size is 64-bit. */
+      of mkU32 rather than mkIRExpr_HWord implies the assumption that
+      the host's word size is 32-bit. */
    UInt gstOffL = regNoL == 8 ? OFFB_XMM8 : xmmGuestRegOffset(regNoL);
    UInt gstOffR = xmmGuestRegOffset(regNoR);
 
-   IRExpr*  opc4_and_imm = mkU64((opc << 8) | (imm & 0xFF));
-   IRExpr*  gstOffLe     = mkU64(gstOffL);
-   IRExpr*  gstOffRe     = mkU64(gstOffR);
-   IRExpr*  edxIN        = isISTRx ? mkU64(0) : getIReg(4, R_EDX);
-   IRExpr*  eaxIN        = isISTRx ? mkU64(0) : getIReg(4, R_EAX);
+   IRExpr*  opc4_and_imm = mkU32((opc << 8) | (imm & 0xFF));
+   IRExpr*  gstOffLe     = mkU32(gstOffL);
+   IRExpr*  gstOffRe     = mkU32(gstOffR);
+   IRExpr*  edxIN        = isISTRx ? mkU32(0) : getIReg(4, R_EDX);
+   IRExpr*  eaxIN        = isISTRx ? mkU32(0) : getIReg(4, R_EAX);
    IRExpr** args
       = mkIRExprVec_6( IRExpr_GSPTR(),
                        opc4_and_imm, gstOffLe, gstOffRe, edxIN, eaxIN );
 
-   IRTemp   resT = newTemp(Ity_I64);
+   IRTemp   resT = newTemp(Ity_I32);
    IRDirty* d    = unsafeIRDirty_1_N( resT, 0/*regparms*/, nm, fn, args );
    /* It's not really a dirty call, but we can't use the clean helper
       mechanism here for the very lame reason that we can't pass 2 x
@@ -8460,9 +8460,9 @@ static Int dis_PCMPxSTRx32 ( const VexAbiInfo* vbi, UChar sorb,
       codes must be updated. And for a xSTRI case, resT[31:16] holds
       the new ECX value, so stash that too. */
    if (!isxSTRM) {
-      putIReg(4, R_ECX, binop(Iop_And64,
-                              binop(Iop_Shr64, mkexpr(resT), mkU8(16)),
-                              mkU64(0xFFFF)));
+      putIReg(4, R_ECX, binop(Iop_And32,
+                              binop(Iop_Shr32, mkexpr(resT), mkU8(16)),
+                              mkU32(0xFFFF)));
    }
 
    // /* Zap the upper half of the dest reg as per AVX conventions. */
@@ -8472,11 +8472,11 @@ static Int dis_PCMPxSTRx32 ( const VexAbiInfo* vbi, UChar sorb,
 
    stmt( IRStmt_Put(
             OFFB_CC_DEP1,
-            binop(Iop_And64, mkexpr(resT), mkU64(0xFFFF))
+            binop(Iop_And32, mkexpr(resT), mkU32(0xFFFF))
    ));
-   stmt( IRStmt_Put( OFFB_CC_OP,   mkU64(X86G_CC_OP_COPY) ));
-   stmt( IRStmt_Put( OFFB_CC_DEP2, mkU64(0) ));
-   stmt( IRStmt_Put( OFFB_CC_NDEP, mkU64(0) ));
+   stmt( IRStmt_Put( OFFB_CC_OP,   mkU32(X86G_CC_OP_COPY) ));
+   stmt( IRStmt_Put( OFFB_CC_DEP2, mkU32(0) ));
+   stmt( IRStmt_Put( OFFB_CC_NDEP, mkU32(0) ));
 
    return delta;
 }
