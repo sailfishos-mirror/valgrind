@@ -13557,8 +13557,8 @@ DisResult disInstr_X86_WRK (
       //   Bits [3:2] (Aggregation)	01	Sets matching mode to Ranges (checks if characters in operand 2 fall inside boundary pairs given in operand 1).
       //   Bits [5:4] (Polarity)	01	Applies Inverted / Negated Polarity (flips comparison results for valid character inputs).
       //   Bit 6 (Output Selection)	0	Returns the index/bit of the Least Significant Bit (LSB).
-      delta = dis_PCMPxSTRx32( vbi, sorb, delta, False/*!isAvx*/, insn[2] );
-      if (delta > delta0) goto decode_success;
+      delta = dis_PCMPxSTRx32( vbi, sorb, delta+3, False/*!isAvx*/, insn[2] );
+      if (delta > delta0+3) goto decode_success;
    }
 
    // XXX 19339
