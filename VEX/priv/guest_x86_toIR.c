@@ -270,6 +270,8 @@ static IRSB* irsb;
 #define OFFB_XMM5      offsetof(VexGuestX86State,guest_XMM5)
 #define OFFB_XMM6      offsetof(VexGuestX86State,guest_XMM6)
 #define OFFB_XMM7      offsetof(VexGuestX86State,guest_XMM7)
+// helper imaginary register not present in the hardware
+#define OFFB_XMM8      offsetof(VexGuestX86State,guest_XMM8)
 
 #define OFFB_EMNOTE    offsetof(VexGuestX86State,guest_EMNOTE)
 
@@ -8317,6 +8319,169 @@ static Long dis_xTESTy_128 ( const VexAbiInfo* vbi, UChar sorb, Long delta )
 }
 
 /*------------------------------------------------------------*/
+/*--- MYWORK2     (helper dis_PCMPxSTRx32() )              ---*/
+/*------------------------------------------------------------*/
+
+/* Variant of dis_PCMPxSTRx() from guest_amd64_toIR.c:18654 for 32 bit case */
+
+/* This can fail, in which case it returns the original (unchanged)
+   delta. */
+
+// no pfx variable
+// eregOfRexRM -> eregOfRM
+// gregOfRexRM -> gregOfRM
+// uses the x86 disAMode(sorb, ...) signature
+
+static Int dis_PCMPxSTRx32 ( const VexAbiInfo* vbi, UChar sorb,
+                             Long delta, Bool isAvx, UChar opc )
+{
+   Long   delta0  = delta;
+   UInt   isISTRx = opc & 2;
+   UInt   isxSTRM = (opc & 1) ^ 1;
+   UInt   regNoL  = 0;
+   UInt   regNoR  = 0;
+   UChar  imm     = 0;
+   IRTemp addr    = IRTemp_INVALID;
+   Int    alen    = 0;
+   HChar  dis_buf[50];
+
+   /* This is a nasty kludge.  We need to pass 2 x V128 to the helper
+      (which is clean).  Since we can't do that, use a dirty helper to
+      compute the results directly from the XMM regs in the guest
+      state.  That means for the memory case, we need to move the left
+      operand into a pseudo-register (XMM16, let's call it). */
+   UChar modrm = getUChar(delta);
+   if (epartIsReg(modrm)) {
+      regNoL = eregOfRM(modrm);
+      regNoR = gregOfRM(modrm);
+      imm = getUChar(delta+1);
+      delta += 1+1;
+   } else {
+      regNoL = 8; /* use XMM8 as an intermediary */
+      regNoR = gregOfRM(modrm);
+      // addr = disAMode( &alen, vbi, pfx, delta, dis_buf, 1 );
+      addr = disAMode ( &alen, sorb, delta, dis_buf);
+      /* No alignment check; I guess that makes sense, given that
+         these insns are for dealing with C style strings. */
+      stmt( IRStmt_Put( OFFB_XMM8, loadLE(Ity_V128, mkexpr(addr)) ));
+      imm = getUChar(delta+alen);
+      delta += alen+1;
+   }
+
+   /* Print the insn here, since dis_PCMPISTRI_3A doesn't do so
+      itself. */
+   if (regNoL == 8) {
+      DIP("%spcmp%cstr%c $%x,%s,%s\n",
+          isAvx ? "v" : "", isISTRx ? 'i' : 'e', isxSTRM ? 'm' : 'i',
+          (UInt)imm, dis_buf, nameXMMReg(regNoR));
+   } else {
+      DIP("%spcmp%cstr%c $%x,%s,%s\n",
+          isAvx ? "v" : "", isISTRx ? 'i' : 'e', isxSTRM ? 'm' : 'i',
+          (UInt)imm, nameXMMReg(regNoL), nameXMMReg(regNoR));
+   }
+
+   // /* Handle special case(s). */
+   // if (imm == 0x3A && isISTRx && !isxSTRM) {
+   //    return dis_PCMPISTRI_3A ( modrm, regNoL, regNoR, delta,
+   //                              opc, imm, dis_buf);
+   // }
+
+   /* Now we know the XMM reg numbers for the operands, and the
+      immediate byte.  Is it one we can actually handle? Throw out any
+      cases for which the helper function has not been verified. */
+   switch (imm) {
+      case 0x00: case 0x02:
+      case 0x08: case 0x0A: case 0x0C: case 0x0E:
+      case 0x10: case 0x12: case 0x14:
+      case 0x18: case 0x1A:
+      case 0x30:            case 0x34:
+      case 0x38: case 0x3A:
+      case 0x40: case 0x42: case 0x44: case 0x46:
+                 case 0x4A:
+                 case 0x62:
+      case 0x70: case 0x72:
+         break;
+      // the 16-bit character versions of the above
+      case 0x01: case 0x03:
+      case 0x09: case 0x0B: case 0x0D:
+                 case 0x13:
+      case 0x19: case 0x1B:
+      case 0x39: case 0x3B:
+      case 0x41:            case 0x45:
+                 case 0x4B:
+         break;
+      default:
+         return delta0; /*FAIL*/
+   }
+
+   /* Who ya gonna call?  Presumably not Ghostbusters. */
+   void*  fn = &x86g_dirtyhelper_PCMPxSTRx;
+   const HChar* nm = "x86g_dirtyhelper_PCMPxSTRx";
+
+   /* Round up the arguments.  Note that this is a kludge -- the use
+      of mkU64 rather than mkIRExpr_HWord implies the assumption that
+      the host's word size is 64-bit. */
+   UInt gstOffL = regNoL == 8 ? OFFB_XMM8 : xmmGuestRegOffset(regNoL);
+   UInt gstOffR = xmmGuestRegOffset(regNoR);
+
+   IRExpr*  opc4_and_imm = mkU64((opc << 8) | (imm & 0xFF));
+   IRExpr*  gstOffLe     = mkU64(gstOffL);
+   IRExpr*  gstOffRe     = mkU64(gstOffR);
+   IRExpr*  edxIN        = isISTRx ? mkU64(0) : getIReg(4, R_EDX);
+   IRExpr*  eaxIN        = isISTRx ? mkU64(0) : getIReg(4, R_EAX);
+   IRExpr** args
+      = mkIRExprVec_6( IRExpr_GSPTR(),
+                       opc4_and_imm, gstOffLe, gstOffRe, edxIN, eaxIN );
+
+   IRTemp   resT = newTemp(Ity_I64);
+   IRDirty* d    = unsafeIRDirty_1_N( resT, 0/*regparms*/, nm, fn, args );
+   /* It's not really a dirty call, but we can't use the clean helper
+      mechanism here for the very lame reason that we can't pass 2 x
+      V128s by value to a helper.  Hence this roundabout scheme. */
+   d->nFxState = 2;
+   vex_bzero(&d->fxState, sizeof(d->fxState));
+   d->fxState[0].fx     = Ifx_Read;
+   d->fxState[0].offset = gstOffL;
+   d->fxState[0].size   = sizeof(U128);
+   d->fxState[1].fx     = Ifx_Read;
+   d->fxState[1].offset = gstOffR;
+   d->fxState[1].size   = sizeof(U128);
+   if (isxSTRM) {
+      /* Declare that the helper writes XMM0. */
+      d->nFxState = 3;
+      d->fxState[2].fx     = Ifx_Write;
+      d->fxState[2].offset = xmmGuestRegOffset(0);
+      d->fxState[2].size   = sizeof(U128);
+   }
+
+   stmt( IRStmt_Dirty(d) );
+
+   /* Now resT[15:0] holds the new OSZACP values, so the condition
+      codes must be updated. And for a xSTRI case, resT[31:16] holds
+      the new ECX value, so stash that too. */
+   if (!isxSTRM) {
+      putIReg(4, R_ECX, binop(Iop_And64,
+                              binop(Iop_Shr64, mkexpr(resT), mkU8(16)),
+                              mkU64(0xFFFF)));
+   }
+
+   // /* Zap the upper half of the dest reg as per AVX conventions. */
+   // if (isxSTRM && isAvx)
+   //    putYMMRegLane128(/*YMM*/0, 1, mkV128(0));
+
+
+   stmt( IRStmt_Put(
+            OFFB_CC_DEP1,
+            binop(Iop_And64, mkexpr(resT), mkU64(0xFFFF))
+   ));
+   stmt( IRStmt_Put( OFFB_CC_OP,   mkU64(X86G_CC_OP_COPY) ));
+   stmt( IRStmt_Put( OFFB_CC_DEP2, mkU64(0) ));
+   stmt( IRStmt_Put( OFFB_CC_NDEP, mkU64(0) ));
+
+   return delta;
+}
+
+/*------------------------------------------------------------*/
 /*--- Disassemble a single instruction                     ---*/
 /*------------------------------------------------------------*/
 
@@ -13327,6 +13492,7 @@ DisResult disInstr_X86_WRK (
       goto decode_success;
    }
 
+   // XXX 19667
    /* 66 0F 3A 42 /r ib MPSADBW xmm1, xmm2/m128, imm8
       Multiple Packed Sums of Absolute Difference */
    if (sz == 2 && insn[0] == 0x0F && insn[1] == 0x3A && insn[2] == 0x42) {
@@ -13361,6 +13527,41 @@ DisResult disInstr_X86_WRK (
        goto decode_success;
      }
 
+
+   /* 66 0F 3A 63 /r ib = PCMPISTRI imm8, xmm2/m128, xmm1
+      66 0F 3A 62 /r ib = PCMPISTRM imm8, xmm2/m128, xmm1
+      66 0F 3A 61 /r ib = PCMPESTRI imm8, xmm2/m128, xmm1
+      66 0F 3A 60 /r ib = PCMPESTRM imm8, xmm2/m128, xmm1
+      (selected special cases that actually occur in glibc,
+       not by any means a complete implementation.)
+   */
+   if (sz == 2 && insn[0] == 0x0F && insn[1] == 0x3A &&
+       (insn[2] == 0x60 || insn[2] == 0x61 || insn[2] == 0x62 || insn[2] == 0x63)) {
+      Int delta0 = delta; 
+      // MYWORK1
+      // vbi in 32 bit mode gives e.g. (gdb) p vbi ... $1 = (const VexAbiInfo *) 0x82b18d90
+      // (gdb) p *vbi
+      // $2 = {guest_stack_redzone_size = 0, guest_amd64_assume_fs_is_const = 0 '\000', 
+      //   guest_amd64_assume_gs_is_const = 0 '\000', guest_amd64_sigbus_on_misalign = 0 '\000', 
+      //   guest_ppc_zap_RZ_at_blr = 0 '\000', guest_ppc_zap_RZ_at_bl = 0x0, guest__use_fallback_LLSC = 0 '\000', 
+      //   host_ppc_calls_use_fndescrs = 0 '\000', guest_mips_fp_mode = 0}
+      // (gdb) 
+      // -----------------
+      // opc should be insn[2], such as 0x63 for PCMPISTRI for instance
+      // pfx in the 64 bit case gives value of e.g. 0x55000016.
+      // The 32-bit hex value 0x55000016 directly embeds the 0x16 control
+      // byte in its lowest byte (due to little-endian byte ordering).
+      // The lowest byte 0x16 (0001 0110 in binary) 
+      //   Bit Field	Binary Value	Meaning / Mode
+      //   Bits [1:0] (Data Type)	10	Treats vector elements as Signed 8-bit Bytes (char).
+      //   Bits [3:2] (Aggregation)	01	Sets matching mode to Ranges (checks if characters in operand 2 fall inside boundary pairs given in operand 1).
+      //   Bits [5:4] (Polarity)	01	Applies Inverted / Negated Polarity (flips comparison results for valid character inputs).
+      //   Bit 6 (Output Selection)	0	Returns the index/bit of the Least Significant Bit (LSB).
+      delta = dis_PCMPxSTRx32( vbi, sorb, delta, False/*!isAvx*/, insn[2] );
+      if (delta > delta0) goto decode_success;
+   }
+
+   // XXX 19339
    /* 66 0F 3A 0D /r ib = BLENDPD */
    if (sz == 2 && insn[0] == 0x0F && insn[1] == 0x3A && insn[2] == 0x0D) {
      decode_sse4_blend_imm(&delta, insn, "blendpd", math_BLENDPD_128, sorb);
