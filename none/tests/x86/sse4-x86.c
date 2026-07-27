@@ -274,6 +274,7 @@ int main(void)
    test_PMOVSXBW();
    test_PMOVSXBD();
    test_DPPS();
+   test_DPPD();
 
    return 0;
 }

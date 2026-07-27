@@ -13395,6 +13395,59 @@ DisResult disInstr_X86_WRK (
       goto decode_success;
    }
 
+   /* 66 0F 3A 41 /r ib = DPPD xmm1, xmm2/m128, imm8
+      Dot Product of Packed Double Precision Floating-Point Values (XMM) */
+   if (sz == 2 && insn[0] == 0x0F && insn[1] == 0x3A && insn[2] == 0x41) {
+      modrm = insn[3];
+      Int    imm8;
+      IRTemp src_vec = newTemp(Ity_V128);
+      IRTemp dst_vec = newTemp(Ity_V128);
+      UInt   rG      = gregOfRM(modrm);
+      assign( dst_vec, getXMMReg( rG ) );
+
+      if ( epartIsReg( modrm ) ) {
+         UInt rE = eregOfRM(modrm);
+         imm8 = (Int)(insn[3+1]);
+         assign( src_vec, getXMMReg(rE) );
+         delta += 3+1+1;
+         DIP( "dppd $%d, %s,%s\n",
+              imm8, nameXMMReg(rE), nameXMMReg(rG) );
+      } else {
+         addr = disAMode( &alen, sorb, delta + 3, dis_buf );
+         gen_SEGV_if_not_16_aligned( addr );
+         assign( src_vec, loadLE( Ity_V128, mkexpr(addr) ) );
+         imm8 = (Int)(insn[3+alen]);
+         delta += 3+alen+1;
+         DIP( "dppd $%d, %s,%s\n",
+              imm8, dis_buf, nameXMMReg(rG) );
+         }
+
+      UShort imm8_perms[4] = { 0x0000, 0x00FF, 0xFF00, 0xFFFF };
+      IRTemp and_vec = newTemp(Ity_V128);
+      IRTemp sum_vec = newTemp(Ity_V128);
+      IRTemp rm      = newTemp(Ity_I32);
+      assign( rm, get_FAKE_roundingmode() ); /* XXXROUNDINGFIXME */
+      assign( and_vec, binop( Iop_AndV128,
+                              triop( Iop_Mul64Fx2,
+                                     mkexpr(rm),
+                                     mkexpr(dst_vec), mkexpr(src_vec) ),
+                              mkV128( imm8_perms[ ((imm8 >> 4) & 3) ] ) ) );
+
+      assign( sum_vec, binop( Iop_Add64F0x2,
+                              binop( Iop_InterleaveHI64x2,
+                                     mkexpr(and_vec), mkexpr(and_vec) ),
+                              binop( Iop_InterleaveLO64x2,
+                                     mkexpr(and_vec), mkexpr(and_vec) ) ) );
+      IRTemp res = newTemp(Ity_V128);
+      assign(res, binop( Iop_AndV128,
+                         binop( Iop_InterleaveLO64x2,
+                                mkexpr(sum_vec), mkexpr(sum_vec) ),
+                         mkV128( imm8_perms[ (imm8 & 3) ] ) ) );
+
+      putXMMReg( rG, mkexpr(res) );
+      goto decode_success;
+   }
+
    /* 66 0F 3A 42 /r ib MPSADBW xmm1, xmm2/m128, imm8
       Multiple Packed Sums of Absolute Difference */
    if (sz == 2 && insn[0] == 0x0F && insn[1] == 0x3A && insn[2] == 0x42) {
