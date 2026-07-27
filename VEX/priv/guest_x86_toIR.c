@@ -8452,11 +8452,6 @@ static Int dis_PCMPxSTRx32 ( const VexAbiInfo* vbi, UChar sorb,
                               mkU32(0xFFFF)));
    }
 
-   // /* Zap the upper half of the dest reg as per AVX conventions. */
-   // if (isxSTRM && isAvx)
-   //    putYMMRegLane128(/*YMM*/0, 1, mkV128(0));
-
-
    stmt( IRStmt_Put(
             OFFB_CC_DEP1,
             binop(Iop_And32, mkexpr(resT), mkU32(0xFFFF))
