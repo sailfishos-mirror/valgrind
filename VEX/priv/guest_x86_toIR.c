@@ -8318,20 +8318,8 @@ static Long dis_xTESTy_128 ( const VexAbiInfo* vbi, UChar sorb, Long delta )
    return delta;
 }
 
-/*------------------------------------------------------------*/
-/*--- MYWORK2     (helper dis_PCMPxSTRx32() )              ---*/
-/*------------------------------------------------------------*/
-
-/* Variant of dis_PCMPxSTRx() from guest_amd64_toIR.c:18654 for 32 bit case */
-
 /* This can fail, in which case it returns the original (unchanged)
    delta. */
-
-// no pfx variable
-// eregOfRexRM -> eregOfRM
-// gregOfRexRM -> gregOfRM
-// uses the x86 disAMode(sorb, ...) signature
-
 static Int dis_PCMPxSTRx32 ( const VexAbiInfo* vbi, UChar sorb,
                              Int delta, Bool isAvx, UChar opc )
 {
@@ -8359,8 +8347,7 @@ static Int dis_PCMPxSTRx32 ( const VexAbiInfo* vbi, UChar sorb,
    } else {
       regNoL = 8; /* use XMM8 as an intermediary */
       regNoR = gregOfRM(modrm);
-      // addr = disAMode( &alen, vbi, pfx, delta, dis_buf, 1 );
-      addr = disAMode ( &alen, sorb, delta, dis_buf);
+      addr = disAMode ( &alen, sorb, delta, dis_buf );
       /* No alignment check; I guess that makes sense, given that
          these insns are for dealing with C style strings. */
       stmt( IRStmt_Put( OFFB_XMM8, loadLE(Ity_V128, mkexpr(addr)) ));
@@ -13492,7 +13479,6 @@ DisResult disInstr_X86_WRK (
       goto decode_success;
    }
 
-   // XXX 19667
    /* 66 0F 3A 42 /r ib MPSADBW xmm1, xmm2/m128, imm8
       Multiple Packed Sums of Absolute Difference */
    if (sz == 2 && insn[0] == 0x0F && insn[1] == 0x3A && insn[2] == 0x42) {
@@ -13527,7 +13513,6 @@ DisResult disInstr_X86_WRK (
        goto decode_success;
      }
 
-
    /* 66 0F 3A 63 /r ib = PCMPISTRI imm8, xmm2/m128, xmm1
       66 0F 3A 62 /r ib = PCMPISTRM imm8, xmm2/m128, xmm1
       66 0F 3A 61 /r ib = PCMPESTRI imm8, xmm2/m128, xmm1
@@ -13538,30 +13523,10 @@ DisResult disInstr_X86_WRK (
    if (sz == 2 && insn[0] == 0x0F && insn[1] == 0x3A &&
        (insn[2] == 0x60 || insn[2] == 0x61 || insn[2] == 0x62 || insn[2] == 0x63)) {
       Int delta0 = delta; 
-      // MYWORK1
-      // vbi in 32 bit mode gives e.g. (gdb) p vbi ... $1 = (const VexAbiInfo *) 0x82b18d90
-      // (gdb) p *vbi
-      // $2 = {guest_stack_redzone_size = 0, guest_amd64_assume_fs_is_const = 0 '\000', 
-      //   guest_amd64_assume_gs_is_const = 0 '\000', guest_amd64_sigbus_on_misalign = 0 '\000', 
-      //   guest_ppc_zap_RZ_at_blr = 0 '\000', guest_ppc_zap_RZ_at_bl = 0x0, guest__use_fallback_LLSC = 0 '\000', 
-      //   host_ppc_calls_use_fndescrs = 0 '\000', guest_mips_fp_mode = 0}
-      // (gdb) 
-      // -----------------
-      // opc should be insn[2], such as 0x63 for PCMPISTRI for instance
-      // pfx in the 64 bit case gives value of e.g. 0x55000016.
-      // The 32-bit hex value 0x55000016 directly embeds the 0x16 control
-      // byte in its lowest byte (due to little-endian byte ordering).
-      // The lowest byte 0x16 (0001 0110 in binary) 
-      //   Bit Field	Binary Value	Meaning / Mode
-      //   Bits [1:0] (Data Type)	10	Treats vector elements as Signed 8-bit Bytes (char).
-      //   Bits [3:2] (Aggregation)	01	Sets matching mode to Ranges (checks if characters in operand 2 fall inside boundary pairs given in operand 1).
-      //   Bits [5:4] (Polarity)	01	Applies Inverted / Negated Polarity (flips comparison results for valid character inputs).
-      //   Bit 6 (Output Selection)	0	Returns the index/bit of the Least Significant Bit (LSB).
       delta = dis_PCMPxSTRx32( vbi, sorb, delta+3, False/*!isAvx*/, insn[2] );
       if (delta > delta0+3) goto decode_success;
    }
 
-   // XXX 19339
    /* 66 0F 3A 0D /r ib = BLENDPD */
    if (sz == 2 && insn[0] == 0x0F && insn[1] == 0x3A && insn[2] == 0x0D) {
      decode_sse4_blend_imm(&delta, insn, "blendpd", math_BLENDPD_128, sorb);
