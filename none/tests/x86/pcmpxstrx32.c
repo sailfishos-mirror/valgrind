@@ -10,7 +10,6 @@ typedef  unsigned char  V128[16];
 typedef  unsigned int   UInt;
 typedef  signed int     Int;
 typedef  unsigned char  UChar;
-typedef  unsigned long long int ULong;
 typedef  UChar          Bool;
 #define False ((Bool)0)
 #define True  ((Bool)1)
@@ -42,33 +41,33 @@ void expand ( V128* dst, char* summary )
 }
 
 #define one_subtest(name, imm8b6) \
-   memset(blockC, 0x55, 80); \
+   memset(blockC, 0x55, 64); \
    memcpy(blockC + 0,  &argL,  16); \
    memcpy(blockC + 16, &argR,  16); \
    memcpy(blockC + 32, &edxIN, 4); \
-   memcpy(blockC + 40, &eaxIN, 4); \
-   memcpy(blockC + 48, &edxIN, 4); \
+   memcpy(blockC + 36, &eaxIN, 4); \
+   memcpy(blockC + 40, &edxIN, 4); \
    __asm__ __volatile__( \
       "movupd     0(%0), %%xmm2"           "\n\t" \
       "movupd     16(%0), %%xmm7"         "\n\t" \
       "movl       32(%0), %%edx"           "\n\t" \
-      "movl       40(%0), %%eax"           "\n\t" \
-      "movupd     48(%0), %%xmm0"          "\n\t" \
-      "movl       64(%0), %%ecx"            "\n\t" \
+      "movl       36(%0), %%eax"           "\n\t" \
+      "movupd     40(%0), %%xmm0"          "\n\t" \
+      "movl       56(%0), %%ecx"            "\n\t" \
       "pcmp" #name " $0x" #imm8b6 ", %%xmm2, %%xmm7"  "\n\t" \
-      "movupd     %%xmm0, 48(%0)"          "\n\t" \
-      "movl       %%ecx, 64(%0)"            "\n\t" \
+      "movupd     %%xmm0, 40(%0)"          "\n\t" \
+      "movl       %%ecx, 56(%0)"            "\n\t" \
       "pushfl"                             "\n\t" \
       "popl       %%edi"                   "\n\t" \
-      "movl       %%edi, 72(%0)"           "\n\t" \
+      "movl       %%edi, 60(%0)"           "\n\t" \
       : /*out*/  \
       : /*in*/"r"(blockC)  \
       : /*trash*/"memory","cc","xmm2","xmm7","xmm0","edx","eax","ecx","edi" \
    ); \
    printf("  " #name " $0x" #imm8b6 ":  "); \
    printf("    xmm0 "); \
-   show_V128( (V128*)(blockC+48) ); \
-   printf("  ecx %08x  flags %08llx\n", (UInt)block[8], block[9] & 0x8D5);
+   show_V128( (V128*)(blockC+40) ); \
+   printf("  ecx %08x  flags %08x\n", (UInt)block[14], block[15] & 0x8D5);
 
 void one_test ( char* summL, UInt edxIN, char* summR, UInt eaxIN )
 {
@@ -82,14 +81,14 @@ void one_test ( char* summL, UInt edxIN, char* summR, UInt eaxIN )
    show_V128(&argR);
    printf("\n");
 
-   ULong block[ 2/*in:argL*/          // 0  0
-                + 2/*in:argR*/        // 2  16
-                + 1/*in:edx*/         // 4  32
-                + 1/*in:eax*/         // 5  40
-                + 2/*inout:xmm0*/     // 6  48
-                + 1/*inout:ecx*/      // 8  64
-                + 1/*out:rflags*/ ];  // 9  72
-   assert(sizeof(block) == 80);
+   UInt block[ 4/*in:argL*/          // 0   0
+               + 4/*in:argR*/        // 4   16
+               + 1/*in:edx*/         // 8   32
+               + 1/*in:eax*/         // 9   36
+               + 4/*inout:xmm0*/     // 10  40
+               + 1/*inout:ecx*/      // 14  56
+               + 1/*out:rflags*/ ];  // 15  60
+   assert(sizeof(block) == 64);
 
    UChar* blockC = (UChar*)&block[0];
 
