@@ -4200,7 +4200,7 @@ static UInt zmask_from_V128_wide ( V128* arg )
    actually been validated, and will assert if otherwise.  The front
    end should ensure we're only called with verified values.
 */
-UInt amd64g_dirtyhelper_PCMPxSTRx ( 
+ULong amd64g_dirtyhelper_PCMPxSTRx ( 
           VexGuestAMD64State* gst,
           HWord opc4_and_imm,
           HWord gstOffL, HWord gstOffR,
