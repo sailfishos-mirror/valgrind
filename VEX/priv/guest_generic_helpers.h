@@ -116,15 +116,13 @@ static inline ULong sad_8x4 ( ULong xx, ULong yy )
 }
 
 /* CALLED FROM GENERATED CODE: CLEAN HELPER */
-#if defined(__clang__)
-// Work around https://bugs.kde.org/show_bug.cgi?id=523626
-// It would be sufficient to disable slp-vectorizer, but
-// clang can only disable all or nothing, it seems:
+#if defined(VGA_x86)
+// Handle https://bugs.kde.org/show_bug.cgi?id=523626
 __attribute__((force_align_arg_pointer))
 #endif
-static inline ULong g_calc_mpsadbw ( ULong sHi, ULong sLo,
-                               ULong dHi, ULong dLo,
-                               ULong imm_and_return_control_bit )
+static ULong g_calc_mpsadbw ( ULong sHi, ULong sLo,
+                              ULong dHi, ULong dLo,
+                              ULong imm_and_return_control_bit )
 {
    UInt imm8     = imm_and_return_control_bit & 7;
    Bool calcHi   = (imm_and_return_control_bit >> 7) & 1;
