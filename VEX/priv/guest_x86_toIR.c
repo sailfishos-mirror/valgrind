@@ -8333,7 +8333,7 @@ static Long dis_xTESTy_128 ( const VexAbiInfo* vbi, UChar sorb, Long delta )
 /*--- SSE4.1 PINSRB instruction helpers                     ---*/
 /*------------------------------------------------------------*/
 
-static IRTemp math_PINSRB_128 ( IRTemp v128, IRTemp u8, UInt imm8 )
+static IRTemp math_PINSRB_128_x86 ( IRTemp v128, IRTemp u8, UInt imm8 )
 {
    vassert(imm8 <= 15);
 
@@ -13348,7 +13348,7 @@ DisResult disInstr_X86_WRK (
       }
       IRTemp src_vec = newTemp(Ity_V128);
       assign(src_vec, getXMMReg( gregOfRM( modrm ) ));
-      IRTemp res = math_PINSRB_128( src_vec, new8, imm8 );
+      IRTemp res = math_PINSRB_128_x86( src_vec, new8, imm8 );
       putXMMReg( rG, mkexpr(res) );
       goto decode_success;
    }
