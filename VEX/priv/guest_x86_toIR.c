@@ -541,6 +541,16 @@ static IRExpr* getIReg ( Int sz, UInt archreg )
                       szToITy(sz) );
 }
 
+static IRExpr* getIReg32 ( Int sz, UInt archreg )
+{
+   vassert(sz == 1 || sz == 2 || sz == 4);
+   vassert(archreg < 8);
+   vassert(host_endness == VexEndnessLE);
+   return unop(Iop_64to32,
+               IRExpr_Get( integerGuestRegOffset(sz,archreg),
+                           Ity_I64 ));
+}
+
 /* Ditto, but write to a reg instead. */
 static void putIReg ( Int sz, UInt archreg, IRExpr* e )
 {
@@ -8320,6 +8330,46 @@ static Long dis_xTESTy_128 ( const VexAbiInfo* vbi, UChar sorb, Long delta )
 }
 
 /*------------------------------------------------------------*/
+/*--- SSE4.1 PINSRB instruction helpers                     ---*/
+/*------------------------------------------------------------*/
+
+static IRTemp math_PINSRB_128 ( IRTemp v128, IRTemp u8, UInt imm8 )
+{
+   vassert(imm8 <= 15);
+
+   IRTemp tmp128    = newTemp(Ity_V128);
+   IRTemp halfshift = newTemp(Ity_I64);
+   IRTemp tmpdword = newTemp(Ity_I32);
+
+   // byte within 32-bit lane
+   assign(tmpdword, binop(Iop_Shl32,
+                          unop(Iop_8Uto32, mkexpr(u8)),
+                          mkU8(8 * (imm8 & 3))));
+
+   // which 32-bit half of the 64-bit value
+   if ((imm8 & 4) == 0) {
+      assign(halfshift, binop(Iop_32HLto64, mkU32(0), mkexpr(tmpdword)));
+   } else {
+      assign(halfshift, binop(Iop_32HLto64, mkexpr(tmpdword), mkU32(0)));
+   }
+
+   // which 64-bit half of the V128
+   if ((imm8 & 8) == 0) {
+      assign(tmp128, binop(Iop_64HLtoV128, mkU64(0), mkexpr(halfshift)));
+   } else {
+      assign(tmp128, binop(Iop_64HLtoV128, mkexpr(halfshift), mkU64(0)));
+   }
+
+   // only rewrite one byte, don't touch the rest
+   UShort mask = ~(1 << imm8);
+   IRTemp res  = newTemp(Ity_V128);
+   assign( res, binop(Iop_OrV128,
+                      mkexpr(tmp128),
+                      binop(Iop_AndV128, mkexpr(v128), mkV128(mask))) );
+   return res;
+}
+
+/*------------------------------------------------------------*/
 /*--- Disassemble a single instruction                     ---*/
 /*------------------------------------------------------------*/
 
@@ -13271,6 +13321,36 @@ DisResult disInstr_X86_WRK (
      }
 
      goto decode_success;
+   }
+
+   /* 66 0F 3A 20 /r ib = PINSRB xmm1, r32/m8, imm8
+      Extract byte from r32/m8 and insert into xmm1 */
+   if ( sz == 2
+        && insn[0] == 0x0F && insn[1] == 0x3A && insn[2] == 0x20 ) {
+      Int    imm8;
+      IRTemp new8 = newTemp(Ity_I8);
+      modrm = insn[3];
+      UInt rG = gregOfRM( modrm );
+      if ( epartIsReg( modrm ) ) {
+         UInt rE = eregOfRM( modrm );
+         imm8 = (Int)(insn[3+1] & 0xF);
+         assign( new8, unop(Iop_32to8, getIReg32(sz, rE)) );
+         delta += 3+1+1;
+         DIP( "pinsrb $%d,%s,%s\n", imm8,
+              nameIReg(4, rE), nameXMMReg(rG) );
+      } else {
+         addr = disAMode( &alen, sorb, delta+3, dis_buf );
+         imm8 = (Int)(insn[3+alen] & 0xF);
+         assign( new8, loadLE( Ity_I8, mkexpr(addr) ) );
+         delta += 3+alen+1;
+         DIP( "pinsrb $%d,%s,%s\n",
+              imm8, dis_buf, nameXMMReg(rG) );
+      }
+      IRTemp src_vec = newTemp(Ity_V128);
+      assign(src_vec, getXMMReg( gregOfRM( modrm ) ));
+      IRTemp res = math_PINSRB_128( src_vec, new8, imm8 );
+      putXMMReg( rG, mkexpr(res) );
+      goto decode_success;
    }
 
    /* 66 0F 3A 21 /r ib = INSERTPS imm8, xmm2/m32, xmm1

@@ -231,6 +231,43 @@ void test_POPCNTW_x86 ( void )
    }
 }
 
+void test_PINSRB ( void )
+{
+   ULong src;
+   src = randULong();
+   DO_imm_mandrscalar_to_r("pinsrb", 0, src);
+   src = randULong();
+   DO_imm_mandrscalar_to_r("pinsrb", 1, src);
+   src = randULong();
+   DO_imm_mandrscalar_to_r("pinsrb", 2, src);
+   src = randULong();
+   DO_imm_mandrscalar_to_r("pinsrb", 3, src);
+   src = randULong();
+   DO_imm_mandrscalar_to_r("pinsrb", 4, src);
+   src = randULong();
+   DO_imm_mandrscalar_to_r("pinsrb", 5, src);
+   src = randULong();
+   DO_imm_mandrscalar_to_r("pinsrb", 6, src);
+   src = randULong();
+   DO_imm_mandrscalar_to_r("pinsrb", 7, src);
+   src = randULong();
+   DO_imm_mandrscalar_to_r("pinsrb", 8, src);
+   src = randULong();
+   DO_imm_mandrscalar_to_r("pinsrb", 9, src);
+   src = randULong();
+   DO_imm_mandrscalar_to_r("pinsrb", 10, src);
+   src = randULong();
+   DO_imm_mandrscalar_to_r("pinsrb", 11, src);
+   src = randULong();
+   DO_imm_mandrscalar_to_r("pinsrb", 12, src);
+   src = randULong();
+   DO_imm_mandrscalar_to_r("pinsrb", 13, src);
+   src = randULong();
+   DO_imm_mandrscalar_to_r("pinsrb", 14, src);
+   src = randULong();
+   DO_imm_mandrscalar_to_r("pinsrb", 15, src);
+}
+
 /* ------------ main ------------ */
 
 int main(void)
@@ -273,6 +310,7 @@ int main(void)
    test_PCMPGTQ();
    test_PMOVSXBW();
    test_INSERTPS();
+   test_PINSRB();
 
    return 0;
 }
