@@ -268,6 +268,27 @@ void test_PINSRB ( void )
    DO_imm_mandrscalar_to_r("pinsrb", 15, src);
 }
 
+void test_PINSRW ( void )
+{
+   ULong src;
+   src = randULong();
+   DO_imm_mandrscalar_to_r("pinsrw", 0, src);
+   src = randULong();
+   DO_imm_mandrscalar_to_r("pinsrw", 1, src);
+   src = randULong();
+   DO_imm_mandrscalar_to_r("pinsrw", 2, src);
+   src = randULong();
+   DO_imm_mandrscalar_to_r("pinsrw", 3, src);
+   src = randULong();
+   DO_imm_mandrscalar_to_r("pinsrw", 4, src);
+   src = randULong();
+   DO_imm_mandrscalar_to_r("pinsrw", 5, src);
+   src = randULong();
+   DO_imm_mandrscalar_to_r("pinsrw", 6, src);
+   src = randULong();
+   DO_imm_mandrscalar_to_r("pinsrw", 7, src);
+}
+
 /* ------------ main ------------ */
 
 int main(void)
@@ -311,6 +332,7 @@ int main(void)
    test_PMOVSXBW();
    test_INSERTPS();
    test_PINSRB();
+   test_PINSRW();
 
    return 0;
 }
