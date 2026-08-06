@@ -13293,6 +13293,60 @@ DisResult disInstr_X86_WRK (
       }
    }
 
+   /* 66 0F 3A 14 /r ib = PEXTRB r/m16, xmm, imm8
+      Extract Byte from xmm, store in mem or zero-extend + store in gen.reg.
+      (XMM) */
+   if ( sz == 2
+       && insn[0] == 0x0F && insn[1] == 0x3A && insn[2] == 0x14 ) {
+
+      modrm = insn[3];
+      delta += 3;
+
+      IRTemp xmm_vec  = newTemp(Ity_V128);
+      IRTemp tmp3, tmp2, tmp1, tmp0;
+      IRTemp sel_lane = newTemp(Ity_I32);
+      IRTemp shr_lane = newTemp(Ity_I32);
+      Int    imm8;
+
+      tmp3 = tmp2 = tmp1 = tmp0 = IRTemp_INVALID;
+      assign( xmm_vec, getXMMReg( gregOfRM( modrm ) ) );
+      breakupV128to32s( xmm_vec, &tmp3, &tmp2, &tmp1, &tmp0 );
+
+      if ( epartIsReg( modrm ) ) {
+         imm8 = (Int)getUChar(delta+1);
+      } else {
+         addr = disAMode( &alen, sorb, delta, dis_buf );
+         imm8 = (Int)getUChar(delta+alen);
+      }
+
+      switch ( (imm8 >> 2) & 3 ) {
+         case 0:  assign( sel_lane, mkexpr(tmp0) ); break;
+         case 1:  assign( sel_lane, mkexpr(tmp1) ); break;
+         case 2:  assign( sel_lane, mkexpr(tmp2) ); break;
+         case 3:  assign( sel_lane, mkexpr(tmp3) ); break;
+         default: vassert(0);
+      }
+
+      assign( shr_lane,
+              binop( Iop_Shr32, mkexpr(sel_lane), mkU8(((imm8 & 3)*8)) ) );
+
+      if ( epartIsReg( modrm ) ) {
+         putIReg( 4, eregOfRM( modrm ),
+                  binop(Iop_And32, mkexpr(shr_lane), mkU32(255)) );
+         delta += 1+1;
+         DIP( "pextrb $%d, %s,%s\n", imm8,
+              nameXMMReg( gregOfRM( modrm ) ),
+              nameIReg( 4, eregOfRM( modrm ) ) );
+      } else {
+         storeLE( mkexpr(addr), unop(Iop_32to8, mkexpr(shr_lane) ) );
+         delta += alen+1;
+         DIP( "pextrb $%d,%s,%s\n",
+              imm8, nameXMMReg( gregOfRM( modrm ) ), dis_buf );
+      }
+
+      goto decode_success;
+   }
+
    /* 66 0F 3A 16 /r ib = PEXTRD reg/mem32, xmm2, imm8
       Extract Doubleword int from xmm reg and store in gen.reg or mem. */
    if ( sz == 2
