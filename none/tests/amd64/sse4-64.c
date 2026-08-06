@@ -722,28 +722,6 @@ void test_DPPS ( void )
    }
 }
 
-void test_PEXTRB ( void )
-{
-   V128 src;
-   randV128(&src);
-   DO_imm_r_to_mandrscalar("pextrb", 0, src, "d");
-   DO_imm_r_to_mandrscalar("pextrb", 1, src, "d");
-   DO_imm_r_to_mandrscalar("pextrb", 2, src, "d");
-   DO_imm_r_to_mandrscalar("pextrb", 3, src, "d");
-   DO_imm_r_to_mandrscalar("pextrb", 4, src, "d");
-   DO_imm_r_to_mandrscalar("pextrb", 5, src, "d");
-   DO_imm_r_to_mandrscalar("pextrb", 6, src, "d");
-   DO_imm_r_to_mandrscalar("pextrb", 7, src, "d");
-   DO_imm_r_to_mandrscalar("pextrb", 8, src, "d");
-   DO_imm_r_to_mandrscalar("pextrb", 9, src, "d");
-   DO_imm_r_to_mandrscalar("pextrb", 10, src, "d");
-   DO_imm_r_to_mandrscalar("pextrb", 11, src, "d");
-   DO_imm_r_to_mandrscalar("pextrb", 12, src, "d");
-   DO_imm_r_to_mandrscalar("pextrb", 13, src, "d");
-   DO_imm_r_to_mandrscalar("pextrb", 14, src, "d");
-   DO_imm_r_to_mandrscalar("pextrb", 15, src, "d");
-}
-
 void test_PINSRB ( void )
 {
    ULong src;
