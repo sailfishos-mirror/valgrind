@@ -2786,4 +2786,14 @@ void test_INSERTPS ( void )
    }
 }
 
+void test_EXTRACTPS ( void )
+{
+   V128 src;
+   randV128(&src);
+   DO_imm_r_to_mandrscalar("extractps", 0, src, "d");
+   DO_imm_r_to_mandrscalar("extractps", 1, src, "d");
+   DO_imm_r_to_mandrscalar("extractps", 2, src, "d");
+   DO_imm_r_to_mandrscalar("extractps", 3, src, "d");
+}
+
 #endif /* __SSE4_COMMON_H */
