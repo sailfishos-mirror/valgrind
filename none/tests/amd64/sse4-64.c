@@ -759,21 +759,6 @@ void test_PINSRB ( void )
    DO_imm_mandrscalar_to_r("pinsrb", 15, src, "d");
 }
 
-
-void test_PEXTRW ( void )
-{
-   V128 src;
-   randV128(&src);
-   DO_imm_r_to_mandrscalar("pextrw", 0, src, "d");
-   DO_imm_r_to_mandrscalar("pextrw", 1, src, "d");
-   DO_imm_r_to_mandrscalar("pextrw", 2, src, "d");
-   DO_imm_r_to_mandrscalar("pextrw", 3, src, "d");
-   DO_imm_r_to_mandrscalar("pextrw", 4, src, "d");
-   DO_imm_r_to_mandrscalar("pextrw", 5, src, "d");
-   DO_imm_r_to_mandrscalar("pextrw", 6, src, "d");
-   DO_imm_r_to_mandrscalar("pextrw", 7, src, "d");
-}
-
 void test_PINSRW ( void )
 {
    ULong src;
