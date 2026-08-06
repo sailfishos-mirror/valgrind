@@ -13347,6 +13347,59 @@ DisResult disInstr_X86_WRK (
       goto decode_success;
    }
 
+   /* 66 0F 3A 15 /r ib = PEXTRW r/m16, xmm, imm8
+      Extract Byte from xmm, store in mem or zero-extend + store in gen.reg.
+      (XMM) */
+   if ( sz == 2
+        && insn[0] == 0x0F && insn[1] == 0x3A && insn[2] == 0x15 ) {
+      modrm = insn[3];
+      delta += 3;
+
+      IRTemp tmp3, tmp2, tmp1, tmp0;
+      tmp3 = tmp2 = tmp1 = tmp0 = IRTemp_INVALID;
+      IRTemp d16   = newTemp( Ity_I16 );
+      IRTemp xmm_vec = newTemp( Ity_V128 );
+      Int    imm8_20;
+      UInt   rG    = gregOfRM( modrm );
+
+      assign( xmm_vec, getXMMReg( gregOfRM( modrm ) ) );
+      breakupV128to32s( xmm_vec, &tmp3, &tmp2, &tmp1, &tmp0 );
+
+      if ( epartIsReg( modrm ) ) {
+         imm8_20 = (Int)(getUChar(delta+1) & 7);
+      } else {
+         addr = disAMode( &alen, sorb, delta, dis_buf );
+         imm8_20 = (Int)(getUChar(delta+alen) & 7);
+      }
+
+      switch (imm8_20) {
+         case 0:  assign(d16, unop(Iop_32to16,   mkexpr(tmp0))); break;
+         case 1:  assign(d16, unop(Iop_32HIto16, mkexpr(tmp0))); break;
+         case 2:  assign(d16, unop(Iop_32to16,   mkexpr(tmp1))); break;
+         case 3:  assign(d16, unop(Iop_32HIto16, mkexpr(tmp1))); break;
+         case 4:  assign(d16, unop(Iop_32to16,   mkexpr(tmp2))); break;
+         case 5:  assign(d16, unop(Iop_32HIto16, mkexpr(tmp2))); break;
+         case 6:  assign(d16, unop(Iop_32to16,   mkexpr(tmp3))); break;
+         case 7:  assign(d16, unop(Iop_32HIto16, mkexpr(tmp3))); break;
+         default: vassert(0);
+      }
+
+      if ( epartIsReg( modrm ) ) {
+         UInt rE = eregOfRM( modrm );
+         putIReg( 4, rE, unop(Iop_16Uto32, mkexpr(d16)) );
+         delta += 1+1;
+         DIP( "pextrw $%d, %s,%s\n", imm8_20,
+              nameXMMReg( rG ), nameIReg( 4, rE ) );
+      } else {
+         storeLE( mkexpr(addr), mkexpr(d16) );
+         delta += alen+1;
+         DIP( "pextrw $%d, %s,%s\n", imm8_20, nameXMMReg( rG ), dis_buf );
+      }
+
+      goto decode_success;
+   }
+
+
    /* 66 0F 3A 16 /r ib = PEXTRD reg/mem32, xmm2, imm8
       Extract Doubleword int from xmm reg and store in gen.reg or mem. */
    if ( sz == 2
