@@ -13323,6 +13323,56 @@ DisResult disInstr_X86_WRK (
      goto decode_success;
    }
 
+
+   /* 66 0F 3A 17 /r ib = EXTRACTPS reg/mem32, xmm2, imm8 Extract
+      float from xmm reg and store in gen.reg or mem.
+   */
+   if ( sz == 2
+       && insn[0] == 0x0F && insn[1] == 0x3A && insn[2] == 0x17 ) {
+      modrm = insn[3];
+      delta += 3;
+
+      Int imm8_10;
+      UInt   rG         = gregOfRM(modrm);
+      IRTemp xmm_vec    = newTemp(Ity_V128);
+      IRTemp src_dword  = newTemp(Ity_I32);
+      IRTemp tmp3, tmp2, tmp1, tmp0;
+      tmp3 = tmp2 = tmp1 = tmp0 = IRTemp_INVALID;
+
+      assign( xmm_vec, getXMMReg( rG ) );
+      breakupV128to32s( xmm_vec, &tmp3, &tmp2, &tmp1, &tmp0 );
+
+      if ( epartIsReg( modrm ) ) {
+         imm8_10 = (Int)(getUChar(delta+1) & 3);
+      } else {
+         addr = disAMode( &alen, sorb, delta, dis_buf );
+         imm8_10 = (Int)(getUChar(delta+alen) & 3);
+      }
+
+      switch ( imm8_10 ) {
+         case 0:  assign( src_dword, mkexpr(tmp0) ); break;
+         case 1:  assign( src_dword, mkexpr(tmp1) ); break;
+         case 2:  assign( src_dword, mkexpr(tmp2) ); break;
+         case 3:  assign( src_dword, mkexpr(tmp3) ); break;
+         default: vassert(0);
+      }
+
+      if ( epartIsReg( modrm ) ) {
+         UInt rE = eregOfRM( modrm );
+         putIReg( 4, rE, mkexpr(src_dword) );
+         delta += 1+1;
+         DIP( "extractps $%d, %s,%s\n", imm8_10,
+              nameXMMReg( rG ), nameIReg( 4, rE ) );
+      } else {
+         storeLE( mkexpr(addr), mkexpr(src_dword) );
+         delta += alen+1;
+         DIP( "extractps $%d, %s,%s\n", imm8_10,
+              nameXMMReg( rG ), dis_buf );
+      }
+
+      goto decode_success;
+   }
+
    /* 66 0F 3A 20 /r ib = PINSRB xmm1, r32/m8, imm8
       Extract byte from r32/m8 and insert into xmm1 */
    if ( sz == 2

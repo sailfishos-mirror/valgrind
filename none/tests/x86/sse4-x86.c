@@ -289,6 +289,16 @@ void test_PINSRW ( void )
    DO_imm_mandrscalar_to_r("pinsrw", 7, src);
 }
 
+void test_EXTRACTPS ( void )
+{
+   V128 src;
+   randV128(&src);
+   DO_imm_r_to_mandrscalar("extractps", 0, src, "d");
+   DO_imm_r_to_mandrscalar("extractps", 1, src, "d");
+   DO_imm_r_to_mandrscalar("extractps", 2, src, "d");
+   DO_imm_r_to_mandrscalar("extractps", 3, src, "d");
+}
+
 /* ------------ main ------------ */
 
 int main(void)
@@ -333,6 +343,7 @@ int main(void)
    test_INSERTPS();
    test_PINSRB();
    test_PINSRW();
+   test_EXTRACTPS();
 
    return 0;
 }
