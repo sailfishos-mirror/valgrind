@@ -272,6 +272,7 @@ int main(void)
    test_PMULDQ();
    test_PCMPGTQ();
    test_PMOVSXBW();
+   test_PMOVSXBD();
 
    return 0;
 }

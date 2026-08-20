@@ -1132,17 +1132,6 @@ void test_EXTRACTPS ( void )
    DO_imm_r_to_mandrscalar("extractps", 3, src, "d");
 }
 
-void test_PMOVSXBD ( void )
-{
-   V128 src, dst;
-   Int i;
-   for (i = 0; i < 10; i++) {
-      randV128(&src);
-      randV128(&dst);
-      DO_mandr_r("pmovsxbd", src, dst);
-   }
-}
-
 void test_PMOVSXBQ ( void )
 {
    V128 src, dst;

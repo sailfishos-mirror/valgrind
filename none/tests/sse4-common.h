@@ -2515,4 +2515,15 @@ static inline void test_PMOVSXBW ( void )
    }
 }
 
+static inline void test_PMOVSXBD ( void )
+{
+   V128 src, dst;
+   Int i;
+   for (i = 0; i < 10; i++) {
+      randV128(&src);
+      randV128(&dst);
+      DO_mandr_r("pmovsxbd", src, dst);
+   }
+}
+
 #endif /* __SSE4_COMMON_H */
