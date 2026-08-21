@@ -120,7 +120,7 @@ static inline ULong sad_8x4 ( ULong xx, ULong yy )
 // Handle https://bugs.kde.org/show_bug.cgi?id=523626
 __attribute__((force_align_arg_pointer))
 #endif
-static ULong g_calc_mpsadbw ( ULong sHi, ULong sLo,
+static inline ULong g_calc_mpsadbw ( ULong sHi, ULong sLo,
                               ULong dHi, ULong dLo,
                               ULong imm_and_return_control_bit )
 {
