@@ -541,16 +541,6 @@ static IRExpr* getIReg ( Int sz, UInt archreg )
                       szToITy(sz) );
 }
 
-static IRExpr* getIReg32 ( Int sz, UInt archreg )
-{
-   vassert(sz == 1 || sz == 2 || sz == 4);
-   vassert(archreg < 8);
-   vassert(host_endness == VexEndnessLE);
-   return unop(Iop_64to32,
-               IRExpr_Get( integerGuestRegOffset(sz,archreg),
-                           Ity_I64 ));
-}
-
 /* Ditto, but write to a reg instead. */
 static void putIReg ( Int sz, UInt archreg, IRExpr* e )
 {
@@ -13531,7 +13521,7 @@ DisResult disInstr_X86_WRK (
       if ( epartIsReg( modrm ) ) {
          UInt rE = eregOfRM( modrm );
          imm8 = (Int)(insn[3+1] & 0xF);
-         assign( new8, unop(Iop_32to8, getIReg32(sz, rE)) );
+         assign( new8, unop(Iop_16to8, getIReg(sz, rE)) );
          delta += 3+1+1;
          DIP( "pinsrb $%d,%s,%s\n", imm8,
               nameIReg(4, rE), nameXMMReg(rG) );
