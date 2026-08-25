@@ -330,6 +330,9 @@ int main(void)
    test_PMULDQ();
    test_PCMPGTQ();
    test_PMOVSXBW();
+   test_PMOVSXBD();
+   test_DPPS();
+   test_DPPD();
    test_INSERTPS();
    test_PINSRB();
    test_PINSRW();
