@@ -7619,33 +7619,6 @@ static void put_sse_roundingmode ( IRExpr* sseround )
    stmt( IRStmt_Put( OFFB_SSEROUND, sseround ) );
 }
 
-/* Break a 128-bit value up into four 32-bit ints. */
-
-static void breakup128to32s ( IRTemp t128,
-			      /*OUTs*/
-                              IRTemp* t3, IRTemp* t2,
-                              IRTemp* t1, IRTemp* t0 )
-{
-   IRTemp hi64 = newTemp(Ity_I64);
-   IRTemp lo64 = newTemp(Ity_I64);
-   assign( hi64, unop(Iop_V128HIto64, mkexpr(t128)) );
-   assign( lo64, unop(Iop_V128to64,   mkexpr(t128)) );
-
-   vassert(t0 && *t0 == IRTemp_INVALID);
-   vassert(t1 && *t1 == IRTemp_INVALID);
-   vassert(t2 && *t2 == IRTemp_INVALID);
-   vassert(t3 && *t3 == IRTemp_INVALID);
-
-   *t0 = newTemp(Ity_I32);
-   *t1 = newTemp(Ity_I32);
-   *t2 = newTemp(Ity_I32);
-   *t3 = newTemp(Ity_I32);
-   assign( *t0, unop(Iop_64to32,   mkexpr(lo64)) );
-   assign( *t1, unop(Iop_64HIto32, mkexpr(lo64)) );
-   assign( *t2, unop(Iop_64to32,   mkexpr(hi64)) );
-   assign( *t3, unop(Iop_64HIto32, mkexpr(hi64)) );
-}
-
 /* Construct a 128-bit value from four 32-bit ints. */
 
 static IRExpr* mk128from32s ( IRTemp t3, IRTemp t2,
@@ -9807,8 +9780,8 @@ DisResult disInstr_X86_WRK (
                                    nameXMMReg(gregOfRM(modrm)));
       }
 
-      breakup128to32s( dV, &d3, &d2, &d1, &d0 );
-      breakup128to32s( sV, &s3, &s2, &s1, &s0 );
+      breakupV128to32s( dV, &d3, &d2, &d1, &d0 );
+      breakupV128to32s( sV, &s3, &s2, &s1, &s0 );
 
 #     define SELD(n) ((n)==0 ? d0 : ((n)==1 ? d1 : ((n)==2 ? d2 : d3)))
 #     define SELS(n) ((n)==0 ? s0 : ((n)==1 ? s1 : ((n)==2 ? s2 : s3)))
@@ -9906,8 +9879,8 @@ DisResult disInstr_X86_WRK (
                                   nameXMMReg(gregOfRM(modrm)));
       }
 
-      breakup128to32s( dV, &d3, &d2, &d1, &d0 );
-      breakup128to32s( sV, &s3, &s2, &s1, &s0 );
+      breakupV128to32s( dV, &d3, &d2, &d1, &d0 );
+      breakupV128to32s( sV, &s3, &s2, &s1, &s0 );
 
       if (hi) {
          putXMMReg( gregOfRM(modrm), mk128from32s( s3, d3, s2, d2 ) );
@@ -10065,7 +10038,7 @@ DisResult disInstr_X86_WRK (
       }
          
       assign( rmode, get_sse_roundingmode() );
-      breakup128to32s( argV, &t3, &t2, &t1, &t0 );
+      breakupV128to32s( argV, &t3, &t2, &t1, &t0 );
 
 #     define CVT(_t)  binop( Iop_F64toF32,                    \
                              mkexpr(rmode),                   \
@@ -10280,7 +10253,7 @@ DisResult disInstr_X86_WRK (
       }
          
       assign( rmode, get_sse_roundingmode() );
-      breakup128to32s( argV, &t3, &t2, &t1, &t0 );
+      breakupV128to32s( argV, &t3, &t2, &t1, &t0 );
 
       /* This is less than ideal.  If it turns out to be a performance
 	 bottleneck it can be improved. */
@@ -10518,7 +10491,7 @@ DisResult disInstr_X86_WRK (
       }
          
       assign( rmode, mkU32((UInt)Irrm_ZERO) );
-      breakup128to32s( argV, &t3, &t2, &t1, &t0 );
+      breakupV128to32s( argV, &t3, &t2, &t1, &t0 );
 
       /* This is less than ideal.  If it turns out to be a performance
 	 bottleneck it can be improved. */
@@ -11332,7 +11305,7 @@ DisResult disInstr_X86_WRK (
          t5 = newTemp(Ity_V128);
          t4 = newTemp(Ity_I16);
          assign(t5, getXMMReg(eregOfRM(modrm)));
-         breakup128to32s( t5, &t3, &t2, &t1, &t0 );
+         breakupV128to32s( t5, &t3, &t2, &t1, &t0 );
          switch (insn[3] & 7) {
             case 0:  assign(t4, unop(Iop_32to16,   mkexpr(t0))); break;
             case 1:  assign(t4, unop(Iop_32HIto16, mkexpr(t0))); break;
@@ -11565,8 +11538,8 @@ DisResult disInstr_X86_WRK (
                                 nameXMMReg(gregOfRM(modrm)));
       }
 
-      breakup128to32s( dV, &d3, &d2, &d1, &d0 );
-      breakup128to32s( sV, &s3, &s2, &s1, &s0 );
+      breakupV128to32s( dV, &d3, &d2, &d1, &d0 );
+      breakupV128to32s( sV, &s3, &s2, &s1, &s0 );
 
       assign( t0, binop( Iop_MullU32, mkexpr(d0), mkexpr(s0)) );
       putXMMRegLane64( gregOfRM(modrm), 0, mkexpr(t0) );
@@ -11652,7 +11625,7 @@ DisResult disInstr_X86_WRK (
                                    dis_buf,
                                    nameXMMReg(gregOfRM(modrm)));
       }
-      breakup128to32s( sV, &s3, &s2, &s1, &s0 );
+      breakupV128to32s( sV, &s3, &s2, &s1, &s0 );
 
 #     define SEL(n) \
                 ((n)==0 ? s0 : ((n)==1 ? s1 : ((n)==2 ? s2 : s3)))
@@ -12210,7 +12183,7 @@ DisResult disInstr_X86_WRK (
          delta += 3+alen;
       }
 
-      breakup128to32s( sV, &s3, &s2, &s1, &s0 );
+      breakupV128to32s( sV, &s3, &s2, &s1, &s0 );
       putXMMReg( gregOfRM(modrm), 
                  isH ? mk128from32s( s3, s3, s1, s1 )
                      : mk128from32s( s2, s2, s0, s0 ) );
@@ -12272,8 +12245,8 @@ DisResult disInstr_X86_WRK (
       assign( addV, triop(Iop_Add32Fx4, mkexpr(rm), mkexpr(gV), mkexpr(eV)) );
       assign( subV, triop(Iop_Sub32Fx4, mkexpr(rm), mkexpr(gV), mkexpr(eV)) );
 
-      breakup128to32s( addV, &a3, &a2, &a1, &a0 );
-      breakup128to32s( subV, &s3, &s2, &s1, &s0 );
+      breakupV128to32s( addV, &a3, &a2, &a1, &a0 );
+      breakupV128to32s( subV, &s3, &s2, &s1, &s0 );
 
       putXMMReg( gregOfRM(modrm), mk128from32s( a3, s2, a1, s0 ));
       goto decode_success;
@@ -12347,8 +12320,8 @@ DisResult disInstr_X86_WRK (
 
       assign( gV, getXMMReg(gregOfRM(modrm)) );
 
-      breakup128to32s( eV, &e3, &e2, &e1, &e0 );
-      breakup128to32s( gV, &g3, &g2, &g1, &g0 );
+      breakupV128to32s( eV, &e3, &e2, &e1, &e0 );
+      breakupV128to32s( gV, &g3, &g2, &g1, &g0 );
 
       assign( leftV,  mk128from32s( e2, e0, g2, g0 ) );
       assign( rightV, mk128from32s( e3, e1, g3, g1 ) );
@@ -13491,7 +13464,7 @@ DisResult disInstr_X86_WRK (
                      triop( Iop_Mul32Fx4,
                             mkexpr(rm), mkexpr(dst_vec), mkexpr(src_vec) ),
                      mkV128( imm8_perms[((imm8 >> 4)& 15)] ) ) );
-      breakup128to32s( tmp_prod_vec, &v3, &v2, &v1, &v0 );
+      breakupV128to32s( tmp_prod_vec, &v3, &v2, &v1, &v0 );
       assign( prod_vec, mk128from32s( v3, v1, v2, v0 ) );
 
       assign( sum_vec, triop( Iop_Add32Fx4,
@@ -13664,8 +13637,8 @@ DisResult disInstr_X86_WRK (
          DIP("pmuldq %s,%s\n", dis_buf, nameXMMReg(rG));
       }
 
-      breakup128to32s( dV, &d3, &d2, &d1, &d0 );
-      breakup128to32s( sV, &s3, &s2, &s1, &s0 );
+      breakupV128to32s( dV, &d3, &d2, &d1, &d0 );
+      breakupV128to32s( sV, &s3, &s2, &s1, &s0 );
       assign(t0, binop(Iop_64HLtoV128,
                        binop( Iop_MullS32, mkexpr(d2), mkexpr(s2)),
                        binop( Iop_MullS32, mkexpr(d0), mkexpr(s0)) ));
