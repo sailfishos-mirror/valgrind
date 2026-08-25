@@ -2515,7 +2515,7 @@ static inline void test_PMOVSXBW ( void )
    }
 }
 
-void test_INSERTPS ( void )
+static inline void test_INSERTPS ( void )
 {
    V128 src, dst;
    {
@@ -3333,6 +3333,52 @@ static inline void test_DPPD ( void )
       DO_imm_mandr_r("dppd", 254, src, dst);
       DO_imm_mandr_r("dppd", 255, src, dst);
    }
+}
+
+static inline void test_EXTRACTPS ( void )
+{
+   V128 src;
+   randV128(&src);
+   DO_imm_r_to_mandrscalar("extractps", 0, src, "d");
+   DO_imm_r_to_mandrscalar("extractps", 1, src, "d");
+   DO_imm_r_to_mandrscalar("extractps", 2, src, "d");
+   DO_imm_r_to_mandrscalar("extractps", 3, src, "d");
+}
+
+static inline void test_PEXTRB ( void )
+{
+   V128 src;
+   randV128(&src);
+   DO_imm_r_to_mandrscalar("pextrb", 0, src, "d");
+   DO_imm_r_to_mandrscalar("pextrb", 1, src, "d");
+   DO_imm_r_to_mandrscalar("pextrb", 2, src, "d");
+   DO_imm_r_to_mandrscalar("pextrb", 3, src, "d");
+   DO_imm_r_to_mandrscalar("pextrb", 4, src, "d");
+   DO_imm_r_to_mandrscalar("pextrb", 5, src, "d");
+   DO_imm_r_to_mandrscalar("pextrb", 6, src, "d");
+   DO_imm_r_to_mandrscalar("pextrb", 7, src, "d");
+   DO_imm_r_to_mandrscalar("pextrb", 8, src, "d");
+   DO_imm_r_to_mandrscalar("pextrb", 9, src, "d");
+   DO_imm_r_to_mandrscalar("pextrb", 10, src, "d");
+   DO_imm_r_to_mandrscalar("pextrb", 11, src, "d");
+   DO_imm_r_to_mandrscalar("pextrb", 12, src, "d");
+   DO_imm_r_to_mandrscalar("pextrb", 13, src, "d");
+   DO_imm_r_to_mandrscalar("pextrb", 14, src, "d");
+   DO_imm_r_to_mandrscalar("pextrb", 15, src, "d");
+}
+
+static inline void test_PEXTRW ( void )
+{
+   V128 src;
+   randV128(&src);
+   DO_imm_r_to_mandrscalar("pextrw", 0, src, "d");
+   DO_imm_r_to_mandrscalar("pextrw", 1, src, "d");
+   DO_imm_r_to_mandrscalar("pextrw", 2, src, "d");
+   DO_imm_r_to_mandrscalar("pextrw", 3, src, "d");
+   DO_imm_r_to_mandrscalar("pextrw", 4, src, "d");
+   DO_imm_r_to_mandrscalar("pextrw", 5, src, "d");
+   DO_imm_r_to_mandrscalar("pextrw", 6, src, "d");
+   DO_imm_r_to_mandrscalar("pextrw", 7, src, "d");
 }
 
 #endif /* __SSE4_COMMON_H */

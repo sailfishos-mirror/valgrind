@@ -336,6 +336,9 @@ int main(void)
    test_INSERTPS();
    test_PINSRB();
    test_PINSRW();
+   test_EXTRACTPS();
+   test_PEXTRB();
+   test_PEXTRW();
 
    return 0;
 }

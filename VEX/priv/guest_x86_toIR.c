@@ -13256,6 +13256,113 @@ DisResult disInstr_X86_WRK (
       }
    }
 
+   /* 66 0F 3A 14 /r ib = PEXTRB r/m16, xmm, imm8
+      Extract Byte from xmm, store in mem or zero-extend + store in gen.reg.
+      (XMM) */
+   if ( sz == 2
+       && insn[0] == 0x0F && insn[1] == 0x3A && insn[2] == 0x14 ) {
+
+      modrm = insn[3];
+      delta += 3;
+
+      IRTemp xmm_vec  = newTemp(Ity_V128);
+      IRTemp tmp3, tmp2, tmp1, tmp0;
+      IRTemp sel_lane = newTemp(Ity_I32);
+      IRTemp shr_lane = newTemp(Ity_I32);
+      Int    imm8;
+
+      tmp3 = tmp2 = tmp1 = tmp0 = IRTemp_INVALID;
+      assign( xmm_vec, getXMMReg( gregOfRM( modrm ) ) );
+      breakupV128to32s( xmm_vec, &tmp3, &tmp2, &tmp1, &tmp0 );
+
+      if ( epartIsReg( modrm ) ) {
+         imm8 = (Int)getUChar(delta+1);
+      } else {
+         addr = disAMode( &alen, sorb, delta, dis_buf );
+         imm8 = (Int)getUChar(delta+alen);
+      }
+
+      switch ( (imm8 >> 2) & 3 ) {
+         case 0:  assign( sel_lane, mkexpr(tmp0) ); break;
+         case 1:  assign( sel_lane, mkexpr(tmp1) ); break;
+         case 2:  assign( sel_lane, mkexpr(tmp2) ); break;
+         case 3:  assign( sel_lane, mkexpr(tmp3) ); break;
+         default: vassert(0);
+      }
+
+      assign( shr_lane,
+              binop( Iop_Shr32, mkexpr(sel_lane), mkU8(((imm8 & 3)*8)) ) );
+
+      if ( epartIsReg( modrm ) ) {
+         putIReg( 4, eregOfRM( modrm ),
+                  binop(Iop_And32, mkexpr(shr_lane), mkU32(255)) );
+         delta += 1+1;
+         DIP( "pextrb $%d, %s,%s\n", imm8,
+              nameXMMReg( gregOfRM( modrm ) ),
+              nameIReg( 4, eregOfRM( modrm ) ) );
+      } else {
+         storeLE( mkexpr(addr), unop(Iop_32to8, mkexpr(shr_lane) ) );
+         delta += alen+1;
+         DIP( "pextrb $%d,%s,%s\n",
+              imm8, nameXMMReg( gregOfRM( modrm ) ), dis_buf );
+      }
+
+      goto decode_success;
+   }
+
+   /* 66 0F 3A 15 /r ib = PEXTRW r/m16, xmm, imm8
+      Extract Byte from xmm, store in mem or zero-extend + store in gen.reg.
+      (XMM) */
+   if ( sz == 2
+        && insn[0] == 0x0F && insn[1] == 0x3A && insn[2] == 0x15 ) {
+      modrm = insn[3];
+      delta += 3;
+
+      IRTemp tmp3, tmp2, tmp1, tmp0;
+      tmp3 = tmp2 = tmp1 = tmp0 = IRTemp_INVALID;
+      IRTemp d16   = newTemp( Ity_I16 );
+      IRTemp xmm_vec = newTemp( Ity_V128 );
+      Int    imm8_20;
+      UInt   rG    = gregOfRM( modrm );
+
+      assign( xmm_vec, getXMMReg( gregOfRM( modrm ) ) );
+      breakupV128to32s( xmm_vec, &tmp3, &tmp2, &tmp1, &tmp0 );
+
+      if ( epartIsReg( modrm ) ) {
+         imm8_20 = (Int)(getUChar(delta+1) & 7);
+      } else {
+         addr = disAMode( &alen, sorb, delta, dis_buf );
+         imm8_20 = (Int)(getUChar(delta+alen) & 7);
+      }
+
+      switch (imm8_20) {
+         case 0:  assign(d16, unop(Iop_32to16,   mkexpr(tmp0))); break;
+         case 1:  assign(d16, unop(Iop_32HIto16, mkexpr(tmp0))); break;
+         case 2:  assign(d16, unop(Iop_32to16,   mkexpr(tmp1))); break;
+         case 3:  assign(d16, unop(Iop_32HIto16, mkexpr(tmp1))); break;
+         case 4:  assign(d16, unop(Iop_32to16,   mkexpr(tmp2))); break;
+         case 5:  assign(d16, unop(Iop_32HIto16, mkexpr(tmp2))); break;
+         case 6:  assign(d16, unop(Iop_32to16,   mkexpr(tmp3))); break;
+         case 7:  assign(d16, unop(Iop_32HIto16, mkexpr(tmp3))); break;
+         default: vassert(0);
+      }
+
+      if ( epartIsReg( modrm ) ) {
+         UInt rE = eregOfRM( modrm );
+         putIReg( 4, rE, unop(Iop_16Uto32, mkexpr(d16)) );
+         delta += 1+1;
+         DIP( "pextrw $%d, %s,%s\n", imm8_20,
+              nameXMMReg( rG ), nameIReg( 4, rE ) );
+      } else {
+         storeLE( mkexpr(addr), mkexpr(d16) );
+         delta += alen+1;
+         DIP( "pextrw $%d, %s,%s\n", imm8_20, nameXMMReg( rG ), dis_buf );
+      }
+
+      goto decode_success;
+   }
+
+
    /* 66 0F 3A 16 /r ib = PEXTRD reg/mem32, xmm2, imm8
       Extract Doubleword int from xmm reg and store in gen.reg or mem. */
    if ( sz == 2
@@ -13284,6 +13391,123 @@ DisResult disInstr_X86_WRK (
      }
 
      goto decode_success;
+   }
+
+   /* 66 0F 3A 20 /r ib = PINSRB xmm1, r32/m8, imm8
+      Extract byte from r32/m8 and insert into xmm1 */
+   if ( sz == 2
+        && insn[0] == 0x0F && insn[1] == 0x3A && insn[2] == 0x20 ) {
+      Int    imm8;
+      IRTemp new8 = newTemp(Ity_I8);
+      modrm = insn[3];
+      UInt rG = gregOfRM( modrm );
+      if ( epartIsReg( modrm ) ) {
+         UInt rE = eregOfRM( modrm );
+         imm8 = (Int)(insn[3+1] & 0xF);
+         assign( new8, unop(Iop_16to8, getIReg(sz, rE)) );
+         delta += 3+1+1;
+         DIP( "pinsrb $%d,%s,%s\n", imm8,
+              nameIReg(4, rE), nameXMMReg(rG) );
+      } else {
+         addr = disAMode( &alen, sorb, delta+3, dis_buf );
+         imm8 = (Int)(insn[3+alen] & 0xF);
+         assign( new8, loadLE( Ity_I8, mkexpr(addr) ) );
+         delta += 3+alen+1;
+         DIP( "pinsrb $%d,%s,%s\n",
+              imm8, dis_buf, nameXMMReg(rG) );
+      }
+      IRTemp src_vec = newTemp(Ity_V128);
+      assign(src_vec, getXMMReg( gregOfRM( modrm ) ));
+      IRTemp res = math_PINSRB_128_x86( src_vec, new8, imm8 );
+      putXMMReg( rG, mkexpr(res) );
+      goto decode_success;
+   }
+
+   /* 66 0F 3A 21 /r ib = INSERTPS imm8, xmm2/m32, xmm1
+      Insert Packed Single Precision Floating-Point Value (XMM) */
+   if ( sz == 2
+        && insn[0] == 0x0F && insn[1] == 0x3A && insn[2] == 0x21 ) {
+      UInt   imm8;
+      IRTemp d2ins = newTemp(Ity_I32); /* comes from the E part */
+      const IRTemp inval = IRTemp_INVALID;
+      modrm = insn[3];
+      UInt rG = gregOfRM(modrm);
+
+      if ( epartIsReg( modrm ) ) {
+         UInt   rE = eregOfRM(modrm);
+         IRTemp vE = newTemp(Ity_V128);
+         assign( vE, getXMMReg(rE) );
+         IRTemp dsE[4] = { inval, inval, inval, inval };
+         breakupV128to32s( vE, &dsE[3], &dsE[2], &dsE[1], &dsE[0] );
+         imm8 = insn[3+1];
+         d2ins = dsE[(imm8 >> 6) & 3]; /* "imm8_count_s" */
+         delta += 3+1+1;
+         DIP( "insertps $%u, %s,%s\n",
+              imm8, nameXMMReg(rE), nameXMMReg(rG) );
+      } else {
+         addr = disAMode( &alen, sorb, delta+3, dis_buf );
+         assign( d2ins, loadLE( Ity_I32, mkexpr(addr) ) );
+         imm8 = insn[3+alen];
+         delta += 3+alen+1;
+         DIP( "insertps $%u, %s,%s\n", 
+              imm8, dis_buf, nameXMMReg(rG) );
+      }
+
+      IRTemp vG = newTemp(Ity_V128);
+      assign( vG, getXMMReg(rG) );
+
+      putXMMReg( rG, mkexpr(math_INSERTPS( vG, d2ins, imm8 )) );
+      goto decode_success;
+   }
+
+
+   /* 66 0F 3A 17 /r ib = EXTRACTPS reg/mem32, xmm2, imm8 Extract
+      float from xmm reg and store in gen.reg or mem.
+   */
+   if ( sz == 2
+       && insn[0] == 0x0F && insn[1] == 0x3A && insn[2] == 0x17 ) {
+      modrm = insn[3];
+      delta += 3;
+
+      Int imm8_10;
+      UInt   rG         = gregOfRM(modrm);
+      IRTemp xmm_vec    = newTemp(Ity_V128);
+      IRTemp src_dword  = newTemp(Ity_I32);
+      IRTemp tmp3, tmp2, tmp1, tmp0;
+      tmp3 = tmp2 = tmp1 = tmp0 = IRTemp_INVALID;
+
+      assign( xmm_vec, getXMMReg( rG ) );
+      breakupV128to32s( xmm_vec, &tmp3, &tmp2, &tmp1, &tmp0 );
+
+      if ( epartIsReg( modrm ) ) {
+         imm8_10 = (Int)(getUChar(delta+1) & 3);
+      } else {
+         addr = disAMode( &alen, sorb, delta, dis_buf );
+         imm8_10 = (Int)(getUChar(delta+alen) & 3);
+      }
+
+      switch ( imm8_10 ) {
+         case 0:  assign( src_dword, mkexpr(tmp0) ); break;
+         case 1:  assign( src_dword, mkexpr(tmp1) ); break;
+         case 2:  assign( src_dword, mkexpr(tmp2) ); break;
+         case 3:  assign( src_dword, mkexpr(tmp3) ); break;
+         default: vassert(0);
+      }
+
+      if ( epartIsReg( modrm ) ) {
+         UInt rE = eregOfRM( modrm );
+         putIReg( 4, rE, mkexpr(src_dword) );
+         delta += 1+1;
+         DIP( "extractps $%d, %s,%s\n", imm8_10,
+              nameXMMReg( rG ), nameIReg( 4, rE ) );
+      } else {
+         storeLE( mkexpr(addr), mkexpr(src_dword) );
+         delta += alen+1;
+         DIP( "extractps $%d, %s,%s\n", imm8_10,
+              nameXMMReg( rG ), dis_buf );
+      }
+
+      goto decode_success;
    }
 
    /* 66 0F 3A 20 /r ib = PINSRB xmm1, r32/m8, imm8
