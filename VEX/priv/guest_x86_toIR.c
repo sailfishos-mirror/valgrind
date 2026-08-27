@@ -8297,7 +8297,7 @@ static Long dis_xTESTy_128 ( const VexAbiInfo* vbi, UChar sorb, Long delta )
 /* This can fail, in which case it returns the original (unchanged)
    delta. */
 static Int dis_PCMPxSTRx32 ( const VexAbiInfo* vbi, UChar sorb,
-                             Int delta, Bool isAvx, UChar opc )
+                             Int delta, UChar opc )
 {
    Int   delta0  = delta;
    UInt   isISTRx = opc & 2;
@@ -8313,7 +8313,7 @@ static Int dis_PCMPxSTRx32 ( const VexAbiInfo* vbi, UChar sorb,
       (which is clean).  Since we can't do that, use a dirty helper to
       compute the results directly from the XMM regs in the guest
       state.  That means for the memory case, we need to move the left
-      operand into a pseudo-register (XMM16, let's call it). */
+      operand into a pseudo-register (XMM8, let's call it). */
    UChar modrm = getUChar(delta);
    if (epartIsReg(modrm)) {
       regNoL = eregOfRM(modrm);
@@ -8334,12 +8334,12 @@ static Int dis_PCMPxSTRx32 ( const VexAbiInfo* vbi, UChar sorb,
    /* Print the insn here, since dis_PCMPISTRI_3A doesn't do so
       itself. */
    if (regNoL == 8) {
-      DIP("%spcmp%cstr%c $%x,%s,%s\n",
-          isAvx ? "v" : "", isISTRx ? 'i' : 'e', isxSTRM ? 'm' : 'i',
+      DIP("pcmp%cstr%c $%x,%s,%s\n",
+          isISTRx ? 'i' : 'e', isxSTRM ? 'm' : 'i',
           (UInt)imm, dis_buf, nameXMMReg(regNoR));
    } else {
-      DIP("%spcmp%cstr%c $%x,%s,%s\n",
-          isAvx ? "v" : "", isISTRx ? 'i' : 'e', isxSTRM ? 'm' : 'i',
+      DIP("pcmp%cstr%c $%x,%s,%s\n",
+          isISTRx ? 'i' : 'e', isxSTRM ? 'm' : 'i',
           (UInt)imm, nameXMMReg(regNoL), nameXMMReg(regNoR));
    }
 
@@ -13946,7 +13946,7 @@ DisResult disInstr_X86_WRK (
    if (sz == 2 && insn[0] == 0x0F && insn[1] == 0x3A &&
        (insn[2] == 0x60 || insn[2] == 0x61 || insn[2] == 0x62 || insn[2] == 0x63)) {
       Int delta0 = delta; 
-      delta = dis_PCMPxSTRx32( vbi, sorb, delta+3, False/*!isAvx*/, insn[2] );
+      delta = dis_PCMPxSTRx32( vbi, sorb, delta+3, insn[2] );
       if (delta > delta0+3) goto decode_success;
    }
 

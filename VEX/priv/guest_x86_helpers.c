@@ -3042,7 +3042,7 @@ static UInt zmask_from_V128_wide ( V128* arg )
    gstOffL and gstOffR are the guest state offsets for the two XMM
    register inputs.  We never have to deal with the memory case since
    that is handled by pre-loading the relevant value into the fake
-   XMM16 register.
+   XMM8 register.
 
    For ESTRx variants, edxIN and eaxIN hold the values of those two
    registers.
