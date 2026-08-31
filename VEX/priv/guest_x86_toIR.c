@@ -8294,6 +8294,162 @@ static Long dis_xTESTy_128 ( const VexAbiInfo* vbi, UChar sorb, Long delta )
    return delta;
 }
 
+static Long dis_PCMPISTRI_3A_x86 ( UChar modrm, UInt regNoL, UInt regNoR,
+                                   Long delta, UChar opc, UChar imm,
+                                   HChar dis_buf[])
+{
+   /* We only handle PCMPISTRI for now */
+   vassert((opc & 0x03) == 0x03);
+   /* And only an immediate byte of 0x38 or 0x3A */
+   vassert((imm & ~0x02) == 0x38);
+
+   /* FIXME: Is this correct when RegNoL == 16 ? */
+   IRTemp argL = newTemp(Ity_V128);
+   assign(argL, getXMMReg(regNoL));
+   IRTemp argR = newTemp(Ity_V128);
+   assign(argR, getXMMReg(regNoR));
+
+   IRTemp argLl0 = newTemp(Ity_I64);
+   IRTemp argLl1 = newTemp(Ity_I64);
+   IRTemp argRl0 = newTemp(Ity_I64);
+   IRTemp argRl1 = newTemp(Ity_I64);
+   assign(argLl0, getXMMRegLane64(regNoL, 0));
+   assign(argLl1, getXMMRegLane64(regNoL, 1));
+   assign(argRl0, getXMMRegLane64(regNoR, 0));
+   assign(argRl1, getXMMRegLane64(regNoR, 1));
+
+   IRTemp zmaskL = newTemp(Ity_I32);
+   IRTemp zmaskL0 = newTemp(Ity_I32);
+   IRTemp zmaskL1 = newTemp(Ity_I32);
+
+   assign(zmaskL0, unop(Iop_8Uto32,
+                        unop(Iop_GetMSBs8x8,
+                             binop(Iop_CmpEQ8x8, mkexpr(argLl1), mkU64(0)))));
+   assign(zmaskL1, unop(Iop_8Uto32,
+                        unop(Iop_GetMSBs8x8,
+                             binop(Iop_CmpEQ8x8, mkexpr(argLl0), mkU64(0)))));
+   assign(zmaskL, binop(Iop_Or32, binop(Iop_Shl32, mkexpr(zmaskL0), mkU8(8)), mkexpr(zmaskL1)));
+
+   IRTemp zmaskR = newTemp(Ity_I32);
+   IRTemp zmaskR0 = newTemp(Ity_I32);
+   IRTemp zmaskR1 = newTemp(Ity_I32);
+
+   assign(zmaskR0, unop(Iop_8Uto32,
+                        unop(Iop_GetMSBs8x8,
+                             binop(Iop_CmpEQ8x8, mkexpr(argRl1), mkU64(0)))));
+   assign(zmaskR1, unop(Iop_8Uto32,
+                        unop(Iop_GetMSBs8x8,
+                             binop(Iop_CmpEQ8x8, mkexpr(argRl0), mkU64(0)))));
+   assign(zmaskR, binop(Iop_Or32, binop(Iop_Shl32, mkexpr(zmaskR0), mkU8(8)), mkexpr(zmaskR1)));
+
+   /* We want validL = ~(zmaskL | -zmaskL)
+
+      But this formulation kills memcheck's validity tracking when any
+      bits above the first "1" are invalid.  So reformulate as:
+
+      validL = (zmaskL ? (1 << ctz(zmaskL)) : 0) - 1
+   */
+
+   IRExpr *ctzL = unop(Iop_32to8, unop(Iop_CtzNat32, mkexpr(zmaskL)));
+
+   /* Generate a bool expression which is zero iff the original is
+      zero.  Do this carefully so memcheck can propagate validity bits
+      correctly.
+    */
+   IRTemp zmaskL_zero = newTemp(Ity_I1);
+   assign(zmaskL_zero, binop(Iop_ExpCmpNE32, mkexpr(zmaskL), mkU32(0)));
+
+   IRTemp validL = newTemp(Ity_I32);
+   assign(validL, binop(Iop_Sub32,
+                        IRExpr_ITE(mkexpr(zmaskL_zero),
+                                   binop(Iop_Shl32, mkU32(1), ctzL),
+                                   mkU32(0)),
+                        mkU32(1)));
+
+   /* And similarly for validR. */
+   IRExpr *ctzR = unop(Iop_32to8, math_CTZ32(mkexpr(zmaskR)));
+   IRTemp zmaskR_zero = newTemp(Ity_I1);
+   assign(zmaskR_zero, binop(Iop_ExpCmpNE32, mkexpr(zmaskR), mkU32(0)));
+   IRTemp validR = newTemp(Ity_I32);
+   assign(validR, binop(Iop_Sub32,
+                        IRExpr_ITE(mkexpr(zmaskR_zero),
+                                   binop(Iop_Shl32, mkU32(1), ctzR),
+                                   mkU32(0)),
+                        mkU32(1)));
+
+   /* Do the actual comparison. */
+   IRExpr *boolResIIl0 = unop(Iop_8Uto32,
+                              unop(Iop_GetMSBs8x8,
+                                 binop(Iop_CmpEQ8x8, mkexpr(argLl0),
+                                                      mkexpr(argRl0))));
+   IRExpr *boolResIIl1 = unop(Iop_8Uto32,
+                              unop(Iop_GetMSBs8x8,
+                                 binop(Iop_CmpEQ8x8, mkexpr(argLl1),
+                                                      mkexpr(argRl1))));
+   IRExpr *boolResII = binop(Iop_Or32,
+                             binop(Iop_Shl32, boolResIIl1, mkU8(8)), boolResIIl0);
+
+   /* Compute boolresII & validL & validR (i.e., if both valid, use
+      comparison result) */
+   IRExpr *intRes1_a = binop(Iop_And32, boolResII,
+                             binop(Iop_And32,
+                                   mkexpr(validL), mkexpr(validR)));
+
+   /* Compute ~(validL | validR); i.e., if both invalid, force 1. */
+   IRExpr *intRes1_b = unop(Iop_Not32, binop(Iop_Or32,
+                                             mkexpr(validL), mkexpr(validR)));
+   /* Otherwise, zero. */
+   IRExpr *intRes1 = binop(Iop_And32, mkU32(0xFFFF),
+                           binop(Iop_Or32, intRes1_a, intRes1_b));
+
+   /* The "0x30" in imm=0x3A means "polarity=3" means XOR validL with
+      result. */
+   IRTemp intRes2 = newTemp(Ity_I32);
+   assign(intRes2, binop(Iop_And32, mkU32(0xFFFF),
+                         binop(Iop_Xor32, intRes1, mkexpr(validL))));
+
+   /* If the 0x40 bit were set in imm=0x3A, we would return the index
+      of the msb.  Since it is clear, we return the index of the
+      lsb. */
+   IRExpr *newECX = math_CTZ32(binop(Iop_Or32,
+                                     mkexpr(intRes2), mkU32(0x10000)));
+
+   /* And thats our rcx. */
+   putIReg(4, R_ECX, newECX);
+
+   /* Now for the condition codes... */
+
+   /* C == 0 iff intRes2 == 0 */
+   IRExpr *c_bit = IRExpr_ITE( binop(Iop_ExpCmpNE32, mkexpr(intRes2),
+                                     mkU32(0)),
+                               mkU32(1 << X86G_CC_SHIFT_C),
+                               mkU32(0));
+   /* Z == 1 iff any in argL is 0 */
+   IRExpr *z_bit = IRExpr_ITE( mkexpr(zmaskL_zero),
+                               mkU32(1 << X86G_CC_SHIFT_Z),
+                               mkU32(0));
+   /* S == 1 iff any in argR is 0 */
+   IRExpr *s_bit = IRExpr_ITE( mkexpr(zmaskR_zero),
+                               mkU32(1 << X86G_CC_SHIFT_S),
+                               mkU32(0));
+   /* O == IntRes2[0] */
+   IRExpr *o_bit = binop(Iop_Shl32, binop(Iop_And32, mkexpr(intRes2),
+                                          mkU32(0x01)),
+                         mkU8(X86G_CC_SHIFT_O));
+
+   /* Put them all together */
+   IRTemp cc = newTemp(Ity_I64);
+   assign(cc, binop(Iop_Or32,
+                               binop(Iop_Or32, c_bit, z_bit),
+                               binop(Iop_Or32, s_bit, o_bit)));
+   stmt(IRStmt_Put(OFFB_CC_OP, mkU32(X86G_CC_OP_COPY)));
+   stmt(IRStmt_Put(OFFB_CC_DEP1, mkexpr(cc)));
+   stmt(IRStmt_Put(OFFB_CC_DEP2, mkU32(0)));
+   stmt(IRStmt_Put(OFFB_CC_NDEP, mkU32(0)));
+
+   return delta;
+}
+
 /* This can fail, in which case it returns the original (unchanged)
    delta. */
 static Int dis_PCMPxSTRx32 ( const VexAbiInfo* vbi, UChar sorb,
@@ -8343,11 +8499,11 @@ static Int dis_PCMPxSTRx32 ( const VexAbiInfo* vbi, UChar sorb,
           (UInt)imm, nameXMMReg(regNoL), nameXMMReg(regNoR));
    }
 
-   // /* Handle special case(s). */
-   // if (imm == 0x3A && isISTRx && !isxSTRM) {
-   //    return dis_PCMPISTRI_3A ( modrm, regNoL, regNoR, delta,
-   //                              opc, imm, dis_buf);
-   // }
+   /* Handle special case(s). */
+   if (imm == 0x3A && isISTRx && !isxSTRM) {
+      return dis_PCMPISTRI_3A_x86 ( modrm, regNoL, regNoR, delta,
+                                    opc, imm, dis_buf);
+   }
 
    /* Now we know the XMM reg numbers for the operands, and the
       immediate byte.  Is it one we can actually handle? Throw out any
