@@ -8367,7 +8367,7 @@ static Long dis_PCMPISTRI_3A_x86 ( UChar modrm, UInt regNoL, UInt regNoR,
                         mkU32(1)));
 
    /* And similarly for validR. */
-   IRExpr *ctzR = unop(Iop_32to8, math_CTZ32(mkexpr(zmaskR)));
+   IRExpr *ctzR = unop(Iop_32to8, unop(Iop_CtzNat32, mkexpr(zmaskR)));
    IRTemp zmaskR_zero = newTemp(Ity_I1);
    assign(zmaskR_zero, binop(Iop_ExpCmpNE32, mkexpr(zmaskR), mkU32(0)));
    IRTemp validR = newTemp(Ity_I32);
@@ -8411,8 +8411,8 @@ static Long dis_PCMPISTRI_3A_x86 ( UChar modrm, UInt regNoL, UInt regNoR,
    /* If the 0x40 bit were set in imm=0x3A, we would return the index
       of the msb.  Since it is clear, we return the index of the
       lsb. */
-   IRExpr *newECX = math_CTZ32(binop(Iop_Or32,
-                                     mkexpr(intRes2), mkU32(0x10000)));
+   IRExpr *newECX = unop(Iop_CtzNat32,
+                         binop(Iop_Or32, mkexpr(intRes2), mkU32(0x10000)));
 
    /* And thats our rcx. */
    putIReg(4, R_ECX, newECX);
