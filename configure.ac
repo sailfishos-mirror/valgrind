@@ -2779,6 +2779,28 @@ CFLAGS=$safe_CFLAGS
 AC_SUBST(PREFERRED_STACK_BOUNDARY_2)
 
 
+# force the 16-byte stack alignment at entry to every function
+# for newer SSE instructions (like ‘movaps’).  See also clang
+# force_align_arg_pointer.  Related bugs 523626 and 523843.
+AC_MSG_CHECKING([if compiler accepts -mstack-alignment=16 -mstackrealign -m32])
+
+safe_CFLAGS=$CFLAGS
+CFLAGS="-mstack-alignment=16 -mstackrealign -m32 -Werror"
+
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]], [[
+  return 0;
+]])], [
+STACK_REALIGN_16="-mstack-alignment=16 -mstackrealign"
+AC_MSG_RESULT([yes])
+], [
+STACK_REALIGN_16=""
+AC_MSG_RESULT([no])
+])
+CFLAGS=$safe_CFLAGS
+
+AC_SUBST(STACK_REALIGN_16)
+
+
 # does this compiler support -mlong-double-128 ?
 AC_MSG_CHECKING([if gcc accepts -mlong-double-128])
 safe_CFLAGS=$CFLAGS
