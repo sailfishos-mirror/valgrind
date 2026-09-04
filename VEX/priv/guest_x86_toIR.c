@@ -8303,7 +8303,7 @@ static Long dis_PCMPISTRI_3A_x86 ( UChar modrm, UInt regNoL, UInt regNoR,
    /* And only an immediate byte of 0x38 or 0x3A */
    vassert((imm & ~0x02) == 0x38);
 
-   /* FIXME: Is this correct when RegNoL == 16 ? */
+   /* FIXME: Is this correct when RegNoL == 8 ? */
    IRTemp argL = newTemp(Ity_V128);
    assign(argL, getXMMReg(regNoL));
    IRTemp argR = newTemp(Ity_V128);
@@ -8414,7 +8414,7 @@ static Long dis_PCMPISTRI_3A_x86 ( UChar modrm, UInt regNoL, UInt regNoR,
    IRExpr *newECX = unop(Iop_CtzNat32,
                          binop(Iop_Or32, mkexpr(intRes2), mkU32(0x10000)));
 
-   /* And thats our rcx. */
+   /* And thats our ecx. */
    putIReg(4, R_ECX, newECX);
 
    /* Now for the condition codes... */
@@ -8438,7 +8438,7 @@ static Long dis_PCMPISTRI_3A_x86 ( UChar modrm, UInt regNoL, UInt regNoR,
                          mkU8(X86G_CC_SHIFT_O));
 
    /* Put them all together */
-   IRTemp cc = newTemp(Ity_I64);
+   IRTemp cc = newTemp(Ity_I32);
    assign(cc, binop(Iop_Or32,
                                binop(Iop_Or32, c_bit, z_bit),
                                binop(Iop_Or32, s_bit, o_bit)));
