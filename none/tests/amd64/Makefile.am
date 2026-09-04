@@ -81,6 +81,7 @@ EXTRA_DIST = \
 	pcmpxstrx64.vgtest \
 	pcmpxstrx64w.stdout.exp \
 	pcmpxstrx64w.vgtest \
+	pcmpistri.vgtest \
 	rcl-amd64.vgtest rcl-amd64.stdout.exp \
 	rdrand.vgtest rdrand.stdout.exp \
 	rdseed.vgtest rdseed.stdout.exp \
@@ -149,7 +150,7 @@ endif
 if BUILD_SSE42_TESTS
  check_PROGRAMS += \
 	pcmpstr64 pcmpxstrx64 sse4-64 crc32 \
-	pcmpstr64w pcmpxstrx64w
+	pcmpstr64w pcmpxstrx64w pcmpistri
 endif
 if BUILD_AES_TESTS
   check_PROGRAMS += aes

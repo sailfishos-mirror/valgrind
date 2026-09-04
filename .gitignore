@@ -1781,6 +1781,7 @@
 /none/tests/amd64/pcmpstr64w
 /none/tests/amd64/pcmpxstrx64
 /none/tests/amd64/pcmpxstrx64w
+/none/tests/amd64/pcmpistri
 /none/tests/amd64/rcl-amd64
 /none/tests/amd64/rdrand
 /none/tests/amd64/rdseed
@@ -2434,6 +2435,7 @@ none/tests/freebsd/bug499212
 /none/tests/x86/movbe
 /none/tests/x86/movx
 /none/tests/x86/pcmpxstrx32
+/none/tests/x86/pcmpistri32
 /none/tests/x86/pushpopseg
 /none/tests/x86/rcl_assert
 /none/tests/x86/sbbmisc
