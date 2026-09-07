@@ -9,7 +9,7 @@ int main(int argc, char *argv[])
 
     asm("movdqa (%1),%%xmm0\n"
         "pcmpistri $0x3a,%%xmm0,%%xmm0\n"
-        : "=c" (result) : "p" (s) : "xmm0");
+        : "=c" (result) : "r" (s) : "xmm0");
 
     free((void *)s);
 
