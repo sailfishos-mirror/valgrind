@@ -272,6 +272,8 @@ static IRSB* irsb;
 #define OFFB_XMM5      offsetof(VexGuestX86State,guest_XMM5)
 #define OFFB_XMM6      offsetof(VexGuestX86State,guest_XMM6)
 #define OFFB_XMM7      offsetof(VexGuestX86State,guest_XMM7)
+// helper imaginary register not present in the hardware
+#define OFFB_XMM8      offsetof(VexGuestX86State,guest_XMM8)
 
 #define OFFB_EMNOTE    offsetof(VexGuestX86State,guest_EMNOTE)
 
@@ -8292,6 +8294,307 @@ static Long dis_xTESTy_128 ( const VexAbiInfo* vbi, UChar sorb, Long delta )
    return delta;
 }
 
+static Long dis_PCMPISTRI_3A_x86 ( UChar modrm, UInt regNoL, UInt regNoR,
+                                   Long delta, UChar opc, UChar imm,
+                                   HChar dis_buf[])
+{
+   /* We only handle PCMPISTRI for now */
+   vassert((opc & 0x03) == 0x03);
+   /* And only an immediate byte of 0x38 or 0x3A */
+   vassert((imm & ~0x02) == 0x38);
+
+   /* FIXME: Is this correct when RegNoL == 8 ? */
+   IRTemp argL = newTemp(Ity_V128);
+   assign(argL, getXMMReg(regNoL));
+   IRTemp argR = newTemp(Ity_V128);
+   assign(argR, getXMMReg(regNoR));
+
+   IRTemp argLl0 = newTemp(Ity_I64);
+   IRTemp argLl1 = newTemp(Ity_I64);
+   IRTemp argRl0 = newTemp(Ity_I64);
+   IRTemp argRl1 = newTemp(Ity_I64);
+   assign(argLl0, getXMMRegLane64(regNoL, 0));
+   assign(argLl1, getXMMRegLane64(regNoL, 1));
+   assign(argRl0, getXMMRegLane64(regNoR, 0));
+   assign(argRl1, getXMMRegLane64(regNoR, 1));
+
+   IRTemp zmaskL = newTemp(Ity_I32);
+   IRTemp zmaskL0 = newTemp(Ity_I32);
+   IRTemp zmaskL1 = newTemp(Ity_I32);
+
+   assign(zmaskL0, unop(Iop_8Uto32,
+                        unop(Iop_GetMSBs8x8,
+                             binop(Iop_CmpEQ8x8, mkexpr(argLl1), mkU64(0)))));
+   assign(zmaskL1, unop(Iop_8Uto32,
+                        unop(Iop_GetMSBs8x8,
+                             binop(Iop_CmpEQ8x8, mkexpr(argLl0), mkU64(0)))));
+   assign(zmaskL, binop(Iop_Or32, binop(Iop_Shl32, mkexpr(zmaskL0), mkU8(8)), mkexpr(zmaskL1)));
+
+   IRTemp zmaskR = newTemp(Ity_I32);
+   IRTemp zmaskR0 = newTemp(Ity_I32);
+   IRTemp zmaskR1 = newTemp(Ity_I32);
+
+   assign(zmaskR0, unop(Iop_8Uto32,
+                        unop(Iop_GetMSBs8x8,
+                             binop(Iop_CmpEQ8x8, mkexpr(argRl1), mkU64(0)))));
+   assign(zmaskR1, unop(Iop_8Uto32,
+                        unop(Iop_GetMSBs8x8,
+                             binop(Iop_CmpEQ8x8, mkexpr(argRl0), mkU64(0)))));
+   assign(zmaskR, binop(Iop_Or32, binop(Iop_Shl32, mkexpr(zmaskR0), mkU8(8)), mkexpr(zmaskR1)));
+
+   /* We want validL = ~(zmaskL | -zmaskL)
+
+      But this formulation kills memcheck's validity tracking when any
+      bits above the first "1" are invalid.  So reformulate as:
+
+      validL = (zmaskL ? (1 << ctz(zmaskL)) : 0) - 1
+   */
+
+   IRExpr *ctzL = unop(Iop_32to8, unop(Iop_CtzNat32, mkexpr(zmaskL)));
+
+   /* Generate a bool expression which is zero iff the original is
+      zero.  Do this carefully so memcheck can propagate validity bits
+      correctly.
+    */
+   IRTemp zmaskL_zero = newTemp(Ity_I1);
+   assign(zmaskL_zero, binop(Iop_ExpCmpNE32, mkexpr(zmaskL), mkU32(0)));
+
+   IRTemp validL = newTemp(Ity_I32);
+   assign(validL, binop(Iop_Sub32,
+                        IRExpr_ITE(mkexpr(zmaskL_zero),
+                                   binop(Iop_Shl32, mkU32(1), ctzL),
+                                   mkU32(0)),
+                        mkU32(1)));
+
+   /* And similarly for validR. */
+   IRExpr *ctzR = unop(Iop_32to8, unop(Iop_CtzNat32, mkexpr(zmaskR)));
+   IRTemp zmaskR_zero = newTemp(Ity_I1);
+   assign(zmaskR_zero, binop(Iop_ExpCmpNE32, mkexpr(zmaskR), mkU32(0)));
+   IRTemp validR = newTemp(Ity_I32);
+   assign(validR, binop(Iop_Sub32,
+                        IRExpr_ITE(mkexpr(zmaskR_zero),
+                                   binop(Iop_Shl32, mkU32(1), ctzR),
+                                   mkU32(0)),
+                        mkU32(1)));
+
+   /* Do the actual comparison. */
+   IRExpr *boolResIIl0 = unop(Iop_8Uto32,
+                              unop(Iop_GetMSBs8x8,
+                                 binop(Iop_CmpEQ8x8, mkexpr(argLl0),
+                                                      mkexpr(argRl0))));
+   IRExpr *boolResIIl1 = unop(Iop_8Uto32,
+                              unop(Iop_GetMSBs8x8,
+                                 binop(Iop_CmpEQ8x8, mkexpr(argLl1),
+                                                      mkexpr(argRl1))));
+   IRExpr *boolResII = binop(Iop_Or32,
+                             binop(Iop_Shl32, boolResIIl1, mkU8(8)), boolResIIl0);
+
+   /* Compute boolresII & validL & validR (i.e., if both valid, use
+      comparison result) */
+   IRExpr *intRes1_a = binop(Iop_And32, boolResII,
+                             binop(Iop_And32,
+                                   mkexpr(validL), mkexpr(validR)));
+
+   /* Compute ~(validL | validR); i.e., if both invalid, force 1. */
+   IRExpr *intRes1_b = unop(Iop_Not32, binop(Iop_Or32,
+                                             mkexpr(validL), mkexpr(validR)));
+   /* Otherwise, zero. */
+   IRExpr *intRes1 = binop(Iop_And32, mkU32(0xFFFF),
+                           binop(Iop_Or32, intRes1_a, intRes1_b));
+
+   /* The "0x30" in imm=0x3A means "polarity=3" means XOR validL with
+      result. */
+   IRTemp intRes2 = newTemp(Ity_I32);
+   assign(intRes2, binop(Iop_And32, mkU32(0xFFFF),
+                         binop(Iop_Xor32, intRes1, mkexpr(validL))));
+
+   /* If the 0x40 bit were set in imm=0x3A, we would return the index
+      of the msb.  Since it is clear, we return the index of the
+      lsb. */
+   IRExpr *newECX = unop(Iop_CtzNat32,
+                         binop(Iop_Or32, mkexpr(intRes2), mkU32(0x10000)));
+
+   /* And thats our ecx. */
+   putIReg(4, R_ECX, newECX);
+
+   /* Now for the condition codes... */
+
+   /* C == 0 iff intRes2 == 0 */
+   IRExpr *c_bit = IRExpr_ITE( binop(Iop_ExpCmpNE32, mkexpr(intRes2),
+                                     mkU32(0)),
+                               mkU32(1 << X86G_CC_SHIFT_C),
+                               mkU32(0));
+   /* Z == 1 iff any in argL is 0 */
+   IRExpr *z_bit = IRExpr_ITE( mkexpr(zmaskL_zero),
+                               mkU32(1 << X86G_CC_SHIFT_Z),
+                               mkU32(0));
+   /* S == 1 iff any in argR is 0 */
+   IRExpr *s_bit = IRExpr_ITE( mkexpr(zmaskR_zero),
+                               mkU32(1 << X86G_CC_SHIFT_S),
+                               mkU32(0));
+   /* O == IntRes2[0] */
+   IRExpr *o_bit = binop(Iop_Shl32, binop(Iop_And32, mkexpr(intRes2),
+                                          mkU32(0x01)),
+                         mkU8(X86G_CC_SHIFT_O));
+
+   /* Put them all together */
+   IRTemp cc = newTemp(Ity_I32);
+   assign(cc, binop(Iop_Or32,
+                               binop(Iop_Or32, c_bit, z_bit),
+                               binop(Iop_Or32, s_bit, o_bit)));
+   stmt(IRStmt_Put(OFFB_CC_OP, mkU32(X86G_CC_OP_COPY)));
+   stmt(IRStmt_Put(OFFB_CC_DEP1, mkexpr(cc)));
+   stmt(IRStmt_Put(OFFB_CC_DEP2, mkU32(0)));
+   stmt(IRStmt_Put(OFFB_CC_NDEP, mkU32(0)));
+
+   return delta;
+}
+
+/* This can fail, in which case it returns the original (unchanged)
+   delta. */
+static Int dis_PCMPxSTRx32 ( const VexAbiInfo* vbi, UChar sorb,
+                             Int delta, UChar opc )
+{
+   Int   delta0  = delta;
+   UInt   isISTRx = opc & 2;
+   UInt   isxSTRM = (opc & 1) ^ 1;
+   UInt   regNoL  = 0;
+   UInt   regNoR  = 0;
+   UChar  imm     = 0;
+   IRTemp addr    = IRTemp_INVALID;
+   Int    alen    = 0;
+   HChar  dis_buf[50];
+
+   /* This is a nasty kludge.  We need to pass 2 x V128 to the helper
+      (which is clean).  Since we can't do that, use a dirty helper to
+      compute the results directly from the XMM regs in the guest
+      state.  That means for the memory case, we need to move the left
+      operand into a pseudo-register (XMM8, let's call it). */
+   UChar modrm = getUChar(delta);
+   if (epartIsReg(modrm)) {
+      regNoL = eregOfRM(modrm);
+      regNoR = gregOfRM(modrm);
+      imm = getUChar(delta+1);
+      delta += 1+1;
+   } else {
+      regNoL = 8; /* use XMM8 as an intermediary */
+      regNoR = gregOfRM(modrm);
+      addr = disAMode ( &alen, sorb, delta, dis_buf );
+      /* No alignment check; I guess that makes sense, given that
+         these insns are for dealing with C style strings. */
+      stmt( IRStmt_Put( OFFB_XMM8, loadLE(Ity_V128, mkexpr(addr)) ));
+      imm = getUChar(delta+alen);
+      delta += alen+1;
+   }
+
+   /* Print the insn here, since dis_PCMPISTRI_3A doesn't do so
+      itself. */
+   if (regNoL == 8) {
+      DIP("pcmp%cstr%c $%x,%s,%s\n",
+          isISTRx ? 'i' : 'e', isxSTRM ? 'm' : 'i',
+          (UInt)imm, dis_buf, nameXMMReg(regNoR));
+   } else {
+      DIP("pcmp%cstr%c $%x,%s,%s\n",
+          isISTRx ? 'i' : 'e', isxSTRM ? 'm' : 'i',
+          (UInt)imm, nameXMMReg(regNoL), nameXMMReg(regNoR));
+   }
+
+   /* Handle special case(s). */
+   if (imm == 0x3A && isISTRx && !isxSTRM) {
+      return dis_PCMPISTRI_3A_x86 ( modrm, regNoL, regNoR, delta,
+                                    opc, imm, dis_buf);
+   }
+
+   /* Now we know the XMM reg numbers for the operands, and the
+      immediate byte.  Is it one we can actually handle? Throw out any
+      cases for which the helper function has not been verified. */
+   switch (imm) {
+      case 0x00: case 0x02:
+      case 0x08: case 0x0A: case 0x0C: case 0x0E:
+      case 0x10: case 0x12: case 0x14:
+      case 0x18: case 0x1A:
+      case 0x30:            case 0x34:
+      case 0x38: case 0x3A:
+      case 0x40: case 0x42: case 0x44: case 0x46:
+                 case 0x4A:
+                 case 0x62:
+      case 0x70: case 0x72:
+         break;
+      // the 16-bit character versions of the above
+      case 0x01: case 0x03:
+      case 0x09: case 0x0B: case 0x0D:
+                 case 0x13:
+      case 0x19: case 0x1B:
+      case 0x39: case 0x3B:
+      case 0x41:            case 0x45:
+                 case 0x4B:
+         break;
+      default:
+         return delta0; /*FAIL*/
+   }
+
+   /* Who ya gonna call?  Presumably not Ghostbusters. */
+   void*  fn = &x86g_dirtyhelper_PCMPxSTRx;
+   const HChar* nm = "x86g_dirtyhelper_PCMPxSTRx";
+
+   /* Round up the arguments.  Note that this is a kludge -- the use
+      of mkU32 rather than mkIRExpr_HWord implies the assumption that
+      the host's word size is 32-bit. */
+   UInt gstOffL = regNoL == 8 ? OFFB_XMM8 : xmmGuestRegOffset(regNoL);
+   UInt gstOffR = xmmGuestRegOffset(regNoR);
+
+   IRExpr*  opc4_and_imm = mkU32((opc << 8) | (imm & 0xFF));
+   IRExpr*  gstOffLe     = mkU32(gstOffL);
+   IRExpr*  gstOffRe     = mkU32(gstOffR);
+   IRExpr*  edxIN        = isISTRx ? mkU32(0) : getIReg(4, R_EDX);
+   IRExpr*  eaxIN        = isISTRx ? mkU32(0) : getIReg(4, R_EAX);
+   IRExpr** args
+      = mkIRExprVec_6( IRExpr_GSPTR(),
+                       opc4_and_imm, gstOffLe, gstOffRe, edxIN, eaxIN );
+
+   IRTemp   resT = newTemp(Ity_I32);
+   IRDirty* d    = unsafeIRDirty_1_N( resT, 0/*regparms*/, nm, fn, args );
+   /* It's not really a dirty call, but we can't use the clean helper
+      mechanism here for the very lame reason that we can't pass 2 x
+      V128s by value to a helper.  Hence this roundabout scheme. */
+   d->nFxState = 2;
+   vex_bzero(&d->fxState, sizeof(d->fxState));
+   d->fxState[0].fx     = Ifx_Read;
+   d->fxState[0].offset = gstOffL;
+   d->fxState[0].size   = sizeof(U128);
+   d->fxState[1].fx     = Ifx_Read;
+   d->fxState[1].offset = gstOffR;
+   d->fxState[1].size   = sizeof(U128);
+   if (isxSTRM) {
+      /* Declare that the helper writes XMM0. */
+      d->nFxState = 3;
+      d->fxState[2].fx     = Ifx_Write;
+      d->fxState[2].offset = xmmGuestRegOffset(0);
+      d->fxState[2].size   = sizeof(U128);
+   }
+
+   stmt( IRStmt_Dirty(d) );
+
+   /* Now resT[15:0] holds the new OSZACP values, so the condition
+      codes must be updated. And for a xSTRI case, resT[31:16] holds
+      the new ECX value, so stash that too. */
+   if (!isxSTRM) {
+      putIReg(4, R_ECX, binop(Iop_And32,
+                              binop(Iop_Shr32, mkexpr(resT), mkU8(16)),
+                              mkU32(0xFFFF)));
+   }
+
+   stmt( IRStmt_Put(
+            OFFB_CC_DEP1,
+            binop(Iop_And32, mkexpr(resT), mkU32(0xFFFF))
+   ));
+   stmt( IRStmt_Put( OFFB_CC_OP,   mkU32(X86G_CC_OP_COPY) ));
+   stmt( IRStmt_Put( OFFB_CC_DEP2, mkU32(0) ));
+   stmt( IRStmt_Put( OFFB_CC_NDEP, mkU32(0) ));
+
+   return delta;
+}
+
 /*------------------------------------------------------------*/
 /*--- SSE4.1 PINSRB instruction helpers                     ---*/
 /*------------------------------------------------------------*/
@@ -13788,6 +14091,20 @@ DisResult disInstr_X86_WRK (
        putXMMReg( rG, mkexpr( math_MPSADBW_128(dst_vec, src_vec, imm8) ) );
        goto decode_success;
      }
+
+   /* 66 0F 3A 63 /r ib = PCMPISTRI imm8, xmm2/m128, xmm1
+      66 0F 3A 62 /r ib = PCMPISTRM imm8, xmm2/m128, xmm1
+      66 0F 3A 61 /r ib = PCMPESTRI imm8, xmm2/m128, xmm1
+      66 0F 3A 60 /r ib = PCMPESTRM imm8, xmm2/m128, xmm1
+      (selected special cases that actually occur in glibc,
+       not by any means a complete implementation.)
+   */
+   if (sz == 2 && insn[0] == 0x0F && insn[1] == 0x3A &&
+       (insn[2] == 0x60 || insn[2] == 0x61 || insn[2] == 0x62 || insn[2] == 0x63)) {
+      Int delta0 = delta; 
+      delta = dis_PCMPxSTRx32( vbi, sorb, delta+3, insn[2] );
+      if (delta > delta0+3) goto decode_success;
+   }
 
    /* 66 0F 3A 0D /r ib = BLENDPD */
    if (sz == 2 && insn[0] == 0x0F && insn[1] == 0x3A && insn[2] == 0x0D) {
