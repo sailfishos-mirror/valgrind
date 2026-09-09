@@ -339,6 +339,7 @@ int main(void)
    test_EXTRACTPS();
    test_PEXTRB();
    test_PEXTRW();
+   test_PMOVZXBD();
 
    return 0;
 }

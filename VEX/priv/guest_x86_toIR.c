@@ -8635,6 +8635,52 @@ static IRTemp math_PINSRB_128_x86 ( IRTemp v128, IRTemp u8, UInt imm8 )
    return res;
 }
 
+/* Helper for PMOVZXBD and PMOVSXBD.  */
+static Long dis_PMOVxXBD(Int delta, UChar sorb, Bool isZ)
+{
+  IRTemp srcVec = newTemp(Ity_V128);
+  IRTemp addr;
+  Int alen;
+  HChar dis_buf[50];
+  UChar modrm = getIByte(delta + 3);
+  UInt   rG     = gregOfRM(modrm);
+  UChar  how    = isZ ? 'z' : 's';
+  IRExpr *res;
+
+  if ( epartIsReg(modrm) ) {
+      UInt rE = eregOfRM(modrm);
+      assign( srcVec, getXMMReg(rE) );
+      delta += 1 + 3;
+      DIP( "pmov%cxbd %s,%s\n", how, nameXMMReg(rE), nameXMMReg(rG) );
+  } else {
+      addr = disAMode( &alen, sorb, delta + 3, dis_buf);
+      assign( srcVec,
+             unop( Iop_32UtoV128, loadLE( Ity_I32, mkexpr(addr) ) ) );
+      delta += alen + 3;
+      DIP( "pmov%cxbd %s,%s\n", how, dis_buf, nameXMMReg(rG) );
+  }
+
+  if (isZ)
+    res = binop(Iop_InterleaveLO8x16,
+                       IRExpr_Const(IRConst_V128(0)),
+                       binop(Iop_InterleaveLO8x16,
+                             IRExpr_Const(IRConst_V128(0)),
+                             mkexpr(srcVec)));
+
+  else
+    res = binop(Iop_SarN32x4,
+                binop(Iop_ShlN32x4,
+                      binop(Iop_InterleaveLO8x16,
+                            IRExpr_Const(IRConst_V128(0)),
+                            binop(Iop_InterleaveLO8x16,
+                                  IRExpr_Const(IRConst_V128(0)),
+                                  mkexpr(srcVec))),
+                      mkU8(24)),
+                mkU8(24));
+  putXMMReg( rG, res );
+  return delta;
+}
+
 /*------------------------------------------------------------*/
 /*--- Disassemble a single instruction                     ---*/
 /*------------------------------------------------------------*/
@@ -14525,31 +14571,17 @@ DisResult disInstr_X86_WRK (
    if (sz == 2
        && insn[0] == 0x0F && insn[1] == 0x38
        && insn[2] == 0x21) {
-       IRTemp srcVec = newTemp(Ity_V128);
-       modrm         = insn[3];
-       UInt   rG     = gregOfRM(modrm);
-       if ( epartIsReg(modrm) ) {
-           UInt rE = eregOfRM(modrm);
-           assign( srcVec, getXMMReg(rE) );
-           delta += 1 + 3;
-           DIP( "pmovsxbd %s,%s\n", nameXMMReg(rE), nameXMMReg(rG) );
-       } else {
-           addr = disAMode( &alen, sorb, delta + 3, dis_buf);
-           assign( srcVec,
-                  unop( Iop_32UtoV128, loadLE( Ity_I32, mkexpr(addr) ) ) );
-           delta += alen + 3;
-           DIP( "pmovsxbd %s,%s\n", dis_buf, nameXMMReg(rG) );
-       }
-       putXMMReg( rG,
-                 binop(Iop_SarN32x4,
-                       binop(Iop_ShlN32x4,
-                             binop(Iop_InterleaveLO8x16,
-                                   IRExpr_Const(IRConst_V128(0)),
-                                   binop(Iop_InterleaveLO8x16,
-                                         IRExpr_Const(IRConst_V128(0)),
-                                         mkexpr(srcVec))),
-                             mkU8(24)),
-                       mkU8(24)) );
+
+       delta = dis_PMOVxXBD(delta, sorb, False);
+       goto decode_success;
+   }
+   /* 66 0F 38 31 /r = PMOVZXBD xmm1, xmm2/m32
+         Packed Move with Zero Extend from Byte to DWord (XMM) */
+   if (sz == 2
+       && insn[0] == 0x0F && insn[1] == 0x38
+       && insn[2] == 0x31) {
+
+       delta = dis_PMOVxXBD(delta, sorb, True);
 
        goto decode_success;
    }

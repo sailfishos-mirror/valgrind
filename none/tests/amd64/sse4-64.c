@@ -323,17 +323,6 @@ void test_PMOVZXBW ( void )
    }
 }
 
-void test_PMOVZXBD ( void )
-{
-   V128 src, dst;
-   Int i;
-   for (i = 0; i < 10; i++) {
-      randV128(&src);
-      randV128(&dst);
-      DO_mandr_r("pmovzxbd", src, dst);
-   }
-}
-
 void test_PMOVZXBQ ( void )
 {
    V128 src, dst;

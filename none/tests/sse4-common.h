@@ -3381,4 +3381,15 @@ static inline void test_PEXTRW ( void )
    DO_imm_r_to_mandrscalar("pextrw", 7, src, "d");
 }
 
+static inline void test_PMOVZXBD ( void )
+{
+   V128 src, dst;
+   Int i;
+   for (i = 0; i < 10; i++) {
+      randV128(&src);
+      randV128(&dst);
+      DO_mandr_r("pmovzxbd", src, dst);
+   }
+}
+
 #endif /* __SSE4_COMMON_H */
