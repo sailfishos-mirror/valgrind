@@ -1434,8 +1434,11 @@ void do_multi_mode(int check_trials, int in_port)
                         "QCatchSyscalls+;"
                         /* Just report support always. */
                         "qXfer:auxv:read+;"
+/* https://bugs.kde.org/show_bug.cgi?id=525478 */
+#if !defined(VGA_arm64)
                         /* We'll force --vgdb-shadow-registers=yes */
                         "qXfer:features:read+;"
+#endif
                         "qXfer:exec-file:read+;"
                         "qXfer:siginfo:read+;"
                         /* Extra vgdb support before valgrind starts up. */
