@@ -14646,6 +14646,41 @@ DisResult disInstr_X86_WRK (
       goto decode_success;
    }
 
+   /* 66 0F 38 34 /r = PMOVZXWQ xmm1, xmm2/m32
+      Packed Move with Zero Extend from Word to QWord (XMM) */
+   if (sz == 2
+       && insn[0] == 0x0F && insn[1] == 0x38
+       && insn[2] == 0x34) {
+      IRTemp srcVec;
+      UInt   rG;
+      modrm  = insn[3];
+      srcVec = newTemp(Ity_V128);
+      rG     = gregOfRM(modrm);
+
+      if ( epartIsReg( modrm ) ) {
+         UInt rE = eregOfRM(modrm);
+         assign( srcVec, getXMMReg(rE) );
+         delta += 1 + 3;
+         DIP( "pmovzxwq %s,%s\n", nameXMMReg(rE), nameXMMReg(rG) );
+      } else {
+         addr = disAMode( &alen, sorb, delta + 3, dis_buf );
+         assign( srcVec,
+                 unop( Iop_32UtoV128, loadLE( Ity_I32, mkexpr(addr) ) ) );
+         delta += alen + 3;
+         DIP( "pmovzxwq %s,%s\n", dis_buf, nameXMMReg(rG) );
+      }
+
+      IRTemp zeroVec = newTemp( Ity_V128 );
+      assign( zeroVec, IRExpr_Const( IRConst_V128(0) ) );
+
+      putXMMReg( rG, binop( Iop_InterleaveLO16x8,
+                            mkexpr(zeroVec),
+                            binop( Iop_InterleaveLO16x8,
+                                   mkexpr(zeroVec), mkexpr(srcVec) ) ) );
+
+      goto decode_success;
+   }
+
    /* 66 0F 3A 0B /r ib = ROUNDSD imm8, xmm2/m64, xmm1
       66 0F 3A 0A /r ib = ROUNDSS imm8, xmm2/m32, xmm1
    */

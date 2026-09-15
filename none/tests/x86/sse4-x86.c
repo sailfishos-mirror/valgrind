@@ -342,6 +342,7 @@ int main(void)
    test_PMOVZXBD();
    test_PMOVSXDQ();
    test_PMOVZXDQ();
+   test_PMOVZXWQ();
 
    return 0;
 }

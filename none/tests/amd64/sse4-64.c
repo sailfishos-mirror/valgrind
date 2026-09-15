@@ -334,17 +334,6 @@ void test_PMOVZXWD ( void )
    }
 }
 
-void test_PMOVZXWQ ( void )
-{
-   V128 src, dst;
-   Int i;
-   for (i = 0; i < 10; i++) {
-      randV128(&src);
-      randV128(&dst);
-      DO_mandr_r("pmovzxwq", src, dst);
-   }
-}
-
 void test_POPCNTQ ( void )
 {
    ULong block[4];
