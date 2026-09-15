@@ -2598,6 +2598,98 @@ void x86g_dirtyhelper_CPUID_sse3 ( VexGuestX86State* st,
 #  undef SET_ABCD
 }
 
+void x86g_dirtyhelper_CPUID_sse42 ( VexGuestX86State* st,
+                                    UInt hasLZCNT )
+{
+#  define SET_ABCD(_a,_b,_c,_d)               \
+      do { st->guest_EAX = (UInt)(_a);        \
+           st->guest_EBX = (UInt)(_b);        \
+           st->guest_ECX = (UInt)(_c);        \
+           st->guest_EDX = (UInt)(_d);        \
+      } while (0)
+
+   switch (st->guest_EAX) {
+      case 0x00000000:
+         SET_ABCD(0x0000000a, 0x756e6547, 0x6c65746e, 0x49656e69);
+         break;
+      case 0x00000001:
+         SET_ABCD(0x000006f6, 0x00020800, 0x009ce3bd, 0xbfebfbff);
+         break;
+      case 0x00000002:
+         SET_ABCD(0x05b0b101, 0x005657f0, 0x00000000, 0x2cb43049);
+         break;
+      case 0x00000003:
+         SET_ABCD(0x00000000, 0x00000000, 0x00000000, 0x00000000);
+         break;
+      case 0x00000004: {
+         switch (st->guest_ECX) {
+            case 0x00000000: SET_ABCD(0x04000121, 0x01c0003f,
+                                      0x0000003f, 0x00000001); break;
+            case 0x00000001: SET_ABCD(0x04000122, 0x01c0003f,
+                                      0x0000003f, 0x00000001); break;
+            case 0x00000002: SET_ABCD(0x04004143, 0x03c0003f,
+                                      0x00000fff, 0x00000001); break;
+            default:         SET_ABCD(0x00000000, 0x00000000,
+                                      0x00000000, 0x00000000); break;
+         }
+         break;
+      }
+      case 0x00000005:
+         SET_ABCD(0x00000040, 0x00000040, 0x00000003, 0x00000020);
+         break;
+      case 0x00000006:
+         SET_ABCD(0x00000001, 0x00000002, 0x00000001, 0x00000000);
+         break;
+      case 0x00000007:
+         SET_ABCD(0x00000000, 0x00000000, 0x00000000, 0x00000000);
+         break;
+      case 0x00000008:
+         SET_ABCD(0x00000400, 0x00000000, 0x00000000, 0x00000000);
+         break;
+      case 0x00000009:
+         SET_ABCD(0x00000000, 0x00000000, 0x00000000, 0x00000000);
+         break;
+      case 0x0000000a:
+      unhandled_eax_value:
+         SET_ABCD(0x07280202, 0x00000000, 0x00000000, 0x00000000);
+         break;
+      case 0x80000000:
+         SET_ABCD(0x80000008, 0x00000000, 0x00000000, 0x00000000);
+         break;
+      case 0x80000001: {
+         UInt ecx_extra = 0;
+         ecx_extra = hasLZCNT ? (1U << 5) : 0;
+         SET_ABCD(0x00000000, 0x00000000, 0x00000001 | ecx_extra,
+                  0x20100000);
+         break;
+         }
+      case 0x80000002:
+         SET_ABCD(0x65746e49, 0x2952286c, 0x726f4320, 0x4d542865);
+         break;
+      case 0x80000003:
+         SET_ABCD(0x43203229, 0x20205550, 0x20202020, 0x20202020);
+         break;
+      case 0x80000004:
+         SET_ABCD(0x30303636, 0x20402020, 0x30342e32, 0x007a4847);
+         break;
+      case 0x80000005:
+         SET_ABCD(0x00000000, 0x00000000, 0x00000000, 0x00000000);
+         break;
+      case 0x80000006:
+         SET_ABCD(0x00000000, 0x00000000, 0x10008040, 0x00000000);
+         break;
+      case 0x80000007:
+         SET_ABCD(0x00000000, 0x00000000, 0x00000000, 0x00000000);
+         break;
+      case 0x80000008:
+         SET_ABCD(0x00003024, 0x00000000, 0x00000000, 0x00000000);
+         break;
+      default:
+         goto unhandled_eax_value;
+   }
+#  undef SET_ABCD
+}
+
 
 /* CALLED FROM GENERATED CODE */
 /* DIRTY HELPER (non-referentially-transparent) */

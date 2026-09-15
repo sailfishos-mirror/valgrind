@@ -1710,6 +1710,9 @@ static const HChar* show_hwcaps_x86 ( UInt hwcaps )
       { VEX_HWCAPS_X86_SSE2,   "sse2"   },
       { VEX_HWCAPS_X86_SSE3,   "sse3"   },
       { VEX_HWCAPS_X86_LZCNT,  "lzcnt"  },
+      { VEX_HWCAPS_X86_POPCNT, "popcnt" },
+      { VEX_HWCAPS_X86_SSE41,  "sse41"  },
+      { VEX_HWCAPS_X86_SSE42,  "sse42"  },
    };
    /* Allocate a large enough buffer */
    static HChar buf[sizeof prefix + 
@@ -2055,7 +2058,7 @@ static void invalid_hwcaps ( VexArch arch, UInt hwcaps, const HChar *message )
           "     Found: %s\n", message, show_hwcaps(arch, hwcaps));
 }
 
-/* This function will not return iff the hwcaps don't pass the test. */
+/* This function will not return if the hwcaps don't pass the test. */
 static void check_hwcaps ( VexArch arch, UInt hwcaps )
 {
    switch (arch) {

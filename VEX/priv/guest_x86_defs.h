@@ -144,6 +144,7 @@ extern void  x86g_dirtyhelper_CPUID_mmxext ( VexGuestX86State* );
 extern void  x86g_dirtyhelper_CPUID_sse1 ( VexGuestX86State* );
 extern void  x86g_dirtyhelper_CPUID_sse2 ( VexGuestX86State* );
 extern void  x86g_dirtyhelper_CPUID_sse3 ( VexGuestX86State*, UInt );
+extern void  x86g_dirtyhelper_CPUID_sse42 ( VexGuestX86State*, UInt );
 
 extern void  x86g_dirtyhelper_FINIT ( VexGuestX86State* );
 
