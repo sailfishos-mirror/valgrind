@@ -340,6 +340,8 @@ int main(void)
    test_PEXTRB();
    test_PEXTRW();
    test_PMOVZXBD();
+   test_PMOVSXDQ();
+   test_PMOVZXDQ();
 
    return 0;
 }

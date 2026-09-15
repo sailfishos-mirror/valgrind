@@ -301,17 +301,6 @@ void test_PMOVSXWQ ( void )
    }
 }
 
-void test_PMOVSXDQ ( void )
-{
-   V128 src, dst;
-   Int i;
-   for (i = 0; i < 10; i++) {
-      randV128(&src);
-      randV128(&dst);
-      DO_mandr_r("pmovsxdq", src, dst);
-   }
-}
-
 void test_PMOVZXBW ( void )
 {
    V128 src, dst;
@@ -353,17 +342,6 @@ void test_PMOVZXWQ ( void )
       randV128(&src);
       randV128(&dst);
       DO_mandr_r("pmovzxwq", src, dst);
-   }
-}
-
-void test_PMOVZXDQ ( void )
-{
-   V128 src, dst;
-   Int i;
-   for (i = 0; i < 10; i++) {
-      randV128(&src);
-      randV128(&dst);
-      DO_mandr_r("pmovzxdq", src, dst);
    }
 }
 

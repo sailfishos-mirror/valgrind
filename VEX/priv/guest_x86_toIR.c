@@ -8681,6 +8681,48 @@ static Long dis_PMOVxXBD(Int delta, UChar sorb, Bool isZ)
   return delta;
 }
 
+/* Helper for PMOVZXDQ and PMOVSXDQ. Based on amd64 dis_PMOVxXDQ_128.  */
+static Int dis_PMOVxXDQ (Int delta, UChar sorb, Bool xIsZ )
+{
+   IRTemp addr   = IRTemp_INVALID;
+   Int    alen   = 0;
+   HChar  dis_buf[50];
+   IRTemp srcI64 = newTemp(Ity_I64);
+   IRTemp srcVec = newTemp(Ity_V128);
+   UChar  modrm  = getIByte(delta + 3);
+   const HChar  how = xIsZ ? 'z' : 's';
+   UInt   rG     = gregOfRM(modrm);
+   /* Compute both srcI64 -- the value to expand -- and srcVec -- same
+      thing in a V128, with arbitrary junk in the top 64 bits.  Use
+      one or both of them and let iropt clean up afterwards (as
+      usual). */
+   if ( epartIsReg(modrm) ) {
+      UInt rE = eregOfRM(modrm);
+      assign( srcVec, getXMMReg(rE) );
+      assign( srcI64, unop(Iop_V128to64, mkexpr(srcVec)) );
+      delta += 1 + 3;
+      DIP( "pmov%cxdq %s,%s\n", how, nameXMMReg(rE), nameXMMReg(rG) );
+   } else {
+      addr = disAMode( &alen, sorb, delta + 3, dis_buf );
+      assign( srcI64, loadLE(Ity_I64, mkexpr(addr)) );
+      assign( srcVec, unop( Iop_64UtoV128, mkexpr(srcI64)) );
+      delta += alen + 3;
+      DIP( "pmov%cxdq %s,%s\n", how, dis_buf, nameXMMReg(rG) );
+   }
+
+   IRExpr* res
+      = xIsZ /* do math for either zero or sign extend */
+        ? binop( Iop_InterleaveLO32x4,
+                 IRExpr_Const( IRConst_V128(0) ), mkexpr(srcVec) )
+        : binop( Iop_64HLtoV128,
+                 unop( Iop_32Sto64,
+                       unop( Iop_64HIto32, mkexpr(srcI64) ) ),
+                 unop( Iop_32Sto64,
+                       unop( Iop_64to32, mkexpr(srcI64) ) ) );
+   putXMMReg ( rG, res );
+   return delta;
+}
+
 /*------------------------------------------------------------*/
 /*--- Disassemble a single instruction                     ---*/
 /*------------------------------------------------------------*/
@@ -14584,6 +14626,24 @@ DisResult disInstr_X86_WRK (
        delta = dis_PMOVxXBD(delta, sorb, True);
 
        goto decode_success;
+   }
+
+   /* 66 0F 38 25 /r = PMOVSXDQ xmm1, xmm2/m64
+      Packed Move with Sign Extend from DWord to QWord (XMM) */
+   if (sz == 2
+       && insn[0] == 0x0F && insn[1] == 0x38
+       && insn[2] == 0x25) {
+      delta = dis_PMOVxXDQ(delta, sorb, False);
+      goto decode_success;
+   }
+
+   /* 66 0F 38 35 /r = PMOVZXDQ xmm1, xmm2/m64
+      Packed Move with Zero Extend from DWord to QWord (XMM) */
+   if (sz == 2
+       && insn[0] == 0x0F && insn[1] == 0x38
+       && insn[2] == 0x35) {
+      delta = dis_PMOVxXDQ(delta, sorb, True);
+      goto decode_success;
    }
 
    /* 66 0F 3A 0B /r ib = ROUNDSD imm8, xmm2/m64, xmm1
