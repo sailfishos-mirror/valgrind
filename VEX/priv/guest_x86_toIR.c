@@ -14645,6 +14645,35 @@ DisResult disInstr_X86_WRK (
 
       goto decode_success;
    }
+
+   /* 66 0F 38 30 /r = PMOVZXBW xmm1, xmm2/m64
+      Packed Move with Zero Extend from Byte to Word (XMM) */
+   if (sz == 2
+       && insn[0] == 0x0F && insn[1] == 0x38
+       && insn[2] == 0x30) {
+      IRTemp srcVec = newTemp(Ity_V128);
+      modrm = insn[3];
+      UInt rG = gregOfRM(modrm);
+
+      if (epartIsReg(modrm)) {
+         UInt rE = eregOfRM(modrm);
+         assign( srcVec, getXMMReg(rE) );
+         DIP("pmovzxbw %s,%s\n", nameXMMReg(rE), nameXMMReg(rG));
+         delta += 1 + 3;
+      } else {
+         addr = disAMode( &alen, sorb, delta+3, dis_buf );
+         assign( srcVec,
+                 unop( Iop_64UtoV128, loadLE( Ity_I64, mkexpr(addr) ) ) );
+         DIP("pmovzxbw %s,%s\n", dis_buf, nameXMMReg(rG));
+         delta += alen + 3;
+      }
+
+      putXMMReg( rG, binop(Iop_InterleaveLO8x16,
+                           IRExpr_Const( IRConst_V128(0) ), mkexpr(srcVec) ) );
+
+      goto decode_success;
+   }
+
    /* 66 0F 38 21 /r = PMOVSXBD xmm1, xmm2/m32
          Packed Move with Sign Extend from Byte to DWord (XMM) */
    if (sz == 2
