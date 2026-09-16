@@ -2559,6 +2559,28 @@ static inline void test_PMOVSXWQ ( void )
    }
 }
 
+static inline void test_PMOVSXWD ( void )
+{
+   V128 src, dst;
+   Int i;
+   for (i = 0; i < 10; i++) {
+      randV128(&src);
+      randV128(&dst);
+      DO_mandr_r("pmovsxwd", src, dst);
+   }
+}
+
+static inline void test_PMOVZXWD ( void )
+{
+   V128 src, dst;
+   Int i;
+   for (i = 0; i < 10; i++) {
+      randV128(&src);
+      randV128(&dst);
+      DO_mandr_r("pmovzxwd", src, dst);
+   }
+}
+
 static inline void test_INSERTPS ( void )
 {
    V128 src, dst;

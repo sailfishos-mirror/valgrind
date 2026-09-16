@@ -8723,6 +8723,43 @@ static Int dis_PMOVxXDQ (Int delta, UChar sorb, Bool xIsZ )
    return delta;
 }
 
+/* Helper for PMOVZXWD and PMOVSXWD. Based on amd64 dis_PMOVxXWD_128.  */
+static Int dis_PMOVxXWD ( Int delta, UChar sorb, Bool xIsZ )
+{
+   IRTemp addr   = IRTemp_INVALID;
+   Int    alen   = 0;
+   HChar  dis_buf[50];
+   IRTemp srcVec = newTemp(Ity_V128);
+   UChar  modrm  = getIByte(delta + 3);
+   const HChar how = xIsZ ? 'z' : 's';
+   UInt   rG     = gregOfRM(modrm);
+
+   if ( epartIsReg(modrm) ) {
+      UInt rE = eregOfRM(modrm);
+      assign( srcVec, getXMMReg(rE) );
+      delta += 1 + 3;
+      DIP( "pmov%cxwd %s,%s\n", how, nameXMMReg(rE), nameXMMReg(rG) );
+   } else {
+      addr = disAMode( &alen, sorb, delta + 3, dis_buf );
+      assign( srcVec,
+              unop( Iop_64UtoV128, loadLE( Ity_I64, mkexpr(addr) ) ) );
+      delta += alen + 3;
+      DIP( "pmov%cxwd %s,%s\n", how, dis_buf, nameXMMReg(rG) );
+   }
+
+   IRExpr* res
+      = binop( Iop_InterleaveLO16x8,
+               IRExpr_Const( IRConst_V128(0) ), mkexpr(srcVec) );
+   if (!xIsZ)
+      res = binop(Iop_SarN32x4,
+                  binop(Iop_ShlN32x4, res, mkU8(16)), mkU8(16));
+
+   putXMMReg( gregOfRM(modrm), res );
+
+   return delta;
+}
+
+
 /*------------------------------------------------------------*/
 /*--- Disassemble a single instruction                     ---*/
 /*------------------------------------------------------------*/
@@ -14710,6 +14747,24 @@ DisResult disInstr_X86_WRK (
                             unop( Iop_16Sto64,
                                   unop( Iop_32to16, mkexpr(srcBytes) ) ) ) );
 
+      goto decode_success;
+   }
+
+   /* 66 0F 38 23 /r = PMOVSXWD xmm1, xmm2/m64
+      Packed Move with Sign Extend from Word to DWord (XMM) */
+   if (sz == 2
+       && insn[0] == 0x0F && insn[1] == 0x38
+       && insn[2] == 0x23) {
+      delta = dis_PMOVxXWD(delta, sorb, False);
+      goto decode_success;
+   }
+
+   /* 66 0F 38 33 /r = PMOVZXWD xmm1, xmm2/m64
+      Packed Move with Zero Extend from Word to DWord (XMM) */
+   if (sz == 2
+       && insn[0] == 0x0F && insn[1] == 0x38
+       && insn[2] == 0x33) {
+      delta = dis_PMOVxXWD(delta, sorb, True);
       goto decode_success;
    }
 
