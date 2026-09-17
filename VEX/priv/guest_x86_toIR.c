@@ -593,6 +593,11 @@ static IRExpr* getXMMRegLane32F ( UInt xmmreg, Int laneno )
    return IRExpr_Get( xmmGuestRegLane32offset(xmmreg,laneno), Ity_F32 );
 }
 
+static IRExpr* getXMMRegLane16 ( UInt xmmreg, Int laneno )
+{
+   return IRExpr_Get( xmmGuestRegLane16offset(xmmreg,laneno), Ity_I16 );
+}
+
 static void putXMMReg ( UInt xmmreg, IRExpr* e )
 {
    vassert(typeOfIRExpr(irsb->tyenv,e) == Ity_V128);
@@ -14794,6 +14799,38 @@ DisResult disInstr_X86_WRK (
        && insn[0] == 0x0F && insn[1] == 0x38
        && insn[2] == 0x33) {
       delta = dis_PMOVxXWD(delta, sorb, True);
+      goto decode_success;
+   }
+
+   /* 66 0F 38 22 /r = PMOVSXBQ xmm1, xmm2/m16
+      Packed Move with Sign Extend from Byte to QWord (XMM) */
+   if (sz == 2
+       && insn[0] == 0x0F && insn[1] == 0x38
+       && insn[2] == 0x22) {
+      IRTemp srcBytes;
+      UInt   rG;
+      modrm    = insn[3];
+      srcBytes = newTemp(Ity_I16);
+      rG       = gregOfRM(modrm);
+
+      if ( epartIsReg(modrm) ) {
+         UInt rE = eregOfRM(modrm);
+         assign( srcBytes, getXMMRegLane16( rE, 0 ) );
+         delta += 1 + 3;
+         DIP( "pmovsxbq %s,%s\n", nameXMMReg(rE), nameXMMReg(rG) );
+      } else {
+         addr = disAMode( &alen, sorb, delta + 3, dis_buf );
+         assign( srcBytes, loadLE( Ity_I16, mkexpr(addr) ) );
+         delta += alen + 3;
+         DIP( "pmovsxbq %s,%s\n", dis_buf, nameXMMReg(rG) );
+      }
+
+      putXMMReg( rG, binop( Iop_64HLtoV128,
+                            unop( Iop_8Sto64,
+                                  unop( Iop_16HIto8, mkexpr(srcBytes) ) ),
+                            unop( Iop_8Sto64,
+                                  unop( Iop_16to8, mkexpr(srcBytes) ) ) ) );
+
       goto decode_success;
    }
 

@@ -2750,6 +2750,21 @@ static void iselInt64Expr_wrk ( HReg* rHi, HReg* rLo, ISelEnv* env,
             return;
          }
 
+         /* 8Sto64(e) */
+         case Iop_8Sto64: {
+            HReg tLo = newVRegI(env);
+            HReg tHi = newVRegI(env);
+            HReg src = iselIntExpr_R(env, e->Iex.Unop.arg);
+            addInstr(env, mk_iMOVsd_RR(src,tLo));
+            addInstr(env, X86Instr_Sh32(Xsh_SHL, 24, tLo));
+            addInstr(env, X86Instr_Sh32(Xsh_SAR, 24, tLo));
+            addInstr(env, mk_iMOVsd_RR(tLo,tHi));
+            addInstr(env, X86Instr_Sh32(Xsh_SAR, 8, tHi));
+            *rHi = tHi;
+            *rLo = tLo;
+            return;
+	 }
+
          /* V128{HI}to64 */
          case Iop_V128HIto64:
          case Iop_V128to64: {
