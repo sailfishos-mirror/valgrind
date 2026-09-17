@@ -2068,7 +2068,8 @@ static void check_hwcaps ( VexArch arch, UInt hwcaps )
          /* Monotonic: SSE3 > SSE2 > SSE1 > MMXEXT > baseline. */
          static const UInt extras[] = {
             VEX_HWCAPS_X86_MMXEXT, VEX_HWCAPS_X86_SSE1, VEX_HWCAPS_X86_SSE2,
-            VEX_HWCAPS_X86_SSE3
+            VEX_HWCAPS_X86_SSE3, VEX_HWCAPS_X86_LZCNT, VEX_HWCAPS_X86_POPCNT,
+            VEX_HWCAPS_X86_SSE41, VEX_HWCAPS_X86_SSE42
          };
 
          UInt i, caps = 0;

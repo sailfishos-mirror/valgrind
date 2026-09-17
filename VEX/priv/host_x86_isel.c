@@ -4660,7 +4660,10 @@ HInstrArray* iselSB_X86 ( const IRSB* bb,
                      | VEX_HWCAPS_X86_SSE1
                      | VEX_HWCAPS_X86_SSE2
                      | VEX_HWCAPS_X86_SSE3
-                     | VEX_HWCAPS_X86_LZCNT)));
+                     | VEX_HWCAPS_X86_LZCNT
+                     | VEX_HWCAPS_X86_POPCNT
+                     | VEX_HWCAPS_X86_SSE41
+                     | VEX_HWCAPS_X86_SSE42)));
 
    /* Check that the host's endianness is as expected. */
    vassert(archinfo_host->endness == VexEndnessLE);
