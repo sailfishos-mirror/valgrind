@@ -733,7 +733,10 @@ X86Instr* X86Instr_MFence ( UInt hwcaps ) {
                             |VEX_HWCAPS_X86_SSE1
                             |VEX_HWCAPS_X86_SSE2
                             |VEX_HWCAPS_X86_SSE3
-                            |VEX_HWCAPS_X86_LZCNT)));
+                            |VEX_HWCAPS_X86_LZCNT
+                            |VEX_HWCAPS_X86_POPCNT
+                            |VEX_HWCAPS_X86_SSE41
+                            |VEX_HWCAPS_X86_SSE42)));
    return i;
 }
 X86Instr* X86Instr_ACAS ( X86AMode* addr, UChar sz ) {

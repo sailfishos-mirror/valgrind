@@ -16593,6 +16593,14 @@ DisResult disInstr_X86_WRK (
          IRDirty* d     = NULL;
          void*    fAddr = NULL;
          const HChar* fName = NULL;
+         if ((archinfo->hwcaps & VEX_HWCAPS_X86_SSE41) &&
+             (archinfo->hwcaps & VEX_HWCAPS_X86_SSE42) &&
+             (archinfo->hwcaps & VEX_HWCAPS_X86_LZCNT) &&
+             (archinfo->hwcaps & VEX_HWCAPS_X86_POPCNT)) {
+             fName = "x86g_dirtyhelper_CPUID_sse42";
+             fAddr = &x86g_dirtyhelper_CPUID_sse42;
+         }
+         else
          if (archinfo->hwcaps & VEX_HWCAPS_X86_SSE3) {
             fName = "x86g_dirtyhelper_CPUID_sse3";
             fAddr = &x86g_dirtyhelper_CPUID_sse3; 
