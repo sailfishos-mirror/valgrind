@@ -369,27 +369,6 @@ static Int pushArg ( ISelEnv* env, IRExpr* arg, HReg r_vecRetAddr )
    vpanic("pushArg(x86): can't handle arg of this type");
 }
 
-
-/* Complete the call to a helper function, by calling the 
-   helper and clearing the args off the stack. */
-
-static 
-void callHelperAndClearArgs ( ISelEnv* env, X86CondCode cc, 
-                              IRCallee* cee, Int n_arg_ws,
-                              RetLoc rloc )
-{
-   /* Complication.  Need to decide which reg to use as the fn address
-      pointer, in a way that doesn't trash regparm-passed
-      parameters. */
-   vassert(sizeof(void*) == 4);
-
-   addInstr(env, X86Instr_Call( cc, (Addr)cee->addr,
-                                cee->regparms, rloc));
-   if (n_arg_ws > 0)
-      add_to_esp(env, 4*n_arg_ws);
-}
-
-
 /* Used only in doHelperCall.  See big comment in doHelperCall re
    handling of regparm args.  This function figures out whether
    evaluation of an expression might require use of a fixed register.
@@ -411,7 +390,6 @@ Bool mightRequireFixedRegs ( IRExpr* e )
          return True;
    }
 }
-
 
 /* Do a complete function call.  |guard| is a Ity_Bit expression
    indicating whether or not the call happens.  If guard==NULL, the
@@ -534,6 +512,41 @@ void doHelperCall ( /*OUT*/UInt*   stackAdjustAfterCall,
    stack_limit = cee->regparms;
 
    /* ------ BEGIN marshall all arguments ------ */
+
+   /* Count the byte size of the arguments on the stack.
+      Account for pseudo-args Iex_VECRET and Iex_GSPTR
+      similarly to how pushArg() handles them. */
+   Int argbytes = 0;
+   for (i = n_args-1; i >= stack_limit; i--) {
+      if (UNLIKELY(args[i]->tag == Iex_VECRET))
+         argbytes += 4;
+      else if (UNLIKELY(args[i]->tag == Iex_GSPTR))
+         argbytes += 4;
+      else {
+         IRType ty = typeOfIRExpr(env->type_env, args[i]);
+         if (ty == Ity_I32)
+            argbytes += 4;
+         else if (ty == Ity_I64)
+            argbytes += 8;
+         else
+            vpanic("doHelperCall(x86): can't handle arg of this type");
+      }
+   }
+
+   /* Save stack pointer so that we can restore it after the call */
+   HReg saved_esp = newVRegI(env);
+   addInstr(env, mk_iMOVsd_RR(hregX86_ESP(), saved_esp));
+
+   /* Compute the padding:  Take SP, subtract argbytes, 16-round down,
+      and add argbytes back.  Get ready for true arg push */
+   HReg tmp = newVRegI(env);
+   addInstr(env, mk_iMOVsd_RR(hregX86_ESP(), tmp));
+   if (argbytes % 16 != 0) // bug 523843#c14
+      addInstr(env, X86Instr_Alu32R(Xalu_SUB, X86RMI_Imm(argbytes), tmp));
+   addInstr(env, X86Instr_Alu32R(Xalu_AND, X86RMI_Imm(0xfffffff0), tmp));
+   if (argbytes % 16 != 0)
+      addInstr(env, X86Instr_Alu32R(Xalu_ADD, X86RMI_Imm(argbytes), tmp));
+   addInstr(env, mk_iMOVsd_RR(tmp, hregX86_ESP()));
 
    /* Push (R to L) the stack-passed args, [n_args-1 .. stack_limit] */
    for (i = n_args-1; i >= stack_limit; i--) {
@@ -679,7 +692,12 @@ void doHelperCall ( /*OUT*/UInt*   stackAdjustAfterCall,
 
    /* Finally, generate the call itself.  This needs the *retloc value
       set in the switch above, which is why it's at the end. */
-   callHelperAndClearArgs( env, cc, cee, n_arg_ws, *retloc );
+   vassert(sizeof(void*) == 4);
+   addInstr(env, X86Instr_Call( cc, (Addr)cee->addr,
+                                cee->regparms, *retloc));
+
+   /* After the call, restore the saved stack pointer. */
+   addInstr(env, mk_iMOVsd_RR( saved_esp, hregX86_ESP() ));
 }
 
 
