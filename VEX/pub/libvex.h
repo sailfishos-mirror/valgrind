@@ -88,6 +88,9 @@ typedef
 #define VEX_HWCAPS_X86_SSE2    (1<<3)  /* SSE2 support (Pentium 4) */
 #define VEX_HWCAPS_X86_SSE3    (1<<4)  /* SSE3 support (>= Prescott) */
 #define VEX_HWCAPS_X86_LZCNT   (1<<5)  /* SSE4a LZCNT insn */
+#define VEX_HWCAPS_X86_POPCNT  (1<<6)  /* SSE4 POPCNT insn */
+#define VEX_HWCAPS_X86_SSE41   (1<<7)  /* SSE4.1 support (>= Penryn) */
+#define VEX_HWCAPS_X86_SSE42   (1<<8)  /* SSE4.2 support (>= Nehalem) */
 
 /* amd64: baseline capability is SSE2, with cmpxchg8b but not
    cmpxchg16b. */
