@@ -60,6 +60,39 @@ unsigned long int __getauxval (unsigned long int type)
 }
 #endif
 
+/*====================================================================*/
+/*=== Dummy unwinder entry points needed by libgcc                 ===*/
+/*====================================================================*/
+
+/* The 64 bit division helpers of libgcc (__divdi3 and friends) are
+   compiled with -fexceptions -fnon-call-exceptions.  When libgcc itself
+   is built without optimisation, the resulting objects keep references
+   to _Unwind_Resume() and __gcc_personality_v0(), which are normally
+   provided by libgcc_eh.a.  As tools are linked with -nodefaultlibs,
+   that library is not available and linking a tool fails with e.g.:
+
+     libgcc.a(_divdi3.o): in function `__divdi3':
+     libgcc2.c:1226: undefined reference to `_Unwind_Resume'
+
+   So provide dummy definitions.  They can never be reached, since the
+   core is plain C and never raises an exception.  They live in
+   libgcc-sup-<platform>.a, which is linked after -lgcc, so toolchains
+   that do provide the real symbols keep using those.  */
+
+#if defined(VGO_linux)
+void _Unwind_Resume ( void* exc );
+void _Unwind_Resume ( void* exc )
+{
+   __builtin_trap();
+}
+
+void __gcc_personality_v0 ( void );
+void __gcc_personality_v0 ( void )
+{
+   __builtin_trap();
+}
+#endif
+
 #if defined(VGO_solaris)
 /* At least on Solaris 11.3 ar does not like
    empty .ar files */
