@@ -887,6 +887,63 @@ installation.  The output of the shell command <computeroutput>vgdb
 can source in your .gdbinit to define the GDB valgrind front end monitor
 commands.
 </para>
+
+<para>The <filename>valgrind-vgdb.py</filename> script provides the
+<command>target valgrind</command> command. It requires GDB with Python
+support. If the script is installed in a directory that GDB reads at
+startup, the command is available automatically. See
+<option>--with-gdbinit-dir</option> in
+<xref linkend="manual-core.install"/>.</para>
+
+<para>Loading this script through GDB's system initialization file or
+startup directory is independent of the
+<command>set auto-load scripts-directory</command> and
+<command>set auto-load safe-path</command> settings. These settings
+control object-file-associated script auto-loading, rather than system
+startup initialization. Starting GDB with <option>-nx</option> skips
+system initialization and therefore prevents loading the script through
+this mechanism. The script can still be sourced explicitly.</para>
+
+<para>If the script is not loaded automatically, load it explicitly
+from GDB:</para>
+
+<programlisting>
+(gdb) source /path/to/valgrind-vgdb.py
+</programlisting>
+
+<para>To load it automatically for your user account, add the same
+<command>source</command> command, without the GDB prompt, to
+<filename>~/.gdbinit</filename>.</para>
+
+<para>Once the script is loaded, use
+<command>target valgrind [options]</command> to start
+<command>vgdb --multi</command> and establish an extended-remote
+connection.  The <command>vgdb</command> executable must be on your
+<varname>PATH</varname>.  Start GDB on your program, connect using
+<command>target valgrind</command>, then use <command>run</command>
+to start the program under Valgrind:</para>
+
+<screen><![CDATA[
+gdb ./prog
+(gdb) target valgrind
+(gdb) run
+]]></screen>
+
+<para>GDB can reuse the executable specified on its command line
+automatically.  Older GDB versions may require an explicit
+<command>set remote exec-file ./prog</command>
+after connecting and before <command>run</command>.  Use this setting
+if GDB reports that running the default executable on the remote target
+failed.</para>
+
+<para>Options supplied to <command>target valgrind</command> are passed
+to Valgrind through <command>vgdb --multi --vargs</command>.  The pipe
+command is interpreted by a shell, so quote or escape spaces and shell
+metacharacters in option values.  For example:</para>
+
+<programlisting>
+(gdb) target valgrind --log-file='/tmp/valgrind log'
+</programlisting>
 </sect2>
 
 <sect2 id="manual-core-adv.gdbserver-threads"

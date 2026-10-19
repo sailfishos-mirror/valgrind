@@ -3423,6 +3423,40 @@ with <computeroutput>make regtest</computeroutput>.
 </itemizedlist>
 </para>
 
+<para>The configure option
+<option>--with-gdbinit-dir=DIR</option> installs the
+<filename>valgrind-vgdb.py</filename> script into
+<filename>DIR</filename>. This script provides the
+<command>target valgrind</command> GDB command. By default, the script
+is installed in <filename>${libexecdir}/valgrind</filename> and must be
+sourced explicitly from GDB or from <filename>~/.gdbinit</filename>.
+Installation can be disabled with
+<option>--without-gdbinit-dir</option>.</para>
+
+<para>To make the command available automatically, choose a directory
+that the intended GDB installation reads at startup. If GDB was configured with
+<option>--with-system-gdbinit-dir=DIR</option>, use the same directory
+when configuring Valgrind. For example, Fedora's system
+<filename>/etc/gdbinit</filename> sources Python scripts from
+<filename>/etc/gdbinit.d</filename>, so Valgrind can be configured with
+<option>--with-gdbinit-dir=/etc/gdbinit.d</option>. Other distributions
+or independently built GDB installations may use a different directory
+or have no system startup directory enabled. Installing the script into
+a directory that GDB does not read will not make the command available
+automatically.</para>
+
+<para>This option is independent of
+<option>--with-gdbscripts-dir</option>, which controls installation of
+the Valgrind monitor scripts. Distributions commonly install the monitor
+scripts into <filename>/usr/share/gdb/auto-load</filename>. GDB loads
+these scripts when it discovers a Valgrind preload library during
+debugging. In contrast, <command>target valgrind</command> must be
+available before connecting to Valgrind, so its script needs to be
+loaded at GDB startup or sourced explicitly. Installing
+<filename>valgrind-vgdb.py</filename> into
+<filename>/usr/share/gdb/auto-load</filename> alone does not make it load
+at startup.</para>
+
 <para>The <computeroutput>configure</computeroutput> script tests
 the version of the X server currently indicated by the current
 <computeroutput>$DISPLAY</computeroutput>.  This is a known bug.

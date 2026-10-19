@@ -135,6 +135,8 @@ EXTRA_DIST = \
 	nlsigvgdb.stderr.exp \
 	nlsigvgdb.stderrB.exp \
 	nlsigvgdb.stdinB.gdb \
+	vgdb.vgtest \
+	vgdb.stdoutB.exp \
 	nlvgdbsigqueue.vgtest \
 	nlvgdbsigqueue.stderr.exp \
 	nlvgdbsigqueue.stdinB.gdb \

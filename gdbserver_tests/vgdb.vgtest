@@ -1,0 +1,11 @@
+# Test of the Python target valgrind command.
+prog: ../tests/true
+vgopts: --tool=none -q
+prereq: test -e gdb && ./gdb -q -nx -batch -ex 'python import sys; assert sys.version_info >= (3, 4)' > /dev/null 2>&1 && ./gdb -q -nx -batch -ex 'show configuration' 2>/dev/null | grep -e '--with-expat' > /dev/null
+envB: LC_ALL=C
+envB: PATH="$PWD/../coregrind:$PATH"
+envB: VALGRIND_LIB="$PWD/../.in_place"
+progB: gdb
+argsB: --quiet -l 60 --nx ../tests/true -ex 'echo filter_gdb BEGIN drop\n' -ex 'source ../coregrind/m_gdbserver/valgrind-vgdb.py' -ex 'target valgrind --tool=none -q' -ex 'set remote exec-file ../tests/true' -ex 'echo vgdb launched process attached\n' -ex 'echo filter_gdb END drop\n' -ex 'python gdb.execute("run", to_string=True)' -ex 'print $_exitcode' -ex quit
+stdoutB_filter: filter_gdb
+stderrB_filter: filter_gdb

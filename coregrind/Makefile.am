@@ -811,10 +811,16 @@ gdbscripts_DATA  = m_gdbserver/valgrind-monitor.py
 gdbscripts_DATA += m_gdbserver/valgrind-monitor-def.py
 endif
 
+if GDBINIT
+gdbinitdir = @VG_GDBINIT_DIR@
+gdbinit_DATA = m_gdbserver/valgrind-vgdb.py
+endif
+
 # so as to make sure these get copied into the tarball
 EXTRA_DIST  += $(GDBSERVER_XML_FILES)
 EXTRA_DIST  += m_gdbserver/valgrind-monitor.py
 EXTRA_DIST  += m_gdbserver/valgrind-monitor-def.py
+EXTRA_DIST  += m_gdbserver/valgrind-vgdb.py
 
 #----------------------------------------------------------------------------
 # General stuff

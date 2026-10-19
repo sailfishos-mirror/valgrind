@@ -1318,6 +1318,26 @@ else
 fi
 
 #----------------------------------------------------------------------------
+# Where to install `target valgrind` gdb script, defaults to VG_LIBDIR (pkglibexecdir)
+#----------------------------------------------------------------------------
+AC_MSG_CHECKING([where the target valgrind gdb startup script is installed])
+AC_ARG_WITH(gdbinit-dir,
+   [  --with-gdbinit-dir=PATH  Specify path to install the target valgrind gdb script],
+   [gdbinitdir=${withval}],
+   [gdbinitdir=${libexecdir}/valgrind])
+if test "x$gdbinitdir" = "xyes" || test "x$gdbinitdir" = "x"; then
+  AC_MSG_ERROR([--with-gdbinit-dir requires a non-empty directory])
+fi
+
+AC_MSG_RESULT([$gdbinitdir])
+if test "x$gdbinitdir" != "xno"; then
+  AC_SUBST(VG_GDBINIT_DIR, [$gdbinitdir])
+  AM_CONDITIONAL(GDBINIT, true)
+else
+  AC_SUBST(VG_GDBINIT_DIR, [])
+  AM_CONDITIONAL(GDBINIT, false)
+fi
+#----------------------------------------------------------------------------
 # Libc and suppressions
 #----------------------------------------------------------------------------
 # This variable will collect the suppression files to be used.
