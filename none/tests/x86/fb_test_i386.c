@@ -595,7 +595,7 @@ void test_lea(void)
     asm("movl $0, %0\n\t"\
         "cmpl %2, %1\n\t"\
         "set" JCC " %b0\n\t"\
-        : "=r" (res)\
+        : "=q" (res)\
         : "r" (v1), "r" (v2));\
     xxprintf("%-10s %d\n", "set" JCC, res);\
  {\
@@ -920,14 +920,19 @@ void test_fcvt(double a)
     int ia;
     int16_t wa;
     double ra;
+    unsigned long long int a_as_ull;
+    unsigned long long int la_as_ull;
+    uint16_t la_sign_exponent;
 
     fa = a;
     la = a;
     xxprintf("(float)%f = %f\n", a, fa);
     xxprintf("(long double)%f = %Lf\n", a, la);
-    xxprintf("a=%016llx\n", *(unsigned long long int *) &a);
-    xxprintf("la=%016llx %04x\n", *(unsigned long long int *) &la,
-             *(unsigned short *) ((char *)(&la) + 8));
+    memcpy(&a_as_ull, &a, sizeof(a_as_ull));
+    xxprintf("a=%016llx\n", a_as_ull);
+    memcpy(&la_as_ull, &la, sizeof(la_as_ull));
+    memcpy(&la_sign_exponent, (char *)&la + 8, sizeof(la_sign_exponent));
+    xxprintf("la=%016llx %04x\n", la_as_ull, la_sign_exponent);
 
     /* test all roundings */
     asm volatile ("fstcw %0" : "=m" (fpuc));
