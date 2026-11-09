@@ -28,6 +28,7 @@ for nanoMIPS/Linux. macOS is supported up to version 13 Sonoma (amd64 only).
 528086  prctl(PR_GET_AUXV) returns the tool's auxv instead of the client's
 528276  In Solaris 11.4, socketpair passed two descriptors as argument
         and not as an array of ints
+528451  mseal01 LTP testcase fails when run under Valgrind
 528534  Solaris: allow missing RW PR_LOADs in ML_(read_elf_object)
 
 The following bugs have been fixed or resolved.  Note that "n-i-bz"

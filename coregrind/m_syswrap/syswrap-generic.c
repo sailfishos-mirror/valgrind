@@ -434,7 +434,7 @@ SysRes do_mremap( Addr old_addr, SizeT old_len,
          }
          return VG_(mk_SysRes_Success)( new_addr );
       }
-      goto eNOMEM;
+      goto ePERM;
    }
 
    /* end of the 3 cases */
@@ -542,6 +542,8 @@ SysRes do_mremap( Addr old_addr, SizeT old_len,
    return VG_(mk_SysRes_Error)( VKI_ENOMEM );
   eFAULT:
    return VG_(mk_SysRes_Error)( VKI_EFAULT );
+  ePERM:
+   return VG_(mk_SysRes_Error)( VKI_EPERM );
 
 #  undef MIN_SIZET
 }
