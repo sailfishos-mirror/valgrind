@@ -47,11 +47,6 @@
    that we don't have to pass them around endlessly. CONST means does
    not change during translation of the instruction. */
 
-/* CONST: what is the host's endianness?  This has to do with float vs
-   double register accesses on VFP, but it's complex and not properly
-   thought out. */
-static VexEndness host_endness;
-
 /* Pointer to the guest code area. */
 const UChar *guest_code;
 
@@ -25090,7 +25085,7 @@ DisResult disInstr_MIPS( IRSB*        irsb_IN,
 
    guest_code = guest_code_IN;
    irsb = irsb_IN;
-   host_endness = host_endness_IN;
+   vassert(host_endness_IN == VexEndnessLE || host_endness_IN == VexEndnessBE);
 #if defined(VGP_mips32_linux)
    guest_PC_curr_instr = (Addr32)guest_IP;
 #elif defined(VGP_mips64_linux)

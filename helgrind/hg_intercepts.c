@@ -2768,7 +2768,9 @@ static int pthread_rwlock_tryrdlock_WRK(pthread_rwlock_t* rwlock)
 #  error "Unsupported OS"
 #endif
 
+#if defined(VGO_linux) || defined(VGO_solaris)
 static Bool in_pthread_rwlock_timedrdlock_WRK = False;
+#endif
 
 //-----------------------------------------------------------
 // glibc:   pthread_rwlock_timedrdlock
@@ -2792,9 +2794,13 @@ static int pthread_rwlock_timedrdlock_WRK(pthread_rwlock_t *rwlock,
                  pthread_rwlock_t *, rwlock,
                  long, 0/*isW*/, long, 0/*isTryLock*/);
 
+#if defined(VGO_linux) || defined(VGO_solaris)
    in_pthread_rwlock_timedrdlock_WRK = True;
+#endif
    CALL_FN_W_WW(ret, fn, rwlock, timeout);
+#if defined(VGO_linux) || defined(VGO_solaris)
    in_pthread_rwlock_timedrdlock_WRK = False;
+#endif
 
    DO_CREQ_v_WWW(_VG_USERREQ__HG_PTHREAD_RWLOCK_LOCK_POST,
                  pthread_rwlock_t *, rwlock, long, 0/*isW*/,
@@ -2887,7 +2893,9 @@ PTH_FUNC(int, pthreadZurwlockZuclockrdlock, // pthread_rwlock_clockrdlock
 }
 #endif
 
+#if defined(VGO_linux) || defined(VGO_solaris)
 static Bool in_pthread_rwlock_timedwrlock_WRK = False;
+#endif
 
 //-----------------------------------------------------------
 // glibc:   pthread_rwlock_timedwrlock
@@ -2910,9 +2918,13 @@ static int pthread_rwlock_timedwrlock_WRK(pthread_rwlock_t *rwlock,
                  pthread_rwlock_t *, rwlock,
                  long, 1/*isW*/, long, 0/*isTryLock*/);
 
+#if defined(VGO_linux) || defined(VGO_solaris)
    in_pthread_rwlock_timedwrlock_WRK = True;
+#endif
    CALL_FN_W_WW(ret, fn, rwlock, timeout);
+#if defined(VGO_linux) || defined(VGO_solaris)
    in_pthread_rwlock_timedwrlock_WRK = False;
+#endif
 
    DO_CREQ_v_WWW(_VG_USERREQ__HG_PTHREAD_RWLOCK_LOCK_POST,
                  pthread_rwlock_t *, rwlock, long, 1/*isW*/,

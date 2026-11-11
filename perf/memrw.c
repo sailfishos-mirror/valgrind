@@ -30,7 +30,6 @@ static int nr_repeat; // nr of times we will allocate, use, then free total+ws
 // On top of that, we have the stacks, local vars, lib vars, ...
 // The working set is just the first nr_b_ws blocks of nr_b.
 
-static int verbose = 0;
 static unsigned char **t_b; // Pointers to all blocks
 
 static void *memrw_fn(void *v)
@@ -83,7 +82,6 @@ int main (int argc, char *argv[])
    nr_b_ws = 10;
    nr_loops = 3;
    nr_repeat = 1;
-   verbose = 0;
    for (a = 1; a < argc; a+=2) {
       if        (strcmp(argv[a], "-b") == 0) {
          sz_b = atoi(argv[a+1]);
@@ -95,8 +93,6 @@ int main (int argc, char *argv[])
          nr_loops = atoi(argv[a+1]);
       } else if (strcmp(argv[a], "-r") == 0) {
          nr_repeat = atoi(argv[a+1]);
-      } else if (strcmp(argv[a], "-v") == 0) {
-         verbose = atoi(argv[a+1]);
       } else {
          printf("unknown arg %s\n", argv[a]);
       }
