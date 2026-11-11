@@ -5442,6 +5442,7 @@ AC_CHECK_FUNCS([     \
         pthread_setname_np         \
         pthread_spin_lock          \
         pthread_yield              \
+        pthread_mutexattr_gettype  \
         pwritev      \
         pwritev2     \
         rawmemchr    \
@@ -5550,6 +5551,8 @@ AM_CONDITIONAL([HAVE_SETCRED],
                [test x$ac_cv_func_setcred = xyes])
 AM_CONDITIONAL([HAVE_EXTERRCTL],
                [test x$ac_cv_func_exterrctl = xyes])
+AM_CONDITIONAL([HAVE_PTHREAD_MUTEXATTR_GETTYPE],
+               [test x$ac_cv_func_pthread_mutexattr_gettype = xyes])
 
 if test x$VGCONF_PLATFORM_PRI_CAPS = xMIPS32_LINUX \
      -o x$VGCONF_PLATFORM_PRI_CAPS = xMIPS64_LINUX \

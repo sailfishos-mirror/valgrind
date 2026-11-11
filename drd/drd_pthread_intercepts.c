@@ -930,12 +930,12 @@ int pthread_mutex_init_intercept(pthread_mutex_t *mutex,
    int mt;
    VALGRIND_GET_ORIG_FN(fn);
    mt = PTHREAD_MUTEX_DEFAULT;
-#if !defined(VGO_solaris)
-   if (attr)
-      pthread_mutexattr_gettype(attr, &mt);
-#else
+#if defined(VGO_solaris) && !defined(HAVE_PTHREAD_MUTEXATTR_GETTYPE)
    if (attr)
       pthread_mutexattr_gettype_workaround(attr, &mt);
+#else
+   if (attr)
+      pthread_mutexattr_gettype(attr, &mt);
 #endif
    VALGRIND_DO_CLIENT_REQUEST_STMT(VG_USERREQ_DRD_PRE_MUTEX_INIT,
                                    mutex, DRD_(pthread_to_drd_mutex_type)(mt),
