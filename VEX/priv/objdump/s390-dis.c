@@ -29,7 +29,10 @@
 
 static int opc_index[256];
 static int current_arch_mask = 0;
+#if 0
+// currently unused, see #if 0 blocks in disassemble_init_s390
 static int option_use_insn_len_bits_p = 0;
+#endif
 static int option_print_insn_desc = 0;
 static int pad_mnemonic;
 
@@ -84,9 +87,9 @@ disassemble_init_s390 (struct disassemble_info *info)
     opc_index[s390_opcodes[i].opcode[0]] = i;
 
   current_arch_mask = 1 << S390_OPCODE_ZARCH;
-  option_use_insn_len_bits_p = 0;
   option_print_insn_desc = 0;
 #if 0
+  option_use_insn_len_bits_p = 0;
   for (p = info->disassembler_options; p != NULL; )
     {
       if (startswith (p, "esa"))

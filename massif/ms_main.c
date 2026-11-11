@@ -2025,6 +2025,7 @@ static void ms_print_stats (void)
    STATS("ignored heap frees:    %u\n", n_ignored_heap_frees);
    STATS("ignored heap reallocs: %u\n", n_ignored_heap_reallocs);
    STATS("stack allocs:          %u\n", n_stack_allocs);
+   STATS("stack frees:           %u\n", n_stack_frees);
    STATS("skipped snapshots:     %u\n", n_skipped_snapshots);
    STATS("real snapshots:        %u\n", n_real_snapshots);
    STATS("detailed snapshots:    %u\n", n_detailed_snapshots);

@@ -931,11 +931,6 @@ static ULong sec_vbits_updates   = 0;
 // the table size.  It can change.
 static Int  secVBitLimit = 1000;
 
-// The number of GCs done, used to age sec-V-bit nodes for eviction.
-// Because it's unsigned, wrapping doesn't matter -- the right answer will
-// come out anyway.
-static UInt GCs_done = 0;
-
 typedef
    struct {
       Addr  a;
@@ -961,8 +956,6 @@ static void gcSecVBitTable(void)
    OSet*        secVBitTable2;
    SecVBitNode* n;
    Int          i, n_nodes = 0, n_survivors = 0;
-
-   GCs_done++;
 
    // Create the new table.
    secVBitTable2 = createSecVBitTable();

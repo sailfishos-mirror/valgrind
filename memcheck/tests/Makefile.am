@@ -826,7 +826,7 @@ origin2_not_quite_CFLAGS = $(AM_CFLAGS) @FLAG_W_NO_UNINITIALIZED@
 origin3_no_CFLAGS = $(AM_CFLAGS) @FLAG_W_NO_UNINITIALIZED@
 
 # This requires optimisation in order to get just one resulting error.
-origin4_many_CFLAGS	= $(AM_CFLAGS) -O @FLAG_W_NO_USE_AFTER_FREE@ @FLAG_W_NO_UNINITIALIZED@
+origin4_many_CFLAGS	= $(AM_CFLAGS) -O @FLAG_W_NO_USE_AFTER_FREE@ @FLAG_W_NO_UNINITIALIZED@ @FLAG_W_NO_UNUSED_BUT_SET_GLOBAL@
 
 # Apply -O so as to run in reasonable time.
 origin5_bz2_CFLAGS	= $(AM_CFLAGS) -O -Wno-inline
@@ -859,6 +859,9 @@ if VGCONF_OS_IS_SOLARIS
 sendmsg_CFLAGS		+= -D_XOPEN_SOURCE=600
 sendmsg_LDADD		= -lsocket -lnsl
 endif
+
+simple_leak_CFLAGS	= ${AM_CFLAGS} @FLAG_W_NO_UNUSED_BUT_SET_GLOBAL@
+simple_reachable_CFLAGS	= ${AM_CFLAGS} @FLAG_W_NO_UNUSED_BUT_SET_GLOBAL@
 
 if HAVE_FSIZED_DEALLOCATION
 sized_delete_SOURCES   = sized_delete.cpp

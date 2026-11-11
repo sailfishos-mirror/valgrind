@@ -753,8 +753,10 @@ static int sigint = 0;
 static int sigterm = 0;
 static int sigpipe = 0;
 static int sighup = 0;
-static int sigusr1 = 0;
+#if defined(VGPV_arm_linux_android) || defined(VGPV_x86_linux_android) \
+ || defined(VGPV_mips32_linux_android) || defined(VGPV_arm64_linux_android)
 static int sigalrm = 0;
+#endif
 static int sigusr1_fd = -1;
 static pthread_t invoke_gdbserver_in_valgrind_thread;
 
@@ -764,7 +766,6 @@ void received_signal(int signum)
    if (signum == SIGINT)
       sigint++;
    else if (signum == SIGUSR1) {
-      sigusr1++;
       if (sigusr1_fd >= 0) {
          char control_c = '\003';
          write_buf(sigusr1_fd, &control_c, 1,
@@ -780,11 +781,11 @@ void received_signal(int signum)
    } else if (signum == SIGPIPE) {
       sigpipe++;
    } else if (signum == SIGALRM) {
-      sigalrm++;
 #if defined(VGPV_arm_linux_android) \
-    || defined(VGPV_x86_linux_android) \
-    || defined(VGPV_mips32_linux_android) \
-    || defined(VGPV_arm64_linux_android)
+      || defined(VGPV_x86_linux_android) \
+         || defined(VGPV_mips32_linux_android) \
+         || defined(VGPV_arm64_linux_android)
+      sigalrm++;
       /* Android has no pthread_cancel. As it also does not have
          an invoker implementation, there is no need for cleanup action.
          So, we just do nothing. */
