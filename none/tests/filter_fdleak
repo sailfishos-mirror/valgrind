@@ -62,6 +62,7 @@ perl -p -e "s/\(open.c:[0-9]*\)/(in \/...libc...)/" |
 perl -p -e "s/\(lseek(?:64)?.c:[0-9]*\)/(in \/...libc...)/" |
 
 # FreeBSD specific fdleak filters
+sed 's#_openat.S:[0-9]*#in /...libc...#' |
 perl -p -e 's/ _close / close /;s/ _openat / creat /;s/ _write/ write/;s/internet/AF_INET socket 4: 127.0.0.1:... <-> 127.0.0.1:.../' |
 sed '/by 0x........: close (in \/...libc...)/d' |
 sed '/by 0x........: creat (in \/...libc...)/d' |
