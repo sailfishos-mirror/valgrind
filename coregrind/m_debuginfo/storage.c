@@ -469,7 +469,8 @@ static void addLoc ( struct _DebugInfo* di, DiLoc* loc, UInt fndn_ix )
    if (di->loctab_used > 0) {
       DiLoc *previous = &di->loctab[di->loctab_used - 1];
       if ((previous->lineno == loc->lineno)
-          && (previous->addr + previous->size == loc->addr)) {
+          && (previous->addr + previous->size == loc->addr)
+          && ML_(fndn_ix) (di, di->loctab_used - 1) == fndn_ix) {
          if (previous->size + loc->size <= MAX_LOC_SIZE) {
             TRACE_LOCTAB_CANON ("addLoc merging", previous, loc);
             previous->size += loc->size;
