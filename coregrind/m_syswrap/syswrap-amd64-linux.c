@@ -281,6 +281,15 @@ PRE(sys_arch_prctl)
       *(unsigned long *)ARG2 = tst->arch.vex.guest_GS_CONST;
       POST_MEM_WRITE(ARG2, sizeof(unsigned long));
    }
+   else if (ARG1 == VKI_ARCH_GET_CPUID) {
+      tst = VG_(get_ThreadState)(tid);
+      SET_STATUS_Success ( tst->arch.vex.guest_CPUID_ENABLED );
+      return;
+   }
+   else if (ARG1 == VKI_ARCH_SET_CPUID) {
+      tst = VG_(get_ThreadState)(tid);
+      tst->arch.vex.guest_CPUID_ENABLED = ARG2;
+   }
    else {
       known_option = False;
    }

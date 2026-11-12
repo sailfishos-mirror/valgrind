@@ -595,6 +595,9 @@ struct vki_ucontext {
 #define VKI_ARCH_GET_FS 0x1003
 #define VKI_ARCH_GET_GS 0x1004
 
+#define VKI_ARCH_GET_CPUID 0x1011
+#define VKI_ARCH_SET_CPUID 0x1012
+
 //----------------------------------------------------------------------
 // Originally from linux-2.6.9/include/asm-x86_64/ldt.h
 //----------------------------------------------------------------------

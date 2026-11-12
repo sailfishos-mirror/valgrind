@@ -169,6 +169,7 @@ are not entered into bugzilla tend to get forgotten about or ignored.
 527258  PPC: Fix r10 collision in 8-argument dirty helper calls
 527283  Add support for illumos close_range
 527268  Clean up unhandled client request traces
+528631  Support CPUID faulting via arch_prctl(ARCH_SET_CPUID, ...)
 
 To see details of a given bug, visit
   https://bugs.kde.org/show_bug.cgi?id=XXXXXX

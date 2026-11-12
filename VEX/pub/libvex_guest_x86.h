@@ -216,10 +216,13 @@ typedef
       UInt guest_SC_CLASS;
 
 
+      /* CPUID enabled flag: 0 means CPUID faults (SIGSEGV) */
+      UInt guest_CPUID_ENABLED;
+
       /* Padding to make it have an 16-aligned size */
       UInt padding1;
       UInt padding2;
-      UInt padding3;
+      // UInt padding3;
    }
    VexGuestX86State;
 

@@ -78,7 +78,8 @@ EXTRA_DIST = \
 	x87trigOOR.vgtest x87trigOOR.stdout.exp \
 	yield.stderr.exp yield.stdout.exp yield.disabled \
 	xadd.stdout.exp xadd.vgtest \
-	crc32.vgtest crc32.stdout.exp
+	crc32.vgtest crc32.stdout.exp \
+	cpuid_faulting.vgtest cpuid_faulting.stdout.exp
 
 check_PROGRAMS = \
 	aad_aam \
@@ -97,6 +98,7 @@ check_PROGRAMS = \
 	cet_nops \
 	cmpxchg8b \
 	cpuid \
+	cpuid_faulting \
 	cse_fail \
 	fb_test_i386 \
 	fcmovnu \

@@ -676,6 +676,7 @@ DECL_TEMPLATE(x86_linux, old_select);
 DECL_TEMPLATE(x86_linux, sys_vm86old);
 DECL_TEMPLATE(x86_linux, sys_vm86);
 DECL_TEMPLATE(x86_linux, sys_syscall223);
+DECL_TEMPLATE(x86_linux, sys_arch_prctl);
 
 PRE(old_select)
 {
@@ -1133,6 +1134,48 @@ POST(sys_syscall223)
 {
    ML_(linux_variant_POST_sys_bproc)( ARG1, ARG2, ARG3, 
                                       ARG4, ARG5, ARG6 );
+}
+
+
+PRE(sys_arch_prctl)
+{
+   ThreadState* tst;
+   Bool known_option = True;
+   PRINT( "arch_prctl ( %ld, %lx )", SARG1, ARG2 );
+
+   vg_assert(VG_(is_valid_tid)(tid));
+   vg_assert(tid >= 1 && tid < VG_N_THREADS);
+   vg_assert(VG_(is_running_thread)(tid));
+
+   // Nb: can't use "ARG2".."ARG5" here because that's our own macro...
+   PRE_REG_READ2(long, "arch_prctl",
+                 int, option, unsigned long, arg2);
+   // XXX: totally wrong... we need to look at the 'option' arg, and do
+   // PRE_MEM_READs/PRE_MEM_WRITEs as necessary...
+
+   /* "do" the syscall ourselves; the kernel never sees it */
+   /* no FS/GS ops on x86 - these give EINVAL, see SYSCALL_DEFINE2(arch_prctl, ...)
+      in arch/x86/kernel/process.c */
+   if (ARG1 == VKI_ARCH_GET_CPUID) {
+      tst = VG_(get_ThreadState)(tid);
+      SET_STATUS_Success ( tst->arch.vex.guest_CPUID_ENABLED );
+      return;
+   }
+   else if (ARG1 == VKI_ARCH_SET_CPUID) {
+      tst = VG_(get_ThreadState)(tid);
+      tst->arch.vex.guest_CPUID_ENABLED = ARG2;
+   }
+   else {
+      known_option = False;
+   }
+
+   /* Note; the Status writeback to guest state that happens after
+      this wrapper returns does not change guest_FS_CONST or guest_GS_CONST;
+      hence that direct assignment to the guest state is safe here. */
+   if (known_option)
+      SET_STATUS_Success( 0 );
+   else
+      SET_STATUS_Failure( VKI_EINVAL );
 }
 
 #undef PRE
@@ -1618,8 +1661,7 @@ static SyscallTableEntry syscall_table[] = {
    LINX_(__NR_pkey_free,         sys_pkey_free),        // 382
    LINXY(__NR_statx,             sys_statx),            // 383
 
-   /* Explicitly not supported on i386 yet. */
-   GENX_(__NR_arch_prctl,        sys_ni_syscall),       // 384
+   PLAX_(__NR_arch_prctl,        sys_arch_prctl),       // 384
 
    LINXY(__NR_io_pgetevents,     sys_io_pgetevents),    // 385
    GENX_(__NR_rseq,              sys_ni_syscall),       // 386

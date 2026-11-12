@@ -450,6 +450,8 @@ static void unimplemented ( const HChar* str )
 
 #define OFFB_NRADDR    offsetof(VexGuestAMD64State,guest_NRADDR)
 
+#define OFFB_CPUID_ENABLED offsetof(VexGuestAMD64State,guest_CPUID_ENABLED)
+
 
 /*------------------------------------------------------------*/
 /*--- Helper bits and pieces for deconstructing the        ---*/
@@ -21893,6 +21895,19 @@ Long dis_ESC_0F (
       }
 
       vassert(fName); vassert(fAddr);
+
+      // PR528631: If arch_prctl() setsCPUID ARCH_SET_CPUID to 1,
+      // end up with SIGSEGV instead of executing the dirty helper.
+      // Modelled after gen_SEGV_if_not_16_aligned()
+      stmt( IRStmt_Exit(
+         binop(Iop_CmpEQ32,
+               IRExpr_Get(OFFB_CPUID_ENABLED, Ity_I32),
+               mkU32(0)),
+         Ijk_SigSEGV,
+         IRConst_U64(guest_RIP_curr_instr),
+         OFFB_RIP
+      ));
+
       IRExpr** args = NULL;
       if (fAddr == &amd64g_dirtyhelper_CPUID_avx2
           || fAddr == &amd64g_dirtyhelper_CPUID_avx_and_cx16) {

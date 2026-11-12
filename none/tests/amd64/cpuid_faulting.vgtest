@@ -1,0 +1,2 @@
+prog: cpuid_faulting
+vgopts: -q

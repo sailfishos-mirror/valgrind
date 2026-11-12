@@ -4716,6 +4716,7 @@ void LibVEX_GuestAMD64_initialise ( /*OUT*/VexGuestAMD64State* vex_state )
 
    vex_state->guest_NRADDR   = 0;
    vex_state->guest_SC_CLASS = 0;
+   vex_state->guest_CPUID_ENABLED = 1;
    vex_state->guest_GS_CONST = 0;
 
    vex_state->guest_TLSBASE = 0;
@@ -4791,7 +4792,7 @@ VexGuestLayout
 
           /* Describe any sections to be regarded by Memcheck as
              'always-defined'. */
-          .n_alwaysDefd = 15,
+          .n_alwaysDefd = 16,
 
           /* flags thunk: OP and NDEP are always defd, whereas DEP1
              and DEP2 have to be tracked.  See detailed comment in
@@ -4819,7 +4820,8 @@ VexGuestLayout
                  /* 11 */ ALWAYSDEFD(guest_SSEROUND),
                  /* 12 */ ALWAYSDEFD(guest_CMSTART),
                  /* 13 */ ALWAYSDEFD(guest_CMLEN),
-                 /* 14 */ ALWAYSDEFD(guest_SC_CLASS)
+                 /* 14 */ ALWAYSDEFD(guest_SC_CLASS),
+                 /* 15 */ ALWAYSDEFD(guest_CPUID_ENABLED)
                }
         };
 

@@ -281,6 +281,8 @@ static IRSB* irsb;
 #define OFFB_CMLEN     offsetof(VexGuestX86State,guest_CMLEN)
 #define OFFB_NRADDR    offsetof(VexGuestX86State,guest_NRADDR)
 
+#define OFFB_CPUID_ENABLED offsetof(VexGuestX86State,guest_CPUID_ENABLED)
+
 /*------------------------------------------------------------*/
 /*--- Helper bits and pieces for deconstructing the        ---*/
 /*--- x86 insn stream.                                     ---*/
@@ -16913,6 +16915,19 @@ DisResult disInstr_X86_WRK (
             vpanic("disInstr(x86)(cpuid)");
 
          vassert(fName); vassert(fAddr);
+
+         // PR528631: If arch_prctl() setsCPUID ARCH_SET_CPUID to 1,
+         // end up with SIGSEGV instead of executing the dirty helper.
+         // Modelled after gen_SEGV_if_not_16_aligned()
+         stmt( IRStmt_Exit(
+            binop(Iop_CmpEQ32,
+                  IRExpr_Get(OFFB_CPUID_ENABLED, Ity_I32),
+                  mkU32(0)),
+            Ijk_SigSEGV,
+            IRConst_U32(guest_EIP_curr_instr),
+            OFFB_EIP
+         ));
+
          IRExpr** args = NULL;
          if (fAddr == &x86g_dirtyhelper_CPUID_sse3) {
             Bool hasLZCNT = (archinfo->hwcaps & VEX_HWCAPS_X86_LZCNT) != 0;

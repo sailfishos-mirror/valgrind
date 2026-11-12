@@ -49,6 +49,7 @@ EXTRA_DIST = \
 	bug487439.vgtest bug487439.stdout.exp \
 	cet_nops.vgtest cet_nops.stdout.exp \
 	clc.vgtest clc.stdout.exp \
+	cpuid_faulting.vgtest cpuid_faulting.stdout.exp \
 	crc32.vgtest crc32.stdout.exp \
 	cmpxchg.vgtest cmpxchg.stdout.exp \
 	f16c.vgtest f16c.stdout.exp \
@@ -105,6 +106,7 @@ check_PROGRAMS = \
 	bug487439 \
 	cet_nops \
 	clc \
+	cpuid_faulting \
 	cmpxchg \
 	getseg \
 	$(INSN_TESTS) \

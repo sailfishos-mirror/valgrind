@@ -161,12 +161,16 @@ typedef
          of the %fs-const hack for amd64-linux/solaris). */
       ULong guest_GS_CONST;
 
+
+      /* Keep the arch_prctl ARCH_GET_CPUID ARCH_SET_CPUID information */
+      UInt guest_CPUID_ENABLED;
+
       /* Used on FreeBSD as part of a mechanism to allow signal handlers
            to use TLS. */
       ULong guest_TLSBASE;
 
-      UInt padding1;
-      UInt padding2;
+      //UInt padding1;
+      //UInt padding2;
 
       /* Add padding here to make it have an 16-aligned size */
    }
