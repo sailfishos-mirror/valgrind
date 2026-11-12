@@ -159,6 +159,17 @@ PRE(sys_sysarch)
          SET_STATUS_Failure( VKI_EINVAL );
       }
       break;
+   case VKI_AMD64_GET_GSBASE:
+      PRINT("sys_amd64_get_gsbase ( %#lx )", ARG2);
+      PRE_MEM_WRITE( "amd64_get_gsbase(basep)", ARG2, sizeof(void *) );
+      if (ML_(safe_to_deref)((void**)ARG2, sizeof(void*))) {
+         /* "do" the syscall ourselves; the kernel never sees it */
+         tst = VG_(get_ThreadState)(tid);
+         SET_STATUS_Success2( tst->arch.vex.guest_GS_CONST, tst->arch.vex.guest_RDX );
+      } else {
+         SET_STATUS_Failure( VKI_EINVAL );
+      }
+      break;
    case VKI_AMD64_GET_XFPUSTATE:
       PRINT("sys_amd64_get_xfpustate ( %#lx )", ARG2);
       PRE_MEM_WRITE( "amd64_get_xfpustate(basep)", ARG2, sizeof(void *) );
@@ -196,6 +207,7 @@ POST(sys_sysarch)
    case VKI_AMD64_SET_FSBASE:
       break;
    case VKI_AMD64_GET_FSBASE:
+   case VKI_AMD64_GET_GSBASE:
    case VKI_AMD64_GET_XFPUSTATE:
    case VKI_AMD64_GET_TLSBASE:
       POST_MEM_WRITE( ARG2, sizeof(void *) );
