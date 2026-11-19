@@ -41,7 +41,7 @@ int main(void) {
     // Disable CPUID
     if (syscall(SYS_arch_prctl, ARCH_SET_CPUID, 0) != 0) {
         if (errno == ENODEV) {
-            printf("Disabling CPUID not supported on this CPU");
+            printf("Disabling CPUID not supported on this CPU\n");
             exit(77);
         }
         perror("FAILED disabling CPUID instruction\n");

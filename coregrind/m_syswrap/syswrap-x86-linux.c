@@ -1162,8 +1162,13 @@ PRE(sys_arch_prctl)
       return;
    }
    else if (ARG1 == VKI_ARCH_SET_CPUID) {
-      tst = VG_(get_ThreadState)(tid);
-      tst->arch.vex.guest_CPUID_ENABLED = ARG2;
+      if (ML_(cpuid_faulting_supported)()) {
+         tst = VG_(get_ThreadState)(tid);
+         tst->arch.vex.guest_CPUID_ENABLED = ARG2;
+      } else {
+         SET_STATUS_Failure( VKI_ENODEV );
+         return;
+      }
    }
    else {
       known_option = False;

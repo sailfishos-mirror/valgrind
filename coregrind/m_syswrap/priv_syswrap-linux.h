@@ -38,6 +38,8 @@ extern Addr ML_(allocstack)            ( ThreadId tid );
 extern void ML_(call_on_new_stack_0_1) ( Addr stack, Addr retaddr,
 			                 void (*f)(Word), Word arg1 );
 
+extern Bool ML_(cpuid_faulting_supported) ( void );
+
 // Linux-specific (but non-arch-specific) syscalls
 
 DECL_TEMPLATE(linux, sys_ustat);
@@ -568,6 +570,9 @@ extern UInt do_syscall_clone_riscv64_linux ( Word (*fn) (void *),
                                              Int*  child_tid,
                                              Int*  parent_tid,
                                              void* tls_ptr);
+
+
+
 #endif   // __PRIV_SYSWRAP_LINUX_H
 
 /*--------------------------------------------------------------------*/

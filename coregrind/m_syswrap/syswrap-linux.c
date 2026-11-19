@@ -3444,6 +3444,59 @@ static Bool linux_kernel_2_6_22(void)
    return result == 1;
 }
 
+Bool ML_(cpuid_faulting_supported) ( void )
+{
+   static Int result = -1;
+   const char *search_cpuid_fault_1 = " cpuid_fault ";
+   const char *search_cpuid_fault_2 = " cpuid_fault\n";
+   SysRes res;
+   SizeT  num_bytes, file_buf_size;
+   HChar *file_buf;
+   Int fh, n;
+
+   if (result == -1) {
+      res = VG_(open)("/proc/cpuinfo", VKI_O_RDONLY, 0);
+      if (sr_isError(res))
+         return False;
+      fh = sr_Res(res);
+
+      /* Determine the size of /proc/cpuinfo.
+         Work around broken-ness in /proc file system implementation.
+         fstat returns a zero size for /proc/cpuinfo although it is
+         claimed to be a regular file. */
+      num_bytes = 0;
+      file_buf_size = 1000;
+      file_buf = VG_(malloc)("cpuinfo", file_buf_size + 1);
+      while (42) {
+        n = VG_(read)(fh, file_buf, file_buf_size);
+        if (n < 0) break;
+        num_bytes += n;
+        if (n < file_buf_size) break;  /* reached EOF */
+      }
+
+      if (n < 0) num_bytes = 0;   /* read error; ignore contents */
+
+      if (num_bytes > file_buf_size) {
+         VG_(free)( file_buf );
+         VG_(lseek)( fh, 0, VKI_SEEK_SET );
+         file_buf = VG_(malloc)( "cpuinfo", num_bytes + 1 );
+         n = VG_(read)( fh, file_buf, num_bytes );
+         if (n < 0) num_bytes = 0;
+      }
+
+      file_buf[num_bytes] = '\0';
+      VG_(close)(fh);
+
+      /* Parse file */
+      result = 0;
+      if ((VG_(strstr)(file_buf, search_cpuid_fault_1) != NULL) ||
+          (VG_(strstr)(file_buf, search_cpuid_fault_2) != NULL))
+         result = 1;
+    }
+    vg_assert(result == 0 || result == 1);
+    return result == 1;
+}
+
 PRE(sys_timerfd_create)
 {
    if (linux_kernel_2_6_22()) {
