@@ -238,7 +238,8 @@ SysRes ML_(am_do_extend_mapping_NO_NOTIFY)(
 
 SysRes ML_(am_do_relocate_nooverlap_mapping_NO_NOTIFY)( 
           Addr old_addr, Addr old_len, 
-          Addr new_addr, Addr new_len 
+          Addr new_addr, Addr new_len,
+          Bool dontunmap
        )
 {
    /* Move the mapping old_addr .. old_addr+old_len-1 to the new
@@ -246,10 +247,14 @@ SysRes ML_(am_do_relocate_nooverlap_mapping_NO_NOTIFY)(
       where the two areas do not overlap, neither length is zero, and
       all args are page aligned. */
 #  if defined(VGO_linux) || defined(VGO_solaris)
+   UWord flags = VKI_MREMAP_MAYMOVE|VKI_MREMAP_FIXED; /*move-or-fail*/
+   if (dontunmap == True)
+      flags |= VKI_MREMAP_DONTUNMAP;
+
    return VG_(do_syscall5)(
              __NR_mremap, 
              old_addr, old_len, new_len, 
-             VKI_MREMAP_MAYMOVE|VKI_MREMAP_FIXED/*move-or-fail*/,
+             flags,
              new_addr
           );
 #  else

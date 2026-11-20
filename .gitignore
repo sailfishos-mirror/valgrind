@@ -1648,6 +1648,7 @@
 /none/tests/mmap_o_direct
 /none/tests/mremap
 /none/tests/mremap2
+/none/tests/mremap_dontunmap
 /none/tests/munmap_exe
 /none/tests/nestedfns
 /none/tests/nocwd

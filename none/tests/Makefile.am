@@ -185,6 +185,7 @@ EXTRA_DIST = \
 	map_unmap.stderr.exp map_unmap.stdout.exp map_unmap.vgtest \
 	mmap_fcntl_bug.vgtest mmap_fcntl_bug.stderr.exp \
 	mmap_o_direct.vgtest \
+	mremap_dontunmap.stdout.exp mremap_dontunmap.vgtest \
 	mq.vgtest \
 	munmap_exe.vgtest \
 	nestedfns.stdout.exp nestedfns.vgtest \
@@ -291,6 +292,7 @@ check_PROGRAMS = \
 	manythreads \
 	mmap_fcntl_bug \
 	mmap_o_direct \
+	mremap_dontunmap \
 	munmap_exe map_unaligned map_unmap mq \
 	nocwd \
 	pending \

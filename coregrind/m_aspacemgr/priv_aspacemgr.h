@@ -112,7 +112,8 @@ extern SysRes ML_(am_do_extend_mapping_NO_NOTIFY)(
 /* ditto */
 extern SysRes ML_(am_do_relocate_nooverlap_mapping_NO_NOTIFY)( 
                  Addr old_addr, Addr old_len, 
-                 Addr new_addr, Addr new_len 
+                 Addr new_addr, Addr new_len,
+                 Bool dontunmap
               );
 
 /* There is also VG_(do_mmap_NO_NOTIFY), but that's not declared

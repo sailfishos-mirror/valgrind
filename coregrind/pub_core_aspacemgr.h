@@ -327,7 +327,8 @@ extern const NSegment *VG_(am_extend_map_client)( Addr addr, SizeT delta );
    address ranges.  */
 extern Bool VG_(am_relocate_nooverlap_client)( /*OUT*/Bool* need_discard,
                                                Addr old_addr, SizeT old_len,
-                                               Addr new_addr, SizeT new_len );
+                                               Addr new_addr, SizeT new_len,
+                                               Bool dontunmap);
 
 //--------------------------------------------------------------
 // Valgrind (non-client) thread stacks.  V itself runs on such

@@ -301,6 +301,7 @@ SysRes do_mremap( Addr old_addr, SizeT old_len,
    Addr      advised;
    Bool      f_fixed   = toBool(flags & VKI_MREMAP_FIXED);
    Bool      f_maymove = toBool(flags & VKI_MREMAP_MAYMOVE);
+   Bool      f_dontunmap = toBool(flags & VKI_MREMAP_DONTUNMAP);
 
    if (0)
       VG_(printf)("do_remap (old %#lx %lu) (new %#lx %lu) %s %s\n",
@@ -310,7 +311,7 @@ SysRes do_mremap( Addr old_addr, SizeT old_len,
    if (0)
       VG_(am_show_nsegments)(0, "do_remap: before");
 
-   if (flags & ~(VKI_MREMAP_FIXED | VKI_MREMAP_MAYMOVE))
+   if (flags & ~(VKI_MREMAP_FIXED | VKI_MREMAP_MAYMOVE | VKI_MREMAP_DONTUNMAP))
       goto eINVAL;
 
    if (!VG_IS_PAGE_ALIGNED(old_addr))
@@ -335,6 +336,10 @@ SysRes do_mremap( Addr old_addr, SizeT old_len,
    /* kernel rejects all fixed, no-move requests (which are
       meaningless). */
    if (f_fixed == True && f_maymove == False)
+      goto eINVAL;
+
+   /* MREMAP_DONTUNMAP must be used in conjunction with MREMAP_MAYMOVE */
+   if (f_dontunmap == True && f_maymove == False)
       goto eINVAL;
 
    /* Stay away from non-client areas. */
@@ -399,6 +404,8 @@ SysRes do_mremap( Addr old_addr, SizeT old_len,
          goto shrink_in_place;
       if (new_len > old_len)
          goto grow_in_place_or_move_anywhere_or_fail;
+      if (f_dontunmap == True)
+         goto grow_in_place_or_move_anywhere_or_fail;
       goto same_in_place;
    }
 
@@ -419,7 +426,7 @@ SysRes do_mremap( Addr old_addr, SizeT old_len,
       if (!ok || advised != new_addr)
          goto eNOMEM;
       ok = VG_(am_relocate_nooverlap_client)
-              ( &d, old_addr, old_len, new_addr, new_len );
+              ( &d, old_addr, old_len, new_addr, new_len, f_dontunmap );
       if (ok) {
          VG_TRACK( copy_mem_remap, old_addr, new_addr, 
                                    MIN_SIZET(old_len,new_len) );
@@ -427,7 +434,8 @@ SysRes do_mremap( Addr old_addr, SizeT old_len,
             VG_TRACK( new_mem_mmap, new_addr+old_len, new_len-old_len,
                       old_seg->hasR, old_seg->hasW, old_seg->hasX,
                       0/*di_handle*/ );
-         VG_TRACK(die_mem_munmap, old_addr, old_len);
+         if (f_dontunmap == False)
+            VG_TRACK(die_mem_munmap, old_addr, old_len);
          if (d) {
             VG_(discard_translations)( old_addr, old_len, "do_remap(1)" );
             VG_(discard_translations)( new_addr, new_len, "do_remap(2)" );
@@ -446,7 +454,10 @@ SysRes do_mremap( Addr old_addr, SizeT old_len,
    Addr   needA = old_addr + old_len;
    SSizeT needL = new_len - old_len;
 
-   vg_assert(needL > 0);
+   if (f_dontunmap == False)
+      vg_assert(needL > 0);
+   else
+      vg_assert(needL == 0);
    vg_assert(needA > 0);
 
    advised = VG_(am_get_advisory_client_simple)( needA, needL, &ok );
@@ -475,14 +486,15 @@ SysRes do_mremap( Addr old_addr, SizeT old_len,
       vg_assert(advised+new_len-1 < old_addr 
                 || advised > old_addr+old_len-1);
       ok = VG_(am_relocate_nooverlap_client)
-              ( &d, old_addr, old_len, advised, new_len );
+              ( &d, old_addr, old_len, advised, new_len, f_dontunmap );
       if (ok) {
          VG_TRACK( copy_mem_remap, old_addr, advised, 
                                    MIN_SIZET(old_len,new_len) );
          if (new_len > old_len)
             VG_TRACK( new_mem_mmap, advised+old_len, new_len-old_len,
                       oldR, oldW, oldX, 0/*di_handle*/ );
-         VG_TRACK(die_mem_munmap, old_addr, old_len);
+         if (f_dontunmap == False)
+            VG_TRACK(die_mem_munmap, old_addr, old_len);
          if (d) {
             VG_(discard_translations)( old_addr, old_len, "do_remap(4)" );
             VG_(discard_translations)( advised, new_len, "do_remap(5)" );

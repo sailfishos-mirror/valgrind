@@ -1363,6 +1363,7 @@ struct  vki_seminfo {
 
 #define VKI_MREMAP_MAYMOVE	1
 #define VKI_MREMAP_FIXED	2
+#define VKI_MREMAP_DONTUNMAP	4
 
 //----------------------------------------------------------------------
 // Common madvise flags mman-common.h

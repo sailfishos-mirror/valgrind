@@ -3691,7 +3691,8 @@ const NSegment *VG_(am_extend_map_client)( Addr addr, SizeT delta )
 
 Bool VG_(am_relocate_nooverlap_client)( /*OUT*/Bool* need_discard,
                                         Addr old_addr, SizeT old_len,
-                                        Addr new_addr, SizeT new_len )
+                                        Addr new_addr, SizeT new_len,
+                                        Bool dontunmap )
 {
    Int      iLo, iHi;
    SysRes   sres;
@@ -3724,7 +3725,7 @@ Bool VG_(am_relocate_nooverlap_client)( /*OUT*/Bool* need_discard,
       return False;
 
    sres = ML_(am_do_relocate_nooverlap_mapping_NO_NOTIFY)
-             ( old_addr, old_len, new_addr, new_len );
+             ( old_addr, old_len, new_addr, new_len, dontunmap );
    if (sr_isError(sres)) {
       AM_SANITY_CHECK;
       return False;
@@ -3749,6 +3750,7 @@ Bool VG_(am_relocate_nooverlap_client)( /*OUT*/Bool* need_discard,
    add_segment( &seg );
 
    /* Create a free hole in the old location. */
+if(dontunmap == False) {
    init_nsegment( &seg );
    seg.start = old_addr;
    seg.end   = old_addr + old_len - 1;
@@ -3765,6 +3767,7 @@ Bool VG_(am_relocate_nooverlap_client)( /*OUT*/Bool* need_discard,
    fill_segment( &seg );
 #endif
    add_segment( &seg );
+}
 
    AM_SANITY_CHECK;
    return True;
