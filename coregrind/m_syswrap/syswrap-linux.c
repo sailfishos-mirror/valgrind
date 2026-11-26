@@ -724,7 +724,7 @@ static SysRes do_clone ( ThreadId ptid,
 
    We cannot keep the flag CLONE_VM, as Valgrind will do whatever host
    instructions in the child process, that will mess up the parent host
-   memory. So, we hope for the best and assumes that the guest application does
+   memory. So, we hope for the best and assume that the guest application does
    not (really) depends on sharing the memory between parent and child in the
    interval between clone and exits/execve.
 
