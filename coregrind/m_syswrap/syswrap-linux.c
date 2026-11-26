@@ -905,8 +905,8 @@ PRE(sys_clone)
 
    /* Only look at the flags we really care about */
    switch (cloneflags & (VKI_CLONE_VM | VKI_CLONE_FS 
-                         | VKI_CLONE_FILES | VKI_CLONE_VFORK)) {
-   case VKI_CLONE_VM | VKI_CLONE_FS | VKI_CLONE_FILES:
+                         | VKI_CLONE_FILES | VKI_CLONE_VFORK | VKI_CLONE_THREAD)) {
+   case VKI_CLONE_VM | VKI_CLONE_FS | VKI_CLONE_FILES | VKI_CLONE_THREAD:
       /* thread creation */
       SET_STATUS_from_SysRes(
          do_clone(tid,
